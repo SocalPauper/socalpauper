@@ -25,6 +25,28 @@ def classify_advantage(win_rate: float) -> str:
         return "unfavorable"
     return "even"
 
+def parse_decklist_text(raw_text: str):
+    mainboard = []
+    sideboard = []
+    is_side = False
+
+    for line in raw_text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("//"):
+            continue
+        if re.search(r"^(sideboard|side|sb:)", line, re.IGNORECASE):
+            is_side = True
+            continue
+        m = re.match(r"^(\d+)[xX]?\s+(.+)$", line)
+        if m:
+            qty = int(m.group(1))
+            cname = clean_card_name(m.group(2))
+            if len(cname) > 1 and cname.lower() not in ["lands", "creatures", "spells", "artifacts"]:
+                target = sideboard if is_side else mainboard
+                target.append({"name": cname, "count": qty})
+
+    return mainboard, sideboard
+
 async def scrape_metagame():
     print("[*] Launching Chromium via Playwright...")
     async with async_playwright() as p:
@@ -39,7 +61,7 @@ async def scrape_metagame():
         await page.goto(MTGDECKS_PAUPER_URL, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(3000)
 
-        # Scrape top 10 archetypes from the metagame table
+        # Scrape top 10 archetypes from metagame table
         archetypes = await page.evaluate('''() => {
             const results = [];
             const rows = document.querySelectorAll("table tr");
@@ -87,21 +109,32 @@ async def scrape_metagame():
             if len(filtered_archetypes) >= 10:
                 break
 
-        print(f"[✓] Located {len(filtered_archetypes)} archetypes. Fetching lists...")
+        print(f"[✓] Located {len(filtered_archetypes)} archetypes. Fetching tournament lists...")
         final_decks = []
 
         for idx, arch in enumerate(filtered_archetypes, start=1):
-            print(f"  [{idx}/10] Visiting: {arch['name']}...")
+            print(f"\n  [{idx}/10] Visiting: {arch['name']} ({arch['url']})...")
             try:
                 await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
-                await page.wait_for_timeout(2500)
+                await page.wait_for_timeout(2000)
 
-                # Locate tournament decklink on the archetype overview page
+                # Locate the first tournament deck link on the archetype page
                 deck_url = await page.evaluate('''() => {
-                    const links = Array.from(document.querySelectorAll("a[href]"));
-                    for (const a of links) {
+                    // Method 1: Find link in tournament placement table
+                    const tableLinks = document.querySelectorAll("table a[href*='/Pauper/']");
+                    for (const a of tableLinks) {
                         const h = a.getAttribute("href") || "";
-                        if (h.includes("decklist-by-") || /\\/deck\\/\\d+/i.test(h)) {
+                        // Placement deck URLs end with numbers or contain decklist keywords
+                        if (/-\\d+$|decklist/i.test(h)) {
+                            return h.startsWith("http") ? h : "https://mtgdecks.net" + h;
+                        }
+                    }
+
+                    // Method 2: Any anchor matching /deck/ or numeric ID
+                    const allLinks = document.querySelectorAll("a[href]");
+                    for (const a of allLinks) {
+                        const h = a.getAttribute("href") || "";
+                        if (/\\/deck\\/\\d+/i.test(h) || (/\\/Pauper\\/[^\\/]+-\\d+$/i.test(h) && !h.includes("metagame:"))) {
                             return h.startsWith("http") ? h : "https://mtgdecks.net" + h;
                         }
                     }
@@ -109,65 +142,94 @@ async def scrape_metagame():
                 }''')
 
                 if not deck_url:
-                    print(f"      [!] No tournament placement link found on {arch['url']}")
+                    print(f"      [!] No sub-deck URL found on {arch['name']} overview page.")
                     continue
 
-                print(f"      -> Drilling down to deck: {deck_url}")
+                print(f"      -> Drilling down to tournament deck: {deck_url}")
                 await page.goto(deck_url, wait_until="domcontentloaded", timeout=45000)
-                await page.wait_for_timeout(2500)
+                await page.wait_for_timeout(2000)
 
-                # Extract card counts and names directly from the deck page
-                deck_cards = await page.evaluate('''() => {
-                    const main = [];
-                    const side = [];
-                    let isSide = false;
+                # Method A: Try to click the Export button if present to open plaintext modal
+                raw_text = None
+                try:
+                    export_btn = page.locator("a:has-text('Export'), button:has-text('Export'), .export-deck")
+                    if await export_btn.count() > 0:
+                        await export_btn.first.click()
+                        await page.wait_for_timeout(1000)
+                except Exception:
+                    pass
 
-                    const rows = document.querySelectorAll("tr, li, .card-item");
-                    for (const row of rows) {
-                        const text = row.innerText.trim();
-
-                        if (/\\b(Sideboard|Side)\\b/i.test(text) && !row.querySelector("a")) {
-                            isSide = true;
-                            continue;
-                        }
-
-                        const cardAnchor = row.querySelector("a[href*='/cards/'], a[href*='/card/'], a");
-                        if (!cardAnchor) continue;
-
-                        const cname = cardAnchor.innerText.trim();
-                        if (!cname || cname.length < 2) continue;
-                        if (["lands", "creatures", "spells", "artifacts", "instants", "sorceries"].includes(cname.toLowerCase())) continue;
-
-                        let qty = null;
-                        const tds = row.querySelectorAll("td");
-                        for (const td of tds) {
-                            const val = td.innerText.trim();
-                            if (/^\\d{1,2}$/.test(val)) {
-                                qty = parseInt(val, 10);
-                                break;
-                            }
-                        }
-
-                        if (!qty) {
-                            const m = text.match(/^(\\d{1,2})\\b/);
-                            if (m) qty = parseInt(m[1], 10);
-                        }
-
-                        if (qty && qty >= 1 && qty <= 30) {
-                            const targetList = isSide ? side : main;
-                            if (!targetList.some(c => c.name === cname)) {
-                                targetList.push({ name: cname, count: qty });
-                            }
+                # Check if a textarea with decklist appeared
+                raw_text = await page.evaluate('''() => {
+                    const textareas = document.querySelectorAll("textarea");
+                    for (const t of textareas) {
+                        const val = t.value || t.innerText || "";
+                        if (val.length > 50 && (/\\d+\\s+[A-Za-z]/.test(val) || val.includes("Sideboard"))) {
+                            return val;
                         }
                     }
-                    return { main, side };
+                    return null;
                 }''')
 
-                mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards["main"]]
-                sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards["side"]]
+                mainboard, sideboard = [], []
+                if raw_text:
+                    mainboard, sideboard = parse_decklist_text(raw_text)
+
+                # Method B: Fallback to scraping the rendered decklist DOM directly
+                if not mainboard:
+                    deck_cards = await page.evaluate('''() => {
+                        const main = [];
+                        const side = [];
+                        let isSide = false;
+
+                        // Target the decklist container directly
+                        const containers = document.querySelectorAll(".deck, .deck-view, .deckList, table");
+                        for (const container of containers) {
+                            const rows = container.querySelectorAll("tr, li, .card-item");
+                            for (const row of rows) {
+                                const text = row.innerText.trim();
+                                if (/\\b(Sideboard|Side)\\b/i.test(text) && !row.querySelector("a")) {
+                                    isSide = true;
+                                    continue;
+                                }
+
+                                const cardAnchor = row.querySelector("a[href*='/cards/'], a[href*='/card/'], a");
+                                if (!cardAnchor) continue;
+                                const cname = cardAnchor.innerText.trim();
+                                if (!cname || cname.length < 2) continue;
+                                if (["lands", "creatures", "spells", "artifacts", "instants", "sorceries"].includes(cname.toLowerCase())) continue;
+
+                                let qty = null;
+                                const tds = row.querySelectorAll("td");
+                                for (const td of tds) {
+                                    const val = td.innerText.trim();
+                                    if (/^\\d{1,2}$/.test(val)) {
+                                        qty = parseInt(val, 10);
+                                        break;
+                                    }
+                                }
+                                if (!qty) {
+                                    const m = text.match(/^(\\d{1,2})\\b/);
+                                    if (m) qty = parseInt(m[1], 10);
+                                }
+
+                                if (qty && qty >= 1 && qty <= 30) {
+                                    const targetList = isSide ? side : main;
+                                    if (!targetList.some(c => c.name === cname)) {
+                                        targetList.push({ name: cname, count: qty });
+                                    }
+                                }
+                            }
+                            if (main.length >= 10) break;
+                        }
+                        return { main, side };
+                    }''')
+
+                    mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards["main"]]
+                    sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards["side"]]
 
                 if not mainboard:
-                    print(f"      [!] 0 cards extracted on deck page: {deck_url}")
+                    print(f"      [!] 0 cards extracted for {arch['name']}")
                     continue
 
                 print(f"      [✓] Extracted {len(mainboard)} mainboard, {len(sideboard)} sideboard cards.")
@@ -216,7 +278,7 @@ async def scrape_metagame():
         with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
             json.dump(final_decks, f, indent=2, ensure_ascii=False)
 
-        print(f"\n[✓] Successfully compiled {len(final_decks)} decks into {OUTPUT_PATH}")
+        print(f"\n[✓] Successfully compiled {len(final_decks)} live decks into {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     asyncio.run(scrape_metagame())
