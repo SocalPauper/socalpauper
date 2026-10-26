@@ -5,6 +5,7 @@ from playwright.async_api import async_playwright
 
 MTGDECKS_PAUPER_URL = "https://mtgdecks.net/Pauper"
 OUTPUT_PATH = "data/top_decks.json"
+BUILD_VERSION = "2026-v3-export-engine"
 
 EXCLUDED_SLUGS = {
     "pauperstaples", "winrates", "staples", "mtgo", "meta", "major", 
@@ -47,7 +48,7 @@ def parse_plaintext_decklist(raw_text: str):
     return mainboard, sideboard
 
 async def scrape_metagame():
-    print("[*] Launching Chromium in headless mode via Playwright...")
+    print(f"[*] Starting scraper engine [{BUILD_VERSION}] via Playwright...")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -56,11 +57,11 @@ async def scrape_metagame():
         )
         page = await context.new_page()
 
-        print(f"[*] Navigating to {MTGDECKS_PAUPER_URL}...")
+        print(f"[*] Loading Pauper metagame: {MTGDECKS_PAUPER_URL}...")
         await page.goto(MTGDECKS_PAUPER_URL, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(3000)
 
-        # Scrape the top 10 archetypes from the Pauper metagame table
+        # Scrape top 10 archetypes
         archetypes = await page.evaluate('''() => {
             const results = [];
             const rows = document.querySelectorAll("table tr");
@@ -108,73 +109,87 @@ async def scrape_metagame():
             if len(filtered_archetypes) >= 10:
                 break
 
-        print(f"[✓] Located {len(filtered_archetypes)} archetypes. Fetching lists...")
+        print(f"[✓] Located {len(filtered_archetypes)} top archetypes. Ingesting decklists...")
         final_decks = []
 
         for idx, arch in enumerate(filtered_archetypes, start=1):
-            print(f"\n  [{idx}/10] Visiting archetype: {arch['name']}...")
+            print(f"\n  [{idx}/10] Visiting: {arch['name']} -> {arch['url']}")
             try:
+                # 1. Navigate to archetype page
                 await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
                 await page.wait_for_timeout(2000)
 
-                # Locate tournament deck link
+                # 2. Find tournament deck placement link
                 deck_url = await page.evaluate('''() => {
-                    // Look for deck link in the tournament results table
-                    const links = document.querySelectorAll("table a[href*='/Pauper/'], table a[href*='/deck/']");
+                    // Check for links to individual decks (decklist-by-... or /deck/...)
+                    const links = Array.from(document.querySelectorAll("a[href]"));
                     for (const a of links) {
                         const h = a.getAttribute("href") || "";
-                        if (/-\\d+$|decklist/i.test(h)) {
-                            return h.startsWith("http") ? h : "https://mtgdecks.net" + h;
-                        }
-                    }
-                    // Fallback to any deck link
-                    const allLinks = document.querySelectorAll("a[href*='/deck/'], a[href*='/Pauper/']");
-                    for (const a of allLinks) {
-                        const h = a.getAttribute("href") || "";
-                        if (/\\/deck\\/\\d+/i.test(h) || /\\/Pauper\\/[a-z0-9\\-]+-\\d+$/i.test(h)) {
-                            return h.startsWith("http") ? h : "https://mtgdecks.net" + h;
+                        if (h.includes("decklist") || /\\/deck\\/\\d+/i.test(h) || /\\/Pauper\\/[^\\/]+-\\d+$/i.test(h)) {
+                            if (!h.includes("metagame:") && !h.endsWith("/Pauper")) {
+                                return h.startsWith("http") ? h : "https://mtgdecks.net" + h;
+                            }
                         }
                     }
                     return null;
                 }''')
 
+                # If no deck link on default tab, try the archetype's /decks tab
+                if not deck_url:
+                    decks_tab_url = arch["url"].rstrip("/") + "/decks"
+                    print(f"      [debug] Checking decks tab: {decks_tab_url}")
+                    await page.goto(decks_tab_url, wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(2000)
+                    deck_url = await page.evaluate('''() => {
+                        const links = Array.from(document.querySelectorAll("a[href]"));
+                        for (const a of links) {
+                            const h = a.getAttribute("href") || "";
+                            if (h.includes("decklist") || /\\/deck\\/\\d+/i.test(h) || /-\\d+$/i.test(h)) {
+                                return h.startsWith("http") ? h : "https://mtgdecks.net" + h;
+                            }
+                        }
+                        return null;
+                    }''')
+
                 mainboard, sideboard = [], []
 
                 if deck_url:
-                    print(f"      -> Drilling into deck: {deck_url}")
-                    # Try accessing the direct /txt export endpoint first
-                    txt_url = deck_url.rstrip("/") + "/txt"
+                    print(f"      -> Drilling into decklist: {deck_url}")
+                    await page.goto(deck_url, wait_until="domcontentloaded", timeout=45000)
+                    await page.wait_for_timeout(2000)
+
+                    # Strategy A: Click the Export button to get clean plaintext
                     try:
-                        resp = await page.goto(txt_url, wait_until="domcontentloaded", timeout=15000)
-                        if resp and resp.status == 200:
-                            body_text = await page.inner_text("body")
-                            if len(body_text) > 80 and ("Creature" in body_text or "Land" in body_text or re.search(r"^\d+\s+[A-Za-z]", body_text, re.M)):
-                                mainboard, sideboard = parse_plaintext_decklist(body_text)
+                        export_btn = page.locator("a:has-text('Export'), button:has-text('Export'), .export-deck")
+                        if await export_btn.count() > 0:
+                            await export_btn.first.click()
+                            await page.wait_for_timeout(1000)
                     except Exception:
                         pass
 
-                    # If /txt wasn't clean, visit the main deck page and scrape DOM
-                    if not mainboard:
-                        await page.goto(deck_url, wait_until="domcontentloaded", timeout=30000)
-                        await page.wait_for_timeout(2000)
+                    raw_text = await page.evaluate('''() => {
+                        const textareas = document.querySelectorAll("textarea");
+                        for (const ta of textareas) {
+                            const v = ta.value || ta.innerText || "";
+                            if (v.length > 40 && (/\\d+\\s+[A-Za-z]/.test(v) || v.includes("Sideboard"))) {
+                                return v;
+                            }
+                        }
+                        return null;
+                    }''')
 
-                # DOM parse fallback (works on deck page or archetype page)
+                    if raw_text:
+                        mainboard, sideboard = parse_plaintext_decklist(raw_text)
+
+                # Strategy B: DOM fallback parse for card tables
                 if not mainboard:
+                    print("      [debug] Parsing rendered DOM table...")
                     deck_cards = await page.evaluate('''() => {
                         const main = [];
                         const side = [];
                         let isSide = false;
 
-                        // Check for textarea export modal
-                        const textareas = document.querySelectorAll("textarea");
-                        for (const ta of textareas) {
-                            if (ta.value && ta.value.length > 50 && /\\d+\\s+[A-Za-z]/.test(ta.value)) {
-                                return { rawText: ta.value };
-                            }
-                        }
-
-                        // Search all table rows and list items
-                        const rows = document.querySelectorAll("tr, li, div.card-item, .deck-view tr");
+                        const rows = document.querySelectorAll("tr, li, .card-item");
                         for (const row of rows) {
                             const text = row.innerText.trim();
                             if (/\\b(Sideboard|Side)\\b/i.test(text) && !row.querySelector("a")) {
@@ -212,17 +227,14 @@ async def scrape_metagame():
                         return { main, side };
                     }''')
 
-                    if "rawText" in deck_cards:
-                        mainboard, sideboard = parse_plaintext_decklist(deck_cards["rawText"])
-                    else:
-                        mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("main", [])]
-                        sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("side", [])]
+                    mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("main", [])]
+                    sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("side", [])]
 
                 if not mainboard:
-                    print(f"      [!] Could not parse cards for {arch['name']}")
+                    print(f"      [!] 0 cards parsed for {arch['name']}")
                     continue
 
-                print(f"      [✓] Extracted {len(mainboard)} mainboard, {len(sideboard)} sideboard cards.")
+                print(f"      [✓] Parsed {len(mainboard)} mainboard, {len(sideboard)} sideboard cards.")
                 final_decks.append({
                     "id": arch["id"],
                     "name": arch["name"],
@@ -237,15 +249,15 @@ async def scrape_metagame():
                 })
 
             except Exception as e:
-                print(f"      [!] Error loading {arch['name']}: {e}")
+                print(f"      [!] Error processing {arch['name']}: {e}")
 
         await browser.close()
 
         if len(final_decks) < 4:
-            raise RuntimeError(f"Retrieved only {len(final_decks)} decks. Halting update to protect existing data.")
+            raise RuntimeError(f"Retrieved only {len(final_decks)} valid decks. Halting update to protect existing data.")
 
-        # Matchup matrix generation
-        print(f"\n[*] Generating cross-matchups for {len(final_decks)} decks...")
+        # Matchup generation
+        print(f"\n[*] Generating cross-matchups across {len(final_decks)} decks...")
         for idx, d in enumerate(final_decks):
             opponents = [o for o in final_decks if o["id"] != d["id"]]
             matchups = []
@@ -269,7 +281,7 @@ async def scrape_metagame():
         with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
             json.dump(final_decks, f, indent=2, ensure_ascii=False)
 
-        print(f"\n[✓] Successfully updated {len(final_decks)} decks in {OUTPUT_PATH}")
+        print(f"\n[✓] Successfully compiled {len(final_decks)} live decks into {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     asyncio.run(scrape_metagame())
