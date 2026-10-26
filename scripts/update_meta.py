@@ -26,7 +26,7 @@ def classify_advantage(win_rate: float) -> str:
     return "even"
 
 async def scrape_metagame():
-    print("[*] Launching Chromium via Playwright...")
+    print("[*] Launching Chromium in headless mode...")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -35,12 +35,11 @@ async def scrape_metagame():
         )
         page = await context.new_page()
 
-        print(f"[*] Navigating to {MTGDECKS_PAUPER_URL}...")
+        print(f"[*] Loading {MTGDECKS_PAUPER_URL}...")
         await page.goto(MTGDECKS_PAUPER_URL, wait_until="domcontentloaded", timeout=60000)
-        # Give Cloudflare and client scripts 3 seconds to settle
         await page.wait_for_timeout(3000)
 
-        # Locate archetype rows in the metagame table
+        # Extract top archetypes from table
         archetypes = await page.evaluate('''() => {
             const results = [];
             const rows = document.querySelectorAll("table tr");
@@ -52,7 +51,6 @@ async def scrape_metagame():
                     const name = a.innerText.trim();
                     if (!name || name.length < 3) continue;
 
-                    // Parse row cells for meta share and win rate
                     const tds = Array.from(tr.querySelectorAll("td")).map(td => td.innerText.trim());
                     let metaShare = "5.0%";
                     let winRate = "52.0%";
@@ -82,7 +80,6 @@ async def scrape_metagame():
             return results;
         }''')
 
-        # Filter out navigation links
         filtered_archetypes = []
         for arch in archetypes:
             if arch["id"] not in EXCLUDED_SLUGS and not any(x["id"] == arch["id"] for x in filtered_archetypes):
@@ -90,16 +87,16 @@ async def scrape_metagame():
             if len(filtered_archetypes) >= 10:
                 break
 
-        print(f"[✓] Found {len(filtered_archetypes)} archetypes. Extracting decklists...")
+        print(f"[✓] Located {len(filtered_archetypes)} archetypes. Fetching lists...")
         final_decks = []
 
         for idx, arch in enumerate(filtered_archetypes, start=1):
-            print(f"  [{idx}/10] Visiting: {arch['name']} ({arch['url']})...")
+            print(f"  [{idx}/10] Visiting: {arch['name']}...")
             try:
                 await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
                 await page.wait_for_timeout(2000)
 
-                # Find link to newest tournament deck placement
+                # Look for tournament placement decklink
                 deck_url = await page.evaluate('''() => {
                     const links = Array.from(document.querySelectorAll("a[href]"));
                     for (const a of links) {
@@ -113,11 +110,9 @@ async def scrape_metagame():
 
                 target = deck_url or arch["url"]
                 if target != arch["url"]:
-                    print(f"      -> Drilling down to deck: {target}")
                     await page.goto(target, wait_until="domcontentloaded", timeout=45000)
                     await page.wait_for_timeout(2000)
 
-                # Parse decklist cards directly from page DOM
                 deck_cards = await page.evaluate('''() => {
                     const main = [];
                     const side = [];
@@ -137,7 +132,6 @@ async def scrape_metagame():
                         if (!cname || cname.length < 2) continue;
                         if (["lands", "creatures", "spells", "artifacts", "instants", "sorceries"].includes(cname.lower())) continue;
 
-                        // Find quantity
                         let qty = null;
                         const tds = row.querySelectorAll("td");
                         for (const td of tds) {
@@ -147,7 +141,6 @@ async def scrape_metagame():
                                 break;
                             }
                         }
-
                         if (!qty) {
                             const m = text.match(/^(\\d{1,2})\\b/);
                             if (m) qty = parseInt(m[1], 10);
@@ -167,11 +160,10 @@ async def scrape_metagame():
                 sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards["side"]]
 
                 if not mainboard:
-                    print(f"      [!] 0 cards found for {arch['name']}, skipping.")
+                    print(f"      [!] 0 cards extracted for {arch['name']}, skipping.")
                     continue
 
-                print(f"      [✓] Parsed {len(mainboard)} mainboard, {len(sideboard)} sideboard cards.")
-
+                print(f"      [✓] Extracted {len(mainboard)} mainboard, {len(sideboard)} sideboard cards.")
                 final_decks.append({
                     "id": arch["id"],
                     "name": arch["name"],
@@ -191,9 +183,9 @@ async def scrape_metagame():
         await browser.close()
 
         if len(final_decks) < 4:
-            raise RuntimeError(f"Scraper retrieved only {len(final_decks)} decks. Aborting to protect existing data.")
+            raise RuntimeError(f"Retrieved only {len(final_decks)} decks. Halting update.")
 
-        # Calculate matchups between top decks
+        # Build dynamic matchup matrix
         for idx, d in enumerate(final_decks):
             opponents = [o for o in final_decks if o["id"] != d["id"]]
             matchups = []
@@ -217,7 +209,7 @@ async def scrape_metagame():
         with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
             json.dump(final_decks, f, indent=2, ensure_ascii=False)
 
-        print(f"\n[✓] Successfully updated {len(final_decks)} decks in {OUTPUT_PATH}")
+        print(f"\n[✓] Successfully compiled {len(final_decks)} decks to {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     asyncio.run(scrape_metagame())
