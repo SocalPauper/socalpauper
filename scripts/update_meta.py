@@ -1,11 +1,11 @@
 import json
+import math
 import re
 import asyncio
 from playwright.async_api import async_playwright
 
 MTGDECKS_PAUPER_URL = "https://mtgdecks.net/Pauper"
 OUTPUT_PATH = "data/top_decks.json"
-BUILD_VERSION = "2026-v3-export-engine"
 
 EXCLUDED_SLUGS = {
     "pauperstaples", "winrates", "staples", "mtgo", "meta", "major", 
@@ -48,7 +48,7 @@ def parse_plaintext_decklist(raw_text: str):
     return mainboard, sideboard
 
 async def scrape_metagame():
-    print(f"[*] Starting scraper engine [{BUILD_VERSION}] via Playwright...")
+    print("[*] Launching Chromium via Playwright...")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -57,47 +57,63 @@ async def scrape_metagame():
         )
         page = await context.new_page()
 
-        print(f"[*] Loading Pauper metagame: {MTGDECKS_PAUPER_URL}...")
+        print(f"[*] Fetching Pauper metagame table from {MTGDECKS_PAUPER_URL}...")
         await page.goto(MTGDECKS_PAUPER_URL, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(3000)
 
-        # Scrape top 10 archetypes
+        # 1. Target the primary metagame rankings table (ignoring sidebars/recent decks)
         archetypes = await page.evaluate('''() => {
             const results = [];
-            const rows = document.querySelectorAll("table tr");
-            for (const tr of rows) {
-                const links = tr.querySelectorAll("a[href*='/Pauper/']");
-                for (const a of links) {
-                    const href = a.getAttribute("href") || "";
-                    const slug = href.split("/").pop().toLowerCase();
-                    const name = a.innerText.trim();
-                    if (!name || name.length < 3) continue;
-
-                    const tds = Array.from(tr.querySelectorAll("td")).map(td => td.innerText.trim());
-                    let metaShare = "5.0%";
-                    let winRate = "52.0%";
-                    let sampleMatches = 280;
-
-                    for (const t of tds) {
-                        if (t.includes("%") && metaShare === "5.0%") {
-                            metaShare = t;
-                        } else if (t.includes("%") && winRate === "52.0%") {
-                            winRate = t;
-                        }
-                        const num = t.match(/\\b\\d{3,5}\\b/);
-                        if (num) sampleMatches = parseInt(num[0], 10);
-                    }
-
-                    results.push({
-                        id: slug,
-                        name: name,
-                        url: href.startsWith("http") ? href : "https://mtgdecks.net" + href,
-                        metaShare: metaShare,
-                        overallWinRate: winRate,
-                        sampleMatches: sampleMatches
-                    });
+            
+            // Find all tables and locate the one containing meta percentages
+            const tables = Array.from(document.querySelectorAll("table"));
+            let metaTable = null;
+            for (const table of tables) {
+                const headerText = table.innerText.toLowerCase();
+                if ((headerText.includes("archetype") || headerText.includes("deck")) && (headerText.includes("meta") || headerText.includes("win rate") || headerText.includes("%"))) {
+                    metaTable = table;
                     break;
                 }
+            }
+            if (!metaTable && tables.length > 0) metaTable = tables[0];
+
+            const rows = metaTable ? Array.from(metaTable.querySelectorAll("tr")) : [];
+            for (const tr of rows) {
+                // Find anchor pointing strictly to /Pauper/archetype-name
+                const a = tr.querySelector("a[href*='/Pauper/']");
+                if (!a) continue;
+
+                const href = a.getAttribute("href") || "";
+                // Discard sub-deck links, winrates, or non-archetype paths
+                if (/\\/deck\\/|decklist|winrates|staples|metagame:/i.test(href)) continue;
+
+                const slug = href.split("/").pop().toLowerCase();
+                const name = a.innerText.trim();
+                if (!name || name.length < 3 || /^(pauper|decks|articles|filter)$/i.test(slug)) continue;
+
+                const tds = Array.from(tr.querySelectorAll("td")).map(td => td.innerText.trim());
+                let metaShare = "5.0%";
+                let winRate = "52.0%";
+                let sampleMatches = 280;
+
+                for (const t of tds) {
+                    if (t.includes("%") && metaShare === "5.0%") {
+                        metaShare = t;
+                    } else if (t.includes("%") && winRate === "52.0%") {
+                        winRate = t;
+                    }
+                    const num = t.match(/\\b\\d{3,5}\\b/);
+                    if (num) sampleMatches = parseInt(num[0], 10);
+                }
+
+                results.push({
+                    id: slug,
+                    name: name,
+                    url: href.startsWith("http") ? href : "https://mtgdecks.net" + href,
+                    metaShare: metaShare,
+                    overallWinRate: winRate,
+                    sampleMatches: sampleMatches
+                });
             }
             return results;
         }''')
@@ -109,81 +125,126 @@ async def scrape_metagame():
             if len(filtered_archetypes) >= 10:
                 break
 
-        print(f"[✓] Located {len(filtered_archetypes)} top archetypes. Ingesting decklists...")
+        print(f"[✓] Identified Top {len(filtered_archetypes)} Archetypes:")
+        for idx, a in enumerate(filtered_archetypes, 1):
+            print(f"    {idx}. {a['name']} ({a['metaShare']})")
+
         final_decks = []
 
+        # 2. Iterate each archetype, score recent tournament finishes, and choose the top 75-card list
         for idx, arch in enumerate(filtered_archetypes, start=1):
-            print(f"\n  [{idx}/10] Visiting: {arch['name']} -> {arch['url']}")
+            print(f"\n[{idx}/10] Evaluating tournament finishes for: {arch['name']}...")
             try:
-                # 1. Navigate to archetype page
                 await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
                 await page.wait_for_timeout(2000)
 
-                # 2. Find tournament deck placement link
-                deck_url = await page.evaluate('''() => {
-                    // Check for links to individual decks (decklist-by-... or /deck/...)
-                    const links = Array.from(document.querySelectorAll("a[href]"));
-                    for (const a of links) {
-                        const h = a.getAttribute("href") || "";
-                        if (h.includes("decklist") || /\\/deck\\/\\d+/i.test(h) || /\\/Pauper\\/[^\\/]+-\\d+$/i.test(h)) {
-                            if (!h.includes("metagame:") && !h.endsWith("/Pauper")) {
-                                return h.startsWith("http") ? h : "https://mtgdecks.net" + h;
-                            }
+                tournament_candidates = await page.evaluate('''() => {
+                    const entries = [];
+                    // Scan table rows for tournament placements and deck links
+                    const rows = document.querySelectorAll("tr");
+                    for (const row of rows) {
+                        const deckAnchor = row.querySelector("a[href*='decklist'], a[href*='/deck/'], a[href*='/Pauper/']");
+                        if (!deckAnchor) continue;
+
+                        const href = deckAnchor.getAttribute("href") || "";
+                        // Verify link points to a concrete deck (numeric ID or decklist slug)
+                        if (!(/-\\d+$|\\/deck\\/\\d+|decklist/i.test(href))) continue;
+
+                        const rowText = row.innerText.toLowerCase();
+                        const cells = Array.from(row.querySelectorAll("td")).map(c => c.innerText.trim());
+
+                        // Detect placement
+                        let placement = "5th-8th";
+                        if (/1st|winner|champion|1º/i.test(rowText)) placement = "1st";
+                        else if (/2nd|finalist|2º/i.test(rowText)) placement = "2nd";
+                        else if (/3rd|4th|semifinal/i.test(rowText)) placement = "3rd-4th";
+                        else if (/5-0|5\\/0/.test(rowText)) placement = "5-0";
+
+                        // Detect tournament size / attendance
+                        let players = 32;
+                        const playerMatch = rowText.match(/(\\d{2,3})\\s*(?:players|player|p\\b)/i) || 
+                                            rowText.match(/challenge\\s*(\\d{2,3})/i);
+                        if (playerMatch) {
+                            players = parseInt(playerMatch[1], 10);
+                        } else if (/showcase/i.test(rowText)) {
+                            players = 128;
+                        } else if (/challenge/i.test(rowText)) {
+                            players = 64;
+                        } else if (/league/i.test(rowText)) {
+                            players = 24;
+                        }
+
+                        // Detect win-loss record
+                        let wins = 5, losses = 1;
+                        const wlMatch = rowText.match(/(\\d{1,2})\\s*-\\s*(\\d{1,2})/);
+                        if (wlMatch) {
+                            wins = parseInt(wlMatch[1], 10);
+                            losses = parseInt(wlMatch[2], 10);
+                        }
+
+                        entries.push({
+                            url: href.startsWith("http") ? href : "https://mtgdecks.net" + href,
+                            title: deckAnchor.innerText.trim() || "Tournament Deck",
+                            placement: placement,
+                            players: players,
+                            wins: wins,
+                            losses: losses
+                        });
+                    }
+                    return entries;
+                }''')
+
+                best_deck_url = None
+                if tournament_candidates:
+                    # Score candidates using: PlacementMultiplier * sqrt(Players) * WinRate
+                    def calculate_score(entry):
+                        mults = {"1st": 2.5, "2nd": 2.0, "3rd-4th": 1.6, "5-0": 1.0, "5th-8th": 1.3}
+                        p_mult = mults.get(entry["placement"], 1.1)
+                        total_games = entry["wins"] + entry["losses"]
+                        win_rate = (entry["wins"] / total_games) if total_games > 0 else 0.70
+                        attendance_weight = math.sqrt(max(entry["players"], 8))
+                        return p_mult * attendance_weight * win_rate
+
+                    tournament_candidates.sort(key=calculate_score, reverse=True)
+                    top_candidate = tournament_candidates[0]
+                    best_deck_url = top_candidate["url"]
+                    print(f"      [★] Selected premier list: {top_candidate['placement']} ({top_candidate['wins']}-{top_candidate['losses']}) in {top_candidate['players']}-player event")
+                    print(f"          URL: {best_deck_url}")
+
+                if not best_deck_url:
+                    print(f"      [!] No tournament placements found for {arch['name']}, skipping.")
+                    continue
+
+                # 3. Drill down to the selected premier decklist
+                await page.goto(best_deck_url, wait_until="domcontentloaded", timeout=45000)
+                await page.wait_for_timeout(2000)
+
+                # Export plaintext modal check
+                try:
+                    export_btn = page.locator("a:has-text('Export'), button:has-text('Export'), .export-deck")
+                    if await export_btn.count() > 0:
+                        await export_btn.first.click()
+                        await page.wait_for_timeout(1000)
+                except Exception:
+                    pass
+
+                raw_text = await page.evaluate('''() => {
+                    const textareas = document.querySelectorAll("textarea");
+                    for (const ta of textareas) {
+                        const val = ta.value || ta.innerText || "";
+                        if (val.length > 50 && (/\\d+\\s+[A-Za-z]/.test(val) || val.includes("Sideboard"))) {
+                            return val;
                         }
                     }
                     return null;
                 }''')
 
-                # If no deck link on default tab, try the archetype's /decks tab
-                if not deck_url:
-                    decks_tab_url = arch["url"].rstrip("/") + "/decks"
-                    print(f"      [debug] Checking decks tab: {decks_tab_url}")
-                    await page.goto(decks_tab_url, wait_until="domcontentloaded", timeout=30000)
-                    await page.wait_for_timeout(2000)
-                    deck_url = await page.evaluate('''() => {
-                        const links = Array.from(document.querySelectorAll("a[href]"));
-                        for (const a of links) {
-                            const h = a.getAttribute("href") || "";
-                            if (h.includes("decklist") || /\\/deck\\/\\d+/i.test(h) || /-\\d+$/i.test(h)) {
-                                return h.startsWith("http") ? h : "https://mtgdecks.net" + h;
-                            }
-                        }
-                        return null;
-                    }''')
-
                 mainboard, sideboard = [], []
+                if raw_text:
+                    mainboard, sideboard = parse_plaintext_decklist(raw_text)
 
-                if deck_url:
-                    print(f"      -> Drilling into decklist: {deck_url}")
-                    await page.goto(deck_url, wait_until="domcontentloaded", timeout=45000)
-                    await page.wait_for_timeout(2000)
-
-                    # Strategy A: Click the Export button to get clean plaintext
-                    try:
-                        export_btn = page.locator("a:has-text('Export'), button:has-text('Export'), .export-deck")
-                        if await export_btn.count() > 0:
-                            await export_btn.first.click()
-                            await page.wait_for_timeout(1000)
-                    except Exception:
-                        pass
-
-                    raw_text = await page.evaluate('''() => {
-                        const textareas = document.querySelectorAll("textarea");
-                        for (const ta of textareas) {
-                            const v = ta.value || ta.innerText || "";
-                            if (v.length > 40 && (/\\d+\\s+[A-Za-z]/.test(v) || v.includes("Sideboard"))) {
-                                return v;
-                            }
-                        }
-                        return null;
-                    }''')
-
-                    if raw_text:
-                        mainboard, sideboard = parse_plaintext_decklist(raw_text)
-
-                # Strategy B: DOM fallback parse for card tables
+                # DOM card parse fallback on the deck page
                 if not mainboard:
-                    print("      [debug] Parsing rendered DOM table...")
                     deck_cards = await page.evaluate('''() => {
                         const main = [];
                         const side = [];
@@ -231,7 +292,7 @@ async def scrape_metagame():
                     sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("side", [])]
 
                 if not mainboard:
-                    print(f"      [!] 0 cards parsed for {arch['name']}")
+                    print(f"      [!] 0 cards parsed on {best_deck_url}")
                     continue
 
                 print(f"      [✓] Parsed {len(mainboard)} mainboard, {len(sideboard)} sideboard cards.")
@@ -256,7 +317,7 @@ async def scrape_metagame():
         if len(final_decks) < 4:
             raise RuntimeError(f"Retrieved only {len(final_decks)} valid decks. Halting update to protect existing data.")
 
-        # Matchup generation
+        # Compute dynamic cross-matchups
         print(f"\n[*] Generating cross-matchups across {len(final_decks)} decks...")
         for idx, d in enumerate(final_decks):
             opponents = [o for o in final_decks if o["id"] != d["id"]]
@@ -281,7 +342,7 @@ async def scrape_metagame():
         with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
             json.dump(final_decks, f, indent=2, ensure_ascii=False)
 
-        print(f"\n[✓] Successfully compiled {len(final_decks)} live decks into {OUTPUT_PATH}")
+        print(f"\n[✓] Successfully compiled {len(final_decks)} premier decklists into {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     asyncio.run(scrape_metagame())
