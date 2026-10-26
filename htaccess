@@ -1,0 +1,7 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+
+# Redirect any capitalization of bigmeatypawzmods to the exact folder
+RewriteRule ^bigmeatypawzmods/?$ BigMeatyPawzMods/ [NC,L,R=301]
+</IfModule>

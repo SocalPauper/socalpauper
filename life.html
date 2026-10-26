@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full select-none">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pauper Life Counter | SoCal Pauper</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mtg: {
+              dark: '#0a0c10',
+              p1: '#1e1b4b',
+              p2: '#451a03',
+              card: '#12151e',
+              border: '#2a3040'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@500;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    .font-cinzel { font-family: 'Cinzel', serif; }
+    body { 
+      font-family: 'Inter', sans-serif; 
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      overscroll-behavior: none;
+    }
+    .rotate-180-table { transform: rotate(180deg); }
+    .touch-target {
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tap-active {
+      background-color: rgba(255, 255, 255, 0.08);
+      transition: background-color 50ms ease-out;
+    }
+  </style>
+</head>
+<body class="bg-mtg-dark text-zinc-100 h-full flex flex-col overflow-hidden">
+
+  <!-- ==========================================================================
+       PLAYER 1 AREA (TOP - INVERTIBLE FOR TABLE PLAY)
+       ========================================================================== -->
+  <section id="p1-card" class="relative flex-1 bg-zinc-950 flex flex-col justify-between p-4 transition-transform duration-300 border-b border-zinc-800 overflow-hidden">
+    
+    <!-- Dedicated Scaled Background Art Layer -->
+    <div id="p1-art-bg" class="absolute inset-0 bg-center bg-no-repeat pointer-events-none z-0 transition-all duration-300"></div>
+    <!-- Contrast Darkening Gradient Tint -->
+    <div id="p1-art-tint" class="absolute inset-0 bg-gradient-to-b from-indigo-950/75 via-indigo-950/60 to-zinc-950/85 pointer-events-none z-0"></div>
+
+    <!-- Top Meta Row -->
+    <div class="relative z-20 flex items-center justify-between text-xs text-indigo-300 font-semibold pointer-events-auto">
+      <div class="flex items-center gap-2">
+        <span class="px-2 py-0.5 rounded bg-indigo-900/60 border border-indigo-700/50">PLAYER 1</span>
+        <button onpointerdown="toggleGameWin(1, event)" class="flex items-center gap-1 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-700 active:scale-95" title="Match Wins">
+          <span>Wins:</span>
+          <span id="p1-wins" class="text-amber-400 font-bold">0</span>
+        </button>
+      </div>
+
+      <!-- Mechanics Badges -->
+      <div class="flex items-center gap-1.5">
+        <button onpointerdown="toggleStatus(1, 'monarch', event)" id="p1-monarch" class="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900/80 text-zinc-400 hover:text-amber-300 transition text-[11px] active:scale-95">
+          👑 Monarch
+        </button>
+        <button onpointerdown="toggleStatus(1, 'initiative', event)" id="p1-initiative" class="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900/80 text-zinc-400 hover:text-blue-300 transition text-[11px] active:scale-95">
+          ⚔️ Initiative
+        </button>
+      </div>
+    </div>
+
+    <!-- Center Numbers -->
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+      <div class="text-center">
+        <div id="p1-life" class="font-cinzel font-black text-7xl sm:text-9xl tracking-tight text-white drop-shadow-lg transition-transform duration-75">
+          20
+        </div>
+        <div id="p1-poison-wrap" class="hidden text-emerald-400 font-bold text-xs mt-1">
+          ☣️ Poison: <span id="p1-poison">0</span>/10
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-Card Touch Zones -->
+    <div class="absolute inset-0 flex z-0 touch-target">
+      <div id="p1-zone-minus" 
+           onpointerdown="handleTouch(1, -1, 'p1-zone-minus', event)" 
+           class="w-1/2 h-full flex items-center justify-start pl-6 text-indigo-500/25 active:text-red-400 select-none cursor-pointer">
+        <span class="text-4xl font-bold pointer-events-none">&minus;</span>
+      </div>
+      <div id="p1-zone-plus" 
+           onpointerdown="handleTouch(1, 1, 'p1-zone-plus', event)" 
+           class="w-1/2 h-full flex items-center justify-end pr-6 text-indigo-500/25 active:text-emerald-400 select-none cursor-pointer">
+        <span class="text-4xl font-bold pointer-events-none">&plus;</span>
+      </div>
+    </div>
+
+    <!-- Bottom Drawer -->
+    <div class="relative z-20 flex items-center justify-between text-xs font-semibold text-zinc-400 pt-2 border-t border-zinc-800/40 pointer-events-auto">
+      <div class="flex items-center gap-2">
+        <button onpointerdown="handleButtonDelta(1, -5, event)" class="px-2.5 py-1 rounded bg-zinc-900/90 border border-zinc-700 active:bg-zinc-800 active:scale-95 text-zinc-300 font-bold">-5</button>
+        <button onpointerdown="handleButtonDelta(1, 5, event)" class="px-2.5 py-1 rounded bg-zinc-900/90 border border-zinc-700 active:bg-zinc-800 active:scale-95 text-zinc-300 font-bold">+5</button>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button onpointerdown="adjustPoison(1, -1, event)" class="px-2 py-1 rounded bg-emerald-950/40 border border-emerald-700/50 text-emerald-400 text-[11px] active:scale-95">-☣️</button>
+        <button onpointerdown="adjustPoison(1, 1, event)" class="px-2 py-1 rounded bg-emerald-950/40 border border-emerald-700/50 text-emerald-400 text-[11px] active:scale-95">+☣️</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       MIDDLE CONTROLLER TOOLBAR WITH BACKGROUND ART SELECTORS
+       ========================================================================== -->
+  <div class="h-12 bg-zinc-900/95 border-y border-zinc-700/80 flex items-center justify-between px-3 sm:px-4 z-30 shrink-0 gap-1.5">
+    
+    <!-- Left Navigation -->
+    <a href="/" class="text-xs text-zinc-400 hover:text-white flex items-center gap-1 shrink-0">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      <span class="hidden sm:inline font-medium">SoCal Pauper</span>
+    </a>
+
+    <!-- Center Controls -->
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <button onpointerdown="openArtSearch(1, event)" class="px-2 py-1 rounded-lg border border-zinc-700 bg-zinc-800 hover:border-indigo-400 text-indigo-300 text-xs font-semibold flex items-center gap-1 active:scale-95" title="Set P1 Background Art">
+        <span>🎨 P1 BG</span>
+      </button>
+
+      <button onpointerdown="openArtSearch(2, event)" class="px-2 py-1 rounded-lg border border-zinc-700 bg-zinc-800 hover:border-amber-400 text-amber-300 text-xs font-semibold flex items-center gap-1 active:scale-95" title="Set P2 Background Art">
+        <span>🎨 P2 BG</span>
+      </button>
+
+      <button onpointerdown="toggleInvertP1(event)" id="btn-invert" class="p-1.5 px-2 rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 text-xs flex items-center gap-1 font-medium active:scale-95">
+        <span>🔄 Flip</span>
+      </button>
+
+      <button onpointerdown="resetMatch(false, event)" class="p-1.5 px-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-amber-400 text-xs font-bold active:scale-95">
+        Reset 20
+      </button>
+    </div>
+
+    <!-- Wake Lock Toggle -->
+    <button onpointerdown="toggleWakeLock(event)" id="btn-wakelock" class="text-[11px] text-zinc-400 flex items-center gap-1 cursor-pointer shrink-0">
+      <span id="wake-dot" class="w-2 h-2 rounded-full bg-zinc-600"></span>
+      <span id="wake-text" class="hidden sm:inline">Awake</span>
+    </button>
+  </div>
+
+  <!-- ==========================================================================
+       PLAYER 2 AREA (BOTTOM)
+       ========================================================================== -->
+  <section id="p2-card" class="relative flex-1 bg-zinc-950 flex flex-col justify-between p-4 border-t border-zinc-800 overflow-hidden">
+    
+    <!-- Dedicated Scaled Background Art Layer -->
+    <div id="p2-art-bg" class="absolute inset-0 bg-center bg-no-repeat pointer-events-none z-0 transition-all duration-300"></div>
+    <!-- Contrast Darkening Gradient Tint -->
+    <div id="p2-art-tint" class="absolute inset-0 bg-gradient-to-t from-amber-950/75 via-amber-950/60 to-zinc-950/85 pointer-events-none z-0"></div>
+
+    <!-- Top Meta Row -->
+    <div class="relative z-20 flex items-center justify-between text-xs text-amber-300 font-semibold pointer-events-auto">
+      <div class="flex items-center gap-2">
+        <span class="px-2 py-0.5 rounded bg-amber-900/60 border border-amber-700/50">PLAYER 2</span>
+        <button onpointerdown="toggleGameWin(2, event)" class="flex items-center gap-1 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-700 active:scale-95" title="Match Wins">
+          <span>Wins:</span>
+          <span id="p2-wins" class="text-amber-400 font-bold">0</span>
+        </button>
+      </div>
+
+      <!-- Mechanics Badges -->
+      <div class="flex items-center gap-1.5">
+        <button onpointerdown="toggleStatus(2, 'monarch', event)" id="p2-monarch" class="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900/80 text-zinc-400 hover:text-amber-300 transition text-[11px] active:scale-95">
+          👑 Monarch
+        </button>
+        <button onpointerdown="toggleStatus(2, 'initiative', event)" id="p2-initiative" class="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900/80 text-zinc-400 hover:text-blue-300 transition text-[11px] active:scale-95">
+          ⚔️ Initiative
+        </button>
+      </div>
+    </div>
+
+    <!-- Center Numbers -->
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+      <div class="text-center">
+        <div id="p2-life" class="font-cinzel font-black text-7xl sm:text-9xl tracking-tight text-white drop-shadow-lg transition-transform duration-75">
+          20
+        </div>
+        <div id="p2-poison-wrap" class="hidden text-emerald-400 font-bold text-xs mt-1">
+          ☣️ Poison: <span id="p2-poison">0</span>/10
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-Card Touch Zones -->
+    <div class="absolute inset-0 flex z-0 touch-target">
+      <div id="p2-zone-minus" 
+           onpointerdown="handleTouch(2, -1, 'p2-zone-minus', event)" 
+           class="w-1/2 h-full flex items-center justify-start pl-6 text-amber-500/25 active:text-red-400 select-none cursor-pointer">
+        <span class="text-4xl font-bold pointer-events-none">&minus;</span>
+      </div>
+      <div id="p2-zone-plus" 
+           onpointerdown="handleTouch(2, 1, 'p2-zone-plus', event)" 
+           class="w-1/2 h-full flex items-center justify-end pr-6 text-amber-500/25 active:text-emerald-400 select-none cursor-pointer">
+        <span class="text-4xl font-bold pointer-events-none">&plus;</span>
+      </div>
+    </div>
+
+    <!-- Bottom Drawer -->
+    <div class="relative z-20 flex items-center justify-between text-xs font-semibold text-zinc-400 pt-2 border-t border-zinc-800/40 pointer-events-auto">
+      <div class="flex items-center gap-2">
+        <button onpointerdown="handleButtonDelta(2, -5, event)" class="px-2.5 py-1 rounded bg-zinc-900/90 border border-zinc-700 active:bg-zinc-800 active:scale-95 text-zinc-300 font-bold">-5</button>
+        <button onpointerdown="handleButtonDelta(2, 5, event)" class="px-2.5 py-1 rounded bg-zinc-900/90 border border-zinc-700 active:bg-zinc-800 active:scale-95 text-zinc-300 font-bold">+5</button>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button onpointerdown="adjustPoison(2, -1, event)" class="px-2 py-1 rounded bg-emerald-950/40 border border-emerald-700/50 text-emerald-400 text-[11px] active:scale-95">-☣️</button>
+        <button onpointerdown="adjustPoison(2, 1, event)" class="px-2 py-1 rounded bg-emerald-950/40 border border-emerald-700/50 text-emerald-400 text-[11px] active:scale-95">+☣️</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       MODAL: SCRYFALL CARD ART & VERSION SELECTOR
+       ========================================================================== -->
+  <div id="art-search-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="w-full max-w-lg bg-zinc-950 border border-amber-500/40 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-3.5 max-h-[90vh] flex flex-col justify-between">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-2.5 shrink-0">
+        <div class="flex items-center gap-2">
+          <button id="art-back-btn" onclick="showSearchView()" class="hidden text-amber-400 hover:text-amber-300 font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700">
+            ← Back
+          </button>
+          <h3 id="art-modal-title" class="font-bold text-xs font-mono uppercase tracking-wider text-amber-400 truncate max-w-[240px] sm:max-w-xs">
+            Set Player Background
+          </h3>
+        </div>
+        <button type="button" onclick="closeArtSearch()" class="text-zinc-400 hover:text-white text-base px-1">✕</button>
+      </div>
+
+      <!-- VIEW 1: Live Card Autocomplete Search -->
+      <div id="modal-view-search" class="space-y-3 flex-grow overflow-hidden flex flex-col">
+        <div class="relative shrink-0">
+          <input type="text" 
+                 id="card-search-input" 
+                 placeholder="Search card (e.g. Counterspell, Lightning Bolt)..." 
+                 autocomplete="off"
+                 class="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-amber-400" />
+          <div id="search-spinner" class="hidden absolute right-3 top-2.5 w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+
+        <div id="search-results" class="flex-grow overflow-y-auto space-y-1 divide-y divide-zinc-900 pr-1 text-xs text-zinc-300 max-h-64">
+          <div class="text-center py-6 text-zinc-500 text-xs">Type at least 2 letters to search Scryfall...</div>
+        </div>
+      </div>
+
+      <!-- VIEW 2: Version Art Picker Grid -->
+      <div id="modal-view-versions" class="hidden space-y-3 flex-grow overflow-hidden flex flex-col">
+        <!-- Scaling Mode Controls -->
+        <div class="flex items-center justify-between bg-zinc-900/80 p-2 rounded-xl border border-zinc-800 text-[11px] shrink-0">
+          <span class="text-zinc-400 font-medium">Art Scaling:</span>
+          <div class="inline-flex rounded-lg bg-zinc-950 p-0.5 border border-zinc-800">
+            <button type="button" id="fit-btn-contain" onclick="setModalFitMode('contain')" class="px-2.5 py-1 rounded text-[10px] font-semibold transition bg-amber-500 text-zinc-950">
+              Fit to Box (Full Art)
+            </button>
+            <button type="button" id="fit-btn-cover" onclick="setModalFitMode('cover')" class="px-2.5 py-1 rounded text-[10px] font-semibold transition text-zinc-400 hover:text-white">
+              Fill Box (Edge-to-Edge)
+            </button>
+          </div>
+        </div>
+
+        <!-- Versions Grid -->
+        <div id="versions-container" class="flex-grow overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2.5 pr-1 max-h-72">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="pt-2 border-t border-zinc-800 flex items-center justify-between shrink-0">
+        <button type="button" 
+                onclick="clearBackgroundArt()" 
+                class="text-xs text-rose-400 hover:text-rose-300 font-medium">
+          Reset to Default
+        </button>
+        <button type="button" 
+                onclick="closeArtSearch()" 
+                class="px-3.5 py-1 text-xs rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 transition">
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       LOGIC & INTERACTION ENGINE
+       ========================================================================== -->
+  <script>
+    const state = {
+      p1: { life: 20, poison: 0, wins: 0, monarch: false, initiative: false },
+      p2: { life: 20, poison: 0, wins: 0, monarch: false, initiative: false },
+      inverted: true
+    };
+
+    let wakeLockSentinel = null;
+
+    function render() {
+      // P1 UI
+      document.getElementById('p1-life').textContent = state.p1.life;
+      document.getElementById('p1-poison').textContent = state.p1.poison;
+      document.getElementById('p1-wins').textContent = state.p1.wins;
+      document.getElementById('p1-poison-wrap').classList.toggle('hidden', state.p1.poison === 0);
+
+      // P2 UI
+      document.getElementById('p2-life').textContent = state.p2.life;
+      document.getElementById('p2-poison').textContent = state.p2.poison;
+      document.getElementById('p2-wins').textContent = state.p2.wins;
+      document.getElementById('p2-poison-wrap').classList.toggle('hidden', state.p2.poison === 0);
+
+      // Status Badges
+      updateBadge('p1-monarch', state.p1.monarch, 'border-amber-500 bg-amber-500/20 text-amber-300 font-bold');
+      updateBadge('p2-monarch', state.p2.monarch, 'border-amber-500 bg-amber-500/20 text-amber-300 font-bold');
+      updateBadge('p1-initiative', state.p1.initiative, 'border-blue-500 bg-blue-500/20 text-blue-300 font-bold');
+      updateBadge('p2-initiative', state.p2.initiative, 'border-blue-500 bg-blue-500/20 text-blue-300 font-bold');
+
+      // Tabletop Rotation
+      const p1Card = document.getElementById('p1-card');
+      p1Card.classList.toggle('rotate-180-table', state.inverted);
+      document.getElementById('btn-invert').classList.toggle('text-amber-400', state.inverted);
+    }
+
+    function updateBadge(id, active, activeClasses) {
+      const el = document.getElementById(id);
+      if (active) {
+        el.className = `px-2 py-0.5 rounded border transition text-[11px] ${activeClasses}`;
+      } else {
+        el.className = "px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900/80 text-zinc-500 hover:text-zinc-300 transition text-[11px]";
+      }
+    }
+
+    // Instant Zero-Latency Tap Trigger
+    function handleTouch(player, delta, elementId, event) {
+      if (event) event.preventDefault();
+      const p = player === 1 ? state.p1 : state.p2;
+      p.life += delta;
+
+      const lifeEl = document.getElementById(`p${player}-life`);
+      lifeEl.style.transform = delta > 0 ? 'scale(1.08)' : 'scale(0.92)';
+      setTimeout(() => { lifeEl.style.transform = 'scale(1)'; }, 75);
+
+      const zoneEl = document.getElementById(elementId);
+      zoneEl.classList.add('tap-active');
+      setTimeout(() => { zoneEl.classList.remove('tap-active'); }, 100);
+
+      render();
+    }
+
+    function handleButtonDelta(player, delta, event) {
+      if (event) event.preventDefault();
+      const p = player === 1 ? state.p1 : state.p2;
+      p.life += delta;
+      render();
+    }
+
+    function adjustPoison(player, delta, event) {
+      if (event) event.preventDefault();
+      const p = player === 1 ? state.p1 : state.p2;
+      p.poison = Math.max(0, p.poison + delta);
+      render();
+    }
+
+    function toggleStatus(player, type, event) {
+      if (event) event.preventDefault();
+      const activeP = player === 1 ? state.p1 : state.p2;
+      const otherP = player === 1 ? state.p2 : state.p1;
+
+      if (activeP[type]) {
+        activeP[type] = false;
+      } else {
+        activeP[type] = true;
+        otherP[type] = false;
+      }
+      render();
+    }
+
+    function toggleGameWin(player, event) {
+      if (event) event.preventDefault();
+      const p = player === 1 ? state.p1 : state.p2;
+      p.wins = (p.wins + 1) % 3;
+      render();
+    }
+
+    function toggleInvertP1(event) {
+      if (event) event.preventDefault();
+      state.inverted = !state.inverted;
+      render();
+    }
+
+    function resetMatch(fullReset, event) {
+      if (event) event.preventDefault();
+      state.p1.life = 20;
+      state.p2.life = 20;
+      state.p1.poison = 0;
+      state.p2.poison = 0;
+      state.p1.monarch = false;
+      state.p2.monarch = false;
+      state.p1.initiative = false;
+      state.p2.initiative = false;
+      if (fullReset) {
+        state.p1.wins = 0;
+        state.p2.wins = 0;
+      }
+      render();
+    }
+
+    async function toggleWakeLock(event) {
+      if (event) event.preventDefault();
+      if ('wakeLock' in navigator) {
+        try {
+          if (!wakeLockSentinel) {
+            wakeLockSentinel = await navigator.wakeLock.request('screen');
+            document.getElementById('wake-dot').className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+            document.getElementById('wake-text').textContent = "Awake";
+          } else {
+            await wakeLockSentinel.release();
+            wakeLockSentinel = null;
+            document.getElementById('wake-dot').className = "w-2 h-2 rounded-full bg-zinc-600";
+          }
+        } catch (err) {
+          console.warn("WakeLock error:", err);
+        }
+      }
+    }
+
+    window.addEventListener('pointerdown', () => {
+      if (!wakeLockSentinel) toggleWakeLock();
+    }, { once: true });
+
+    // ==========================================================================
+    // SCRYFALL VERSION SELECTOR & ART SCALING CONTROLLER
+    // ==========================================================================
+    let activeTargetPlayer = 1;
+    let searchDebounceTimer = null;
+    let currentLoadedVersions = [];
+    let activeFitMode = 'contain'; // Default: Fit into box regardless of screen
+
+    function applySavedBackgrounds() {
+      [1, 2].forEach(pNum => {
+        const savedImg = localStorage.getItem(`socal_p${pNum}_bg`);
+        const savedFit = localStorage.getItem(`socal_p${pNum}_fit`) || 'contain';
+        if (savedImg) {
+          applyArtToPlayer(pNum, savedImg, savedFit);
+        }
+      });
+    }
+
+    function openArtSearch(playerNum, event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      activeTargetPlayer = playerNum;
+      activeFitMode = localStorage.getItem(`socal_p${playerNum}_fit`) || 'contain';
+      updateFitButtonUI();
+      showSearchView();
+      
+      document.getElementById('art-search-modal').classList.remove('hidden');
+      document.getElementById('card-search-input').focus();
+    }
+
+    function closeArtSearch() {
+      document.getElementById('art-search-modal').classList.add('hidden');
+    }
+
+    function showSearchView() {
+      document.getElementById('modal-view-search').classList.remove('hidden');
+      document.getElementById('modal-view-versions').classList.add('hidden');
+      document.getElementById('art-back-btn').classList.add('hidden');
+      document.getElementById('art-modal-title').textContent = `Set Player ${activeTargetPlayer} Background`;
+    }
+
+    function setModalFitMode(mode) {
+      activeFitMode = mode;
+      localStorage.setItem(`socal_p${activeTargetPlayer}_fit`, mode);
+      updateFitButtonUI();
+
+      // If background is already loaded for this player, update live
+      const currentBg = localStorage.getItem(`socal_p${activeTargetPlayer}_bg`);
+      if (currentBg) {
+        applyArtToPlayer(activeTargetPlayer, currentBg, activeFitMode);
+      }
+    }
+
+    function updateFitButtonUI() {
+      const btnContain = document.getElementById('fit-btn-contain');
+      const btnCover = document.getElementById('fit-btn-cover');
+
+      if (activeFitMode === 'contain') {
+        btnContain.className = "px-2.5 py-1 rounded text-[10px] font-semibold transition bg-amber-500 text-zinc-950";
+        btnCover.className = "px-2.5 py-1 rounded text-[10px] font-semibold transition text-zinc-400 hover:text-white";
+      } else {
+        btnCover.className = "px-2.5 py-1 rounded text-[10px] font-semibold transition bg-amber-500 text-zinc-950";
+        btnContain.className = "px-2.5 py-1 rounded text-[10px] font-semibold transition text-zinc-400 hover:text-white";
+      }
+    }
+
+    // Autocomplete input
+    document.getElementById('card-search-input').addEventListener('input', function(e) {
+      const query = e.target.value.trim();
+      clearTimeout(searchDebounceTimer);
+
+      if (query.length < 2) {
+        document.getElementById('search-results').innerHTML = '<div class="text-center py-6 text-zinc-500 text-xs">Type at least 2 letters to search Scryfall...</div>';
+        return;
+      }
+
+      const spinner = document.getElementById('search-spinner');
+      spinner.classList.remove('hidden');
+
+      searchDebounceTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(query)}`);
+          const data = await res.json();
+          spinner.classList.add('hidden');
+
+          if (!data.data || data.data.length === 0) {
+            document.getElementById('search-results').innerHTML = '<div class="text-center py-6 text-zinc-500 text-xs">No matching cards found.</div>';
+            return;
+          }
+
+          document.getElementById('search-results').innerHTML = data.data.slice(0, 10).map(name => `
+            <button type="button" 
+                    onclick="loadCardVersions('${name.replace(/'/g, "\\'")}')" 
+                    class="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-900 text-zinc-200 hover:text-amber-300 font-medium transition flex items-center justify-between">
+              <span>${name}</span>
+              <span class="text-[10px] text-zinc-500 font-mono">View Arts →</span>
+            </button>
+          `).join('');
+
+        } catch (err) {
+          spinner.classList.add('hidden');
+          document.getElementById('search-results').innerHTML = '<div class="text-center py-6 text-rose-400 text-xs">Error searching Scryfall.</div>';
+        }
+      }, 250);
+    });
+
+    // Query all unique art versions for the card
+    async function loadCardVersions(cardName) {
+      const spinner = document.getElementById('search-spinner');
+      spinner.classList.remove('hidden');
+
+      try {
+        // Query Scryfall search for all prints with unique art, ordered by release
+        const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(cardName)}"+unique:art&order=released&dir=desc`);
+        let data = await res.json();
+        spinner.classList.add('hidden');
+
+        // Fallback to exact named search if unique:art query returns empty
+        if (!data.data || data.data.length === 0) {
+          const fallbackRes = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}`);
+          const fallbackCard = await fallbackRes.json();
+          data = { data: [fallbackCard] };
+        }
+
+        currentLoadedVersions = data.data;
+
+        // Switch to Versions View
+        document.getElementById('modal-view-search').classList.add('hidden');
+        document.getElementById('modal-view-versions').classList.remove('hidden');
+        document.getElementById('art-back-btn').classList.remove('hidden');
+        document.getElementById('art-modal-title').textContent = `${cardName} (Select Art)`;
+
+        const container = document.getElementById('versions-container');
+        container.innerHTML = currentLoadedVersions.map((card, idx) => {
+          const artUrl = getCardArt(card);
+          const year = card.released_at ? card.released_at.substring(0, 4) : '';
+          const artist = card.artist || 'Unknown';
+          const setStr = (card.set_name || card.set || '').toUpperCase();
+
+          return `
+            <div onclick="selectVersion(${idx})" class="group flex flex-col justify-between bg-zinc-900 border border-zinc-800 hover:border-amber-400 rounded-xl overflow-hidden cursor-pointer transition p-1.5 space-y-1.5 active:scale-95">
+              <div class="w-full h-20 bg-zinc-950 rounded-lg overflow-hidden relative">
+                <img src="${artUrl}" alt="${cardName}" class="w-full h-full object-cover group-hover:scale-105 transition duration-200" loading="lazy" />
+              </div>
+              <div class="text-[10px] text-zinc-400 space-y-0.5">
+                <p class="font-semibold text-zinc-200 truncate" title="${setStr}">${setStr}</p>
+                <p class="truncate text-zinc-500">${year ? year + ' • ' : ''}${artist}</p>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        spinner.classList.add('hidden');
+        alert('Failed to load card art versions.');
+      }
+    }
+
+    function getCardArt(card) {
+      if (card.image_uris && card.image_uris.art_crop) {
+        return card.image_uris.art_crop;
+      }
+      if (card.card_faces && card.card_faces[0] && card.card_faces[0].image_uris && card.card_faces[0].image_uris.art_crop) {
+        return card.card_faces[0].image_uris.art_crop;
+      }
+      return '';
+    }
+
+    function selectVersion(index) {
+      const card = currentLoadedVersions[index];
+      if (!card) return;
+
+      const artUrl = getCardArt(card);
+      if (!artUrl) {
+        alert('Art crop unavailable for this printing.');
+        return;
+      }
+
+      applyArtToPlayer(activeTargetPlayer, artUrl, activeFitMode);
+      localStorage.setItem(`socal_p${activeTargetPlayer}_bg`, artUrl);
+      localStorage.setItem(`socal_p${activeTargetPlayer}_fit`, activeFitMode);
+      closeArtSearch();
+    }
+
+    function applyArtToPlayer(playerNum, imageUrl, fitMode) {
+      const artBg = document.getElementById(`p${playerNum}-art-bg`);
+      if (!artBg) return;
+
+      artBg.style.backgroundImage = `url('${imageUrl}')`;
+      artBg.style.backgroundSize = fitMode === 'cover' ? 'cover' : 'contain';
+      artBg.style.backgroundPosition = 'center';
+      artBg.style.backgroundRepeat = 'no-repeat';
+    }
+
+    function clearBackgroundArt() {
+      const artBg = document.getElementById(`p${activeTargetPlayer}-art-bg`);
+      if (artBg) {
+        artBg.style.backgroundImage = '';
+      }
+      localStorage.removeItem(`socal_p${activeTargetPlayer}_bg`);
+      closeArtSearch();
+    }
+
+    // Initialize state and background art
+    applySavedBackgrounds();
+    render();
+  </script>
+
+<script type="text/javascript" src="/unprotected/back_to_spaceship.js?hash=4975d460e508829e8fb64d3962bc44ad35f3a95a"></script>
+
+</body>
+</html>

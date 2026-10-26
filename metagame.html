@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SoCal Pauper — Metagame Breakdown</title>
+  <link rel="stylesheet" href="css/metagame.css" />
+</head>
+<body>
+
+  <main class="meta-wrapper">
+    <header class="meta-header">
+      <h1>Pauper Metagame Tier List</h1>
+      <p>Data consolidated weekly from MTGO Challenges, Leagues, and regional Southern California events.</p>
+    </header>
+
+    <!-- Deck Selection Grid -->
+    <section class="deck-grid" id="deck-grid"></section>
+  </main>
+
+  <!-- Interactive Deck Viewer Modal -->
+  <div id="deck-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-deck-title">
+    <div class="modal-overlay" onclick="closeDeckModal()"></div>
+    
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div id="modal-deck-header"></div>
+        <button class="modal-close" onclick="closeDeckModal()" aria-label="Close modal">&times;</button>
+      </div>
+
+      <!-- Tab Switcher -->
+      <nav class="modal-tabs">
+        <button class="tab-btn active" id="tab-btn-decklist" onclick="switchModalTab('decklist')">Decklist</button>
+        <button class="tab-btn" id="tab-btn-matchups" onclick="switchModalTab('matchups')">Matchup Breakdown</button>
+      </nav>
+
+      <!-- View 1: Decklist Breakdown -->
+      <div id="tab-decklist" class="modal-view active-view">
+        <div class="deck-columns" id="deck-breakdown"></div>
+        
+        <aside class="card-preview-panel">
+          <img id="card-preview-img" src="" alt="Card Display" class="hidden" />
+          <div id="card-preview-placeholder" class="preview-empty">Hover or click a card name to inspect card art</div>
+        </aside>
+      </div>
+
+      <!-- View 2: Matchups & Statistics -->
+      <div id="tab-matchups" class="modal-view hidden">
+        <div class="matchup-wrapper">
+          <div class="stats-row">
+            <div class="stat-box">
+              <span class="stat-label">Win Rate</span>
+              <span class="stat-num" id="stat-winrate">0.0%</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">Meta Share</span>
+              <span class="stat-num" id="stat-share">0.0%</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">Recorded Matches</span>
+              <span class="stat-num" id="stat-matches">0</span>
+            </div>
+          </div>
+
+          <div class="matchup-tri-grid">
+            <div class="matchup-col">
+              <h3 class="col-head favorable-head">Favorable (&ge;55%)</h3>
+              <div id="matchups-favorable" class="matchup-rows"></div>
+            </div>
+            <div class="matchup-col">
+              <h3 class="col-head even-head">Even (46% - 54%)</h3>
+              <div id="matchups-even" class="matchup-rows"></div>
+            </div>
+            <div class="matchup-col">
+              <h3 class="col-head unfavorable-head">Unfavorable (&le;45%)</h3>
+              <div id="matchups-unfavorable" class="matchup-rows"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-copy" onclick="copyDecklistText()">Copy Decklist to Clipboard</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/metagame.js"></script>
+
+<script type="text/javascript" src="/unprotected/back_to_spaceship.js?hash=4975d460e508829e8fb64d3962bc44ad35f3a95a"></script>
+
+</body>
+</html>

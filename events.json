@@ -1,0 +1,48 @@
+[
+    {
+        "id": "6adbe56d811c9",
+        "title": "Friday Night Pauper!",
+        "date": "2026-10-30",
+        "time": "7:30PM",
+        "location": "Viking TCG LA",
+        "region": "Los Angeles",
+        "address": "",
+        "desc": "",
+        "recurring": false,
+        "recurFreq": "",
+        "recurEnd": ""
+    },
+    {
+        "id": "6adbe558d765b",
+        "title": "Friday Night Pauper!",
+        "date": "2026-10-23",
+        "time": "7:30PM",
+        "location": "Viking TCG LA",
+        "region": "Los Angeles",
+        "address": "",
+        "desc": "",
+        "recurring": false,
+        "recurFreq": "",
+        "recurEnd": "",
+        "excludeDates": [
+            "2026-10-23"
+        ]
+    },
+    {
+        "id": "6adbd5fb43774",
+        "title": "Friday Night Pauper!",
+        "date": "2026-10-23",
+        "time": "7:30PM",
+        "location": "Viking TCG LA",
+        "region": "Los Angeles",
+        "address": "",
+        "desc": "",
+        "recurring": true,
+        "recurFreq": "weekly",
+        "recurEnd": "",
+        "excludeDates": [
+            "2026-10-30",
+            "2026-10-23"
+        ]
+    }
+]

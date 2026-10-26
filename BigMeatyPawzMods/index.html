@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Big Meaty Pawz Mods | Precision Retro Console Upgrades & Repairs</title>
+  <meta name="description" content="Precision console modding in Southern California: Switch RP2040 modchips, GameCube Picoboot, Game Boy IPS screens, BlueRetro wireless, and custom softmods." />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/webp" href="/logo.webp">
+
+  <!-- OpenGraph Metadata -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Big Meaty Pawz Mods | Retro Console Mods & Upgrades">
+  <meta property="og:description" content="Switch RP2040 modchips, GameCube Picoboot, Game Boy IPS backlit screens, BlueRetro Bluetooth, ODEs, and recaps.">
+  <meta property="og:image" content="https://socalpauper.com/logo.webp">
+  <meta property="og:url" content="https://socalpauper.com/BigMeatyPawzMods">
+  <meta name="theme-color" content="#d97706">
+
+  <!-- Visitor Analytics -->
+  <script data-goatcounter="https://socalpauper.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            retro: {
+              bg: '#0a0c10',
+              panel: '#12161f',
+              border: '#1f2637',
+              accent: '#f59e0b',
+              cyan: '#06b6d4'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+
+  <style>
+    h1, h2, h3, .font-heading { font-family: 'Space Grotesk', sans-serif; }
+    body { font-family: 'Inter', sans-serif; }
+    .glass-card {
+      background: linear-gradient(180deg, rgba(18, 22, 31, 0.95) 0%, rgba(12, 15, 22, 0.98) 100%);
+      border: 1px solid #1f2637;
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+  </style>
+</head>
+<body class="bg-retro-bg text-zinc-200 min-h-screen flex flex-col selection:bg-amber-500 selection:text-black">
+
+  <!-- Header -->
+  <header class="border-b border-zinc-800 bg-retro-bg/90 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <a href="/BigMeatyPawzMods" class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-zinc-900 border border-amber-500/40 flex items-center justify-center font-heading font-bold text-amber-400">
+          BMP
+        </div>
+        <div>
+          <span class="font-heading font-bold text-lg tracking-wide text-zinc-100">Big Meaty Pawz</span>
+          <span class="text-[10px] font-semibold tracking-wider text-amber-400 ml-1.5 uppercase px-1.5 py-0.5 rounded border border-amber-500/20 bg-amber-950/30">Console Mods</span>
+        </div>
+      </a>
+
+      <div class="flex items-center gap-2.5 sm:gap-4">
+        <a href="/" class="text-xs sm:text-sm text-zinc-400 hover:text-amber-400 transition hidden md:inline-block">← Back to SoCal Pauper</a>
+        <button type="button" onclick="openAdminModal('create')" class="text-xs text-zinc-400 hover:text-amber-400 font-mono transition">
+          🔐 Admin Post
+        </button>
+        <a href="#inquiry" class="bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-lg transition shadow-md whitespace-nowrap">
+          Request a Mod
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow">
+    <!-- Hero Banner -->
+    <section class="relative overflow-hidden border-b border-zinc-800 py-14 sm:py-20 px-4 text-center">
+      <div class="max-w-4xl mx-auto space-y-6">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-amber-950/40 border border-amber-600/30 text-amber-300">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          SoCal Handcrafted Retro Console Modifications & Repairs
+        </div>
+
+        <h1 class="text-3xl sm:text-5xl lg:text-6xl font-extrabold uppercase tracking-tight text-zinc-100 leading-tight">
+          Breathe New Life Into Your<br/>
+          <span class="bg-gradient-to-r from-amber-400 via-amber-200 to-cyan-400 bg-clip-text text-transparent">
+            Favorite Retro Consoles
+          </span>
+        </h1>
+
+        <p class="text-zinc-400 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
+          Bringing classic hardware into the modern technological age. Disc drive failing? Move to SD card mods and Optical Drive Emulators. Blurry video? Upgrade to crisp IPS backlights or RGB/HDMI mods. Tired of tangled wires? Upgrade to internal BlueRetro wireless Bluetooth.
+        </p>
+
+        <div class="pt-3 flex flex-wrap items-center justify-center gap-3">
+          <a href="#services-menu" class="px-5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-amber-500/50 text-zinc-200 text-sm font-semibold transition">
+            Browse Services & Pricing
+          </a>
+          <a href="#recent-builds" class="px-5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-cyan-500/50 text-cyan-300 text-sm font-semibold transition">
+            View Project Gallery
+          </a>
+          <a href="#inquiry" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-zinc-950 text-sm font-bold shadow-lg transition">
+            Get a Quote
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Services & Pricing Menu -->
+    <section id="services-menu" class="max-w-6xl mx-auto px-4 py-16 space-y-10">
+      <div class="text-center space-y-2">
+        <h2 class="text-2xl sm:text-3xl font-bold font-heading text-zinc-100">Console Services & Upgrades</h2>
+        <p class="text-xs sm:text-sm text-zinc-400">Bench-tested hardware mods, precision SMD soldering, and clean custom softmod configurations.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        <!-- Nintendo Switch -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-amber-500">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-600/30">Hard Mod</span>
+              <span class="text-xl font-bold font-mono text-white">$100</span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-zinc-100">Nintendo Switch (Non-OLED)</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              RP2040 modchip precision micro-solder install. Price includes the RP2040 hardware modchip and full labor. Bring or provide at least a 64GB MicroSD card for payload setup.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>Includes: Chip + Labor</span>
+            <a href="#inquiry" class="text-amber-400 hover:underline">Book Mod →</a>
+          </div>
+        </div>
+
+        <!-- GameCube -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-amber-500">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-600/30">Hard Mod</span>
+              <span class="text-xl font-bold font-mono text-white">$80 <span class="text-xs font-normal text-zinc-400">+$20 Tray</span></span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-zinc-100">Nintendo GameCube (Picoboot)</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              RP2040 Picoboot modchip install running Swiss OS directly off MicroSD. Revives consoles with dead optical lasers. Optional +$20 adds a 3D-printed drive bay bracket with MicroSD slot, or discreet underside installation.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>Laserless Boot / Swiss OS</span>
+            <a href="#inquiry" class="text-amber-400 hover:underline">Book Mod →</a>
+          </div>
+        </div>
+
+        <!-- Game Boy Family -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-cyan-500">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-cyan-400 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-600/30">Display & Shell</span>
+              <span class="text-xl font-bold font-mono text-white">$50 <span class="text-xs font-normal text-zinc-400">+ Parts</span></span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-zinc-100">GB / GBC / GBA / SP IPS Mods</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Retire the worm lights. Installation of vibrant, laminated IPS backlit screen kits. Custom reshells, FunnyPlaying LED button boards, clean audio amp recapping, and USB rechargeable battery conversions available.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>Dmg, Pocket, Color, Advance</span>
+            <a href="#inquiry" class="text-amber-400 hover:underline">Book Mod →</a>
+          </div>
+        </div>
+
+        <!-- Nintendo Wii -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-emerald-500">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-600/30">Softmod</span>
+              <span class="text-xl font-bold font-mono text-white">$40 <span class="text-xs font-normal text-zinc-400">+ Parts</span></span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-zinc-100">Nintendo Wii Homebrew Hub</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Full softmod configuration. Run emulation suites (NES, SNES, Genesis, GB, GBC, GBA, N64) and boot GameCube & Wii backup ROMs directly off USB/SD. No more carrying delicate discs.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>Full Emulation & USB Loader</span>
+            <a href="#inquiry" class="text-amber-400 hover:underline">Book Mod →</a>
+          </div>
+        </div>
+
+        <!-- PlayStation 1 -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-amber-500">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-600/30">Hardmod / Port</span>
+              <span class="text-xl font-bold font-mono text-white">$60</span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-zinc-100">Sony PlayStation 1 (PS1)</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              The platform that started the obsession. Play backup discs, unlock region-free gaming, or configure SD memory booting via the rear COM expansion port on older revisions.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>Region Free & Backup Media</span>
+            <a href="#inquiry" class="text-amber-400 hover:underline">Book Mod →</a>
+          </div>
+        </div>
+
+        <!-- PlayStation 2 -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-amber-500">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-600/30">Hard/Softmod</span>
+              <span class="text-xl font-bold font-mono text-white">$60 <span class="text-xs font-normal text-zinc-400">+ Parts</span></span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-zinc-100">Sony PlayStation 2 (Fat & Slim)</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Bypass failing disc lasers. Setup FreeMcBoot memory card softmodding with high-speed internal hard drive loading via network adapter (Fat) or SMB/SD card loading (Slim).
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>HDD & FreeMcBoot Setup</span>
+            <a href="#inquiry" class="text-amber-400 hover:underline">Book Mod →</a>
+          </div>
+        </div>
+
+        <!-- Handheld Softmods: 3DS, Vita, PSP -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-emerald-500">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-600/30">Handheld Softmod</span>
+              <span class="text-xl font-bold font-mono text-white">$50 <span class="text-xs font-normal text-zinc-400">each</span></span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-zinc-100">3DS / PS Vita / PSP Softmods</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Turn your handheld into an emulation powerhouse. Full custom firmware setup, RetroArch configuration, and backup utility access (hShop for 3DS, PKGj/SD2Vita for Vita). *Customer supplies SD card/adapter.*
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>Complete CFW & Emulators</span>
+            <a href="#inquiry" class="text-amber-400 hover:underline">Book Mod →</a>
+          </div>
+        </div>
+
+        <!-- BlueRetro Wireless -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-cyan-500">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-cyan-400 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-600/30">Wireless Bluetooth</span>
+              <span class="text-xl font-bold font-mono text-white">Custom Quote</span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-zinc-100">BlueRetro Internal Bluetooth</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Ditch the controller cables. Internal ESP32 BlueRetro installs for <strong>NES, SNES, N64, GC, Wii (GC ports), PS1, PS2, Sega Dreamcast, Saturn, Genesis, and CD-i</strong>. Pair PS4/PS5, Xbox, Switch Pro, and 8BitDo pads natively.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>Near-Zero Latency BT</span>
+            <a href="#inquiry" class="text-amber-400 hover:underline">Book Mod →</a>
+          </div>
+        </div>
+
+        <!-- Custom Repairs & Restorations -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-amber-500">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-600/30">Restoration</span>
+              <span class="text-xl font-bold font-mono text-white">Custom Quote</span>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-zinc-100">Repairs, Recaps & Power Mods</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Full motherboard recapping with Japanese low-ESR capacitors, clean 3.3V switching regulator installs, USB-C PD power jack retrofits, shell swaps, custom LED mods, and RGB/HDMI digital video bypasses.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800 mt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>SMD Soldering & Diagnostics</span>
+            <a href="#inquiry" class="text-amber-400 hover:underline">Book Mod →</a>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Recent Completed Builds Section -->
+    <section id="recent-builds" class="max-w-6xl mx-auto px-4 py-12 space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-zinc-800 pb-4">
+        <div>
+          <h2 class="text-2xl sm:text-3xl font-bold font-heading text-zinc-100">Recent Completed Projects</h2>
+          <p class="text-xs sm:text-sm text-zinc-400">Click any project to inspect high-resolution bench photos and mod details.</p>
+        </div>
+        <button type="button" onclick="openAdminModal('create')" class="inline-flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 border border-amber-500/40 text-amber-400 text-xs font-semibold px-3 py-2 rounded-lg transition self-start sm:self-auto">
+          <span>📷 Post New Build</span>
+        </button>
+      </div>
+
+      <!-- Project Cards Grid -->
+      <div id="projects-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="col-span-full py-12 text-center text-zinc-500 text-sm">
+          Loading project showcase...
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact & Inquiry Section -->
+    <section id="inquiry" class="max-w-3xl mx-auto px-4 py-16 text-center space-y-6">
+      <div class="glass-card p-8 rounded-3xl border border-amber-500/30 space-y-6">
+        <div class="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl mx-auto text-amber-400">
+          🛠️
+        </div>
+        <div class="space-y-2">
+          <h2 class="text-2xl sm:text-3xl font-bold font-heading text-zinc-100">Ready to Upgrade Your Console?</h2>
+          <p class="text-xs sm:text-sm text-zinc-400 max-w-lg mx-auto">
+            Send an email inquiry directly to get a quote, discuss custom circuit designs, or coordinate local Southern California drop-offs and mail-ins.
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+          <!-- Primary Direct Email Trigger -->
+          <a href="mailto:bigmeatypawzmods@gmail.com?subject=Console%20Mod%20Build%20Inquiry&body=Hi%20Big%20Meaty%20Pawz,%0A%0AConsole%20Model%20(e.g.%20Switch,%20GameCube,%20Game%20Boy,%20PS1,%20PS2):%20%0ADesired%20Modifications%20(Picoboot,%20Modchip,%20IPS%20Screen,%20BlueRetro,%20Recap):%20%0ALocation%20(Local%20Pickup%20or%20Mail-in):%20%0AAdditional%20Notes:%20" 
+             class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-zinc-950 font-extrabold px-6 py-3.5 rounded-xl transition shadow-lg active:scale-95">
+            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+              <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+            </svg>
+            <span>Email bigmeatypawzmods@gmail.com</span>
+          </a>
+
+          <!-- Discord Backup Option -->
+          <a href="https://discord.gg/eQdgz5u5NE" target="_blank" rel="noopener noreferrer"
+             class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold px-6 py-3.5 rounded-xl transition shadow-md">
+            <span>Message on Discord</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========================================================================
+       MODAL 1: FULLSCREEN LIGHTBOX & PROJECT DETAIL INSPECTOR (ITEM 6)
+       ======================================================================== -->
+  <div id="lightbox-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden flex flex-col justify-between p-4 sm:p-6" onclick="closeLightboxOnBackdrop(event)">
+    <!-- Top Action Bar -->
+    <div class="flex items-center justify-between border-b border-zinc-800 pb-3 max-w-5xl mx-auto w-full">
+      <div class="flex items-center gap-2 sm:gap-3">
+        <span id="lb-console-badge" class="font-mono text-amber-400 text-xs bg-amber-950/50 border border-amber-600/30 px-2 py-0.5 rounded">Console</span>
+        <h3 id="lb-title" class="font-heading font-bold text-base sm:text-lg text-zinc-100 truncate max-w-xs sm:max-w-md">Project Title</h3>
+      </div>
+      <button type="button" onclick="closeLightbox()" class="text-zinc-400 hover:text-white text-2xl font-bold px-2 py-1">✕</button>
+    </div>
+
+    <!-- Center Stage: Large Image Viewer -->
+    <div class="relative flex-grow flex items-center justify-center my-3 max-w-5xl mx-auto w-full overflow-hidden">
+      <img id="lb-main-image" src="" alt="Mod detail" class="max-h-[60vh] sm:max-h-[68vh] max-w-full object-contain rounded-xl border border-zinc-800 shadow-2xl">
+      
+      <!-- Prev / Next Navigation Buttons for Multi-image Projects -->
+      <button id="lb-prev-btn" onclick="prevLightboxImage()" class="absolute left-2 sm:left-4 bg-zinc-950/80 hover:bg-amber-500 hover:text-zinc-950 border border-zinc-700 text-zinc-200 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition">‹</button>
+      <button id="lb-next-btn" onclick="nextLightboxImage()" class="absolute right-2 sm:right-4 bg-zinc-950/80 hover:bg-amber-500 hover:text-zinc-950 border border-zinc-700 text-zinc-200 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition">›</button>
+    </div>
+
+    <!-- Bottom Stage: Thumbnail Strip & Description -->
+    <div class="max-w-5xl mx-auto w-full space-y-3">
+      <!-- Thumbnail Strip -->
+      <div id="lb-thumbs" class="flex items-center justify-center gap-2 overflow-x-auto py-1"></div>
+
+      <!-- Detail Card -->
+      <div class="glass-card p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <p id="lb-desc" class="text-zinc-300 leading-relaxed max-w-3xl whitespace-pre-line"></p>
+        <span id="lb-date" class="text-zinc-500 font-mono shrink-0">Date</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 2: ADMIN POST / EDIT / DELETE CONTROLLER (ITEMS 3, 4, 5)
+       ======================================================================== -->
+  <div id="admin-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="glass-card max-w-lg w-full p-6 sm:p-7 rounded-2xl border border-amber-500/40 space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <h3 id="admin-modal-title" class="font-heading font-bold text-lg text-white">Post Completed Project</h3>
+        <button type="button" onclick="closeAdminModal()" class="text-zinc-400 hover:text-white text-lg">✕</button>
+      </div>
+
+      <form id="project-upload-form" onsubmit="handleProjectSubmit(event)" class="space-y-3 text-left text-xs sm:text-sm">
+        <input type="hidden" id="modal-project-id" value="">
+        <input type="hidden" id="modal-action" value="create">
+
+        <div>
+          <label class="block text-zinc-300 font-semibold mb-1">Admin Security PIN</label>
+          <input type="password" id="modal-pin" required placeholder="Enter PIN" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 focus:outline-none focus:border-amber-400 font-mono">
+        </div>
+
+        <div>
+          <label class="block text-zinc-300 font-semibold mb-1">Project Title</label>
+          <input type="text" id="modal-title" required placeholder="e.g. GameCube Picoboot + 3D Tray Mod" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 focus:outline-none focus:border-amber-400">
+        </div>
+
+        <div>
+          <label class="block text-zinc-300 font-semibold mb-1">Console Platform</label>
+          <input type="text" id="modal-console" required placeholder="e.g. GameCube, Switch, GBA SP" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 focus:outline-none focus:border-amber-400">
+        </div>
+
+        <div>
+          <label class="block text-zinc-300 font-semibold mb-1">Project Description & Mods Done</label>
+          <textarea id="modal-desc" rows="3" required placeholder="Details on solder work, laser bypass, or custom fitment..." class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 focus:outline-none focus:border-amber-400"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-zinc-300 font-semibold mb-1">
+            <span id="photo-label-text">Select Photos (Multiple allowed, auto-resized to WebP)</span>
+          </label>
+          <input type="file" id="modal-photos" accept="image/*" multiple class="w-full text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-zinc-950 hover:file:bg-amber-400 cursor-pointer">
+        </div>
+
+        <div id="modal-error" class="text-rose-400 text-xs hidden"></div>
+
+        <div class="pt-3 border-t border-zinc-800 flex items-center justify-between gap-2">
+          <button type="button" id="modal-delete-btn" onclick="handleProjectDelete()" class="px-3 py-2 rounded-lg bg-rose-950 hover:bg-rose-900 border border-rose-700/50 text-rose-300 text-xs font-semibold hidden transition">
+            🗑️ Delete Project
+          </button>
+          
+          <div class="flex items-center gap-2 ml-auto">
+            <button type="button" onclick="closeAdminModal()" class="px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 transition">Cancel</button>
+            <button type="submit" id="modal-submit-btn" class="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold transition">Save Project</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-zinc-900 bg-zinc-950 py-8 text-center text-xs text-zinc-500">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <p>© 2026 Big Meaty Pawz Mods. Handcrafted in Southern California.</p>
+      <div class="flex items-center gap-4">
+        <a href="mailto:bigmeatypawzmods@gmail.com" class="hover:text-amber-400 transition">Email Mod Shop</a>
+        <span>•</span>
+        <a href="/" class="hover:text-zinc-300 transition">SoCal Pauper Home</a>
+        <span>•</span>
+        <a href="https://discord.gg/eQdgz5u5NE" target="_blank" rel="noopener noreferrer" class="hover:text-zinc-300 transition">Discord</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================================
+       MASTER JAVASCRIPT: FEED, LIGHTBOX, EDIT & DELETE HANDLERS
+       ======================================================================== -->
+  <script>
+    let globalProjects = [];
+    let activeLightboxProject = null;
+    let activeLightboxImageIndex = 0;
+
+    // Load projects from API
+    async function loadProjects() {
+      const container = document.getElementById('projects-container');
+      try {
+        const res = await fetch('/BigMeatyPawzMods/api.php?_=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) throw new Error('Failed to load projects');
+        globalProjects = await res.json();
+
+        if (!globalProjects || globalProjects.length === 0) {
+          container.innerHTML = `
+            <div class="col-span-full glass-card p-8 rounded-2xl text-center text-zinc-400 space-y-2">
+              <p class="font-medium text-zinc-300">No project logs posted yet.</p>
+              <p class="text-xs">Click "📷 Post New Build" or "🔐 Admin Post" to share bench modifications!</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = globalProjects.map((p, idx) => {
+          // Normalize images array
+          const images = p.images && p.images.length > 0 ? p.images : (p.image ? [p.image] : []);
+          const coverImage = images.length > 0 ? images[0] : null;
+          const imgCount = images.length;
+
+          return `
+            <div class="glass-card rounded-2xl overflow-hidden flex flex-col justify-between group hover:border-amber-500/50 transition relative">
+              
+              <!-- Clickable Image Stage (Item 6) -->
+              <div onclick="openLightbox(${idx})" class="w-full h-52 bg-zinc-950 overflow-hidden relative cursor-pointer">
+                ${coverImage ? `
+                  <img src="${coverImage}" alt="${p.title}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy">
+                  ${imgCount > 1 ? `
+                    <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/80 border border-zinc-700 text-[10px] text-zinc-200 font-mono">
+                      📷 +${imgCount - 1} more
+                    </div>
+                  ` : ''}
+                ` : `
+                  <div class="w-full h-full flex items-center justify-center text-zinc-600 text-3xl font-heading">
+                    🛠️ BMP
+                  </div>
+                `}
+                <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition pointer-events-none"></div>
+              </div>
+
+              <!-- Content Stage -->
+              <div class="p-5 flex-grow flex flex-col justify-between space-y-3">
+                <div class="space-y-1.5 cursor-pointer" onclick="openLightbox(${idx})">
+                  <div class="flex items-center justify-between text-[11px] text-zinc-500">
+                    <span class="font-mono text-amber-400 uppercase tracking-wider bg-amber-950/40 px-2 py-0.5 rounded border border-amber-600/30">${p.console}</span>
+                    <span>${p.date || 'Recent'}</span>
+                  </div>
+                  <h3 class="font-heading font-bold text-base text-zinc-100 group-hover:text-amber-300 transition">${p.title}</h3>
+                  <p class="text-xs text-zinc-400 leading-relaxed line-clamp-3 whitespace-pre-line">${p.description}</p>
+                </div>
+
+                <!-- Admin Action Triggers (Items 3 & 5) -->
+                <div class="pt-3 border-t border-zinc-800/80 flex items-center justify-between text-[11px]">
+                  <button type="button" onclick="openLightbox(${idx})" class="text-amber-400 hover:text-amber-300 font-semibold">
+                    Inspect Photos →
+                  </button>
+                  <button type="button" onclick="openAdminModal('edit', '${p.id}')" class="text-zinc-500 hover:text-zinc-300 font-mono px-2 py-1 rounded hover:bg-zinc-800 transition">
+                    ✏️ Edit
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        container.innerHTML = `
+          <div class="col-span-full p-6 text-center text-zinc-500 text-xs">
+            Unable to load completed projects feed.
+          </div>
+        `;
+      }
+    }
+
+    // ========================================================================
+    // LIGHTBOX CONTROLLER (ITEM 6)
+    // ========================================================================
+    function openLightbox(projectIndex) {
+      const p = globalProjects[projectIndex];
+      if (!p) return;
+
+      activeLightboxProject = p;
+      activeLightboxImageIndex = 0;
+
+      const images = p.images && p.images.length > 0 ? p.images : (p.image ? [p.image] : []);
+      
+      document.getElementById('lb-title').textContent = p.title;
+      document.getElementById('lb-console-badge').textContent = p.console;
+      document.getElementById('lb-desc').textContent = p.description;
+      document.getElementById('lb-date').textContent = p.date || '';
+
+      updateLightboxStage(images);
+
+      document.getElementById('lightbox-modal').classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+    }
+
+    function updateLightboxStage(images) {
+      const mainImg = document.getElementById('lb-main-image');
+      const prevBtn = document.getElementById('lb-prev-btn');
+      const nextBtn = document.getElementById('lb-next-btn');
+      const thumbsContainer = document.getElementById('lb-thumbs');
+
+      if (!images || images.length === 0) {
+        mainImg.src = '/logo.webp';
+        prevBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+        thumbsContainer.innerHTML = '';
+        return;
+      }
+
+      mainImg.src = images[activeLightboxImageIndex];
+
+      if (images.length > 1) {
+        prevBtn.classList.remove('hidden');
+        nextBtn.classList.remove('hidden');
+        thumbsContainer.innerHTML = images.map((img, i) => `
+          <button type="button" onclick="selectLightboxImage(${i})" class="w-12 h-12 rounded-lg overflow-hidden border-2 transition ${i === activeLightboxImageIndex ? 'border-amber-400 scale-105' : 'border-zinc-700 opacity-60 hover:opacity-100'}">
+            <img src="${img}" class="w-full h-full object-cover">
+          </button>
+        `).join('');
+      } else {
+        prevBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+        thumbsContainer.innerHTML = '';
+      }
+    }
+
+    function selectLightboxImage(i) {
+      if (!activeLightboxProject) return;
+      const images = activeLightboxProject.images && activeLightboxProject.images.length > 0 ? activeLightboxProject.images : [activeLightboxProject.image];
+      activeLightboxImageIndex = i;
+      updateLightboxStage(images);
+    }
+
+    function prevLightboxImage() {
+      if (!activeLightboxProject) return;
+      const images = activeLightboxProject.images && activeLightboxProject.images.length > 0 ? activeLightboxProject.images : [activeLightboxProject.image];
+      activeLightboxImageIndex = (activeLightboxImageIndex - 1 + images.length) % images.length;
+      updateLightboxStage(images);
+    }
+
+    function nextLightboxImage() {
+      if (!activeLightboxProject) return;
+      const images = activeLightboxProject.images && activeLightboxProject.images.length > 0 ? activeLightboxProject.images : [activeLightboxProject.image];
+      activeLightboxImageIndex = (activeLightboxImageIndex + 1) % images.length;
+      updateLightboxStage(images);
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox-modal').classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    function closeLightboxOnBackdrop(e) {
+      if (e.target.id === 'lightbox-modal') {
+        closeLightbox();
+      }
+    }
+
+    // Keyboard support for Lightbox
+    window.addEventListener('keydown', (e) => {
+      const modal = document.getElementById('lightbox-modal');
+      if (modal && !modal.classList.contains('hidden')) {
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') prevLightboxImage();
+        if (e.key === 'ArrowRight') nextLightboxImage();
+      }
+    });
+
+    // ========================================================================
+    // ADMIN MODAL & CRUD CONTROLLER (ITEMS 3, 4, 5)
+    // ========================================================================
+    function openAdminModal(action = 'create', projectId = null) {
+      const form = document.getElementById('project-upload-form');
+      form.reset();
+      document.getElementById('modal-error').classList.add('hidden');
+      document.getElementById('modal-action').value = action;
+      document.getElementById('modal-project-id').value = projectId || '';
+
+      const modalTitle = document.getElementById('admin-modal-title');
+      const deleteBtn = document.getElementById('modal-delete-btn');
+      const photoLabel = document.getElementById('photo-label-text');
+
+      if (action === 'edit' && projectId) {
+        const p = globalProjects.find(item => item.id === projectId);
+        if (p) {
+          document.getElementById('modal-title').value = p.title;
+          document.getElementById('modal-console').value = p.console;
+          document.getElementById('modal-desc').value = p.description;
+          modalTitle.textContent = 'Edit Project Details';
+          photoLabel.textContent = 'Add More Photos (Optional)';
+          deleteBtn.classList.remove('hidden');
+        }
+      } else {
+        modalTitle.textContent = 'Post Completed Project';
+        photoLabel.textContent = 'Select Photos (Multiple allowed, auto-resized)';
+        deleteBtn.classList.add('hidden');
+      }
+
+      document.getElementById('admin-modal').classList.remove('hidden');
+      document.getElementById('modal-pin').focus();
+    }
+
+    function closeAdminModal() {
+      document.getElementById('admin-modal').classList.add('hidden');
+    }
+
+    // Submit Handler (Create & Edit)
+    async function handleProjectSubmit(e) {
+      e.preventDefault();
+      const errBox = document.getElementById('modal-error');
+      const submitBtn = document.getElementById('modal-submit-btn');
+      
+      errBox.classList.add('hidden');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Processing...';
+
+      const formData = new FormData();
+      formData.append('pin', document.getElementById('modal-pin').value);
+      formData.append('action', document.getElementById('modal-action').value);
+      formData.append('id', document.getElementById('modal-project-id').value);
+      formData.append('title', document.getElementById('modal-title').value);
+      formData.append('console', document.getElementById('modal-console').value);
+      formData.append('description', document.getElementById('modal-desc').value);
+
+      // Append multiple files (Item 4)
+      const fileInput = document.getElementById('modal-photos');
+      if (fileInput.files.length > 0) {
+        for (let i = 0; i < fileInput.files.length; i++) {
+          formData.append('photos[]', fileInput.files[i]);
+        }
+      }
+
+      try {
+        const res = await fetch('/BigMeatyPawzMods/api.php', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save project');
+
+        closeAdminModal();
+        loadProjects();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Project';
+      }
+    }
+
+    // Delete Handler (Item 3)
+    async function handleProjectDelete() {
+      const projectId = document.getElementById('modal-project-id').value;
+      const pin = document.getElementById('modal-pin').value;
+      const errBox = document.getElementById('modal-error');
+
+      if (!pin) {
+        errBox.textContent = 'Please enter your Admin PIN to authorize deletion.';
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      if (!confirm('Are you sure you want to permanently delete this project and its stored images?')) {
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('pin', pin);
+      formData.append('action', 'delete');
+      formData.append('id', projectId);
+
+      try {
+        const res = await fetch('/BigMeatyPawzMods/api.php', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to delete project');
+
+        closeAdminModal();
+        loadProjects();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove('hidden');
+      }
+    }
+
+    // Initialize Page
+    loadProjects();
+  </script>
+
+<script type="text/javascript" src="/unprotected/back_to_spaceship.js?hash=4975d460e508829e8fb64d3962bc44ad35f3a95a"></script>
+
+</body>
+</html>

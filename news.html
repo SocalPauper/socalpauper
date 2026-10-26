@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MTG Pauper Spoilers, Sets & News | SoCal Pauper</title>
+  <meta name="description" content="Live self-updating MTG Pauper common spoilers, upcoming set releases, Secret Lair drops, and Banned & Restricted announcements." />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mtg: {
+              dark: '#0c0e12',
+              card: '#161922',
+              border: '#2a3040',
+              accent: '#d97706'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Cinzel & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    h1, h2, h3, .font-cinzel { font-family: 'Cinzel', serif; }
+    body { font-family: 'Inter', sans-serif; }
+    .card-frame {
+      background: linear-gradient(180deg, rgba(28, 33, 46, 0.95) 0%, rgba(18, 21, 30, 0.98) 100%);
+      border: 1px solid #2a3040;
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+  </style>
+</head>
+<body class="bg-mtg-dark text-zinc-200 min-h-screen flex flex-col selection:bg-amber-600 selection:text-white">
+
+  <!-- Header Navigation -->
+  <header class="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3 group">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-600 to-amber-900 border border-amber-500/40 flex items-center justify-center font-cinzel font-black text-amber-100 shadow-md">
+          C
+        </div>
+        <div>
+          <span class="font-cinzel font-bold text-lg tracking-wide text-zinc-100 group-hover:text-amber-400 transition-colors">SoCal Pauper</span>
+          <span class="text-[10px] font-semibold text-amber-500/90 ml-1.5 uppercase px-1.5 py-0.5 rounded border border-amber-500/20 bg-amber-950/30">News</span>
+        </div>
+      </a>
+
+      <div class="flex items-center gap-3 text-xs sm:text-sm">
+        <a href="/" class="text-zinc-400 hover:text-zinc-100 px-3 py-1.5 transition">← Back to Hub</a>
+        <a href="https://discord.gg/eQdgz5u5NE" target="_blank" rel="noopener noreferrer" 
+           class="inline-flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold px-3.5 py-2 rounded-lg transition shadow-md">
+          Join Discord
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Banner -->
+  <section class="border-b border-zinc-800/80 bg-gradient-to-b from-zinc-950 via-zinc-900/60 to-mtg-dark py-12 px-4">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/40 border border-amber-600/30 text-amber-300 mb-3">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          Live MTG Pauper Intel
+        </div>
+        <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-zinc-100 uppercase">
+          Pauper Spoilers & Releases
+        </h1>
+        <p class="text-zinc-400 text-sm mt-2 max-w-2xl">
+          Automated live feed monitoring upcoming set releases, all spoiled common cards for the Pauper format, Secret Lairs, and format announcements.
+        </p>
+      </div>
+
+      <button onclick="fetchAllFeeds()" class="self-start md:self-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs font-semibold text-amber-300 transition shadow-sm active:scale-95 cursor-pointer">
+        <svg id="sync-icon" class="w-4 h-4 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span>Refresh Feeds</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Main Content Container -->
+  <main class="max-w-6xl mx-auto px-4 py-10 space-y-12 flex-1 w-full">
+
+    <!-- ======================================================================
+         SECTION 1: COMMON CARD SPOILER EXPLORER (FILTERED TO COMMONS)
+         ====================================================================== -->
+    <div class="space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+        <div>
+          <h2 class="font-cinzel text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+            <span>Pauper Common Spoilers</span>
+            <span class="text-[10px] font-bold text-amber-400 bg-amber-950/60 border border-amber-600/30 px-2 py-0.5 rounded uppercase">Commons Only</span>
+          </h2>
+          <p class="text-xs text-zinc-400">Showing all common previews and printings for upcoming and recent sets.</p>
+        </div>
+
+        <span id="spoiler-count-badge" class="text-xs font-semibold text-zinc-400"></span>
+      </div>
+
+      <!-- Set Filter & Rarity Control Shelf -->
+      <div class="card-frame p-4 rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <!-- Set Selector Dropdown -->
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <label for="spoiler-set-select" class="text-xs font-semibold text-zinc-400 whitespace-nowrap">Target Set:</label>
+          <select id="spoiler-set-select" onchange="onSpoilerSetChange(this.value)" 
+                  class="bg-zinc-950 border border-zinc-700 text-zinc-100 text-xs font-medium rounded-lg px-3 py-2 flex-1 truncate focus:outline-none focus:border-amber-500">
+            <option value="AUTO_LATEST">⚡ Latest Spoiled Commons (All Sets)</option>
+          </select>
+        </div>
+
+        <!-- Rarity Toggle: Commons (Pauper) vs All Cards -->
+        <div class="flex items-center gap-1.5 self-start sm:self-auto shrink-0">
+          <button id="btn-rarity-common" onclick="setSpoilerRarity('common')" 
+                  class="px-3 py-1.5 rounded-lg border border-amber-500 bg-amber-500/20 text-amber-300 text-xs font-bold shadow-sm transition cursor-pointer">
+            Commons Only (Pauper)
+          </button>
+          <button id="btn-rarity-all" onclick="setSpoilerRarity('all')" 
+                  class="px-3 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-semibold hover:text-zinc-200 transition cursor-pointer">
+            All Rarities
+          </button>
+        </div>
+      </div>
+
+      <!-- Spoilers Grid -->
+      <div id="spoilers-loading" class="text-xs text-zinc-500 py-12 text-center animate-pulse">Loading set commons from Scryfall...</div>
+      <div id="spoilers-empty" class="hidden card-frame p-8 rounded-xl text-center text-xs text-zinc-400">
+        No spoiled commons found for this set yet. Check back as preview season begins.
+      </div>
+      <div id="spoilers-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
+    </div>
+
+    <!-- ======================================================================
+         SECTION 2: UPCOMING SET RELEASE ROADMAP
+         ====================================================================== -->
+    <div class="space-y-4">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <div>
+          <h2 class="font-cinzel text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+            <span>Upcoming Releases & Sets</span>
+            <span class="text-[10px] font-bold text-amber-400 bg-amber-950/60 border border-amber-600/30 px-2 py-0.5 rounded uppercase">Scryfall Roadmap</span>
+          </h2>
+          <p class="text-xs text-zinc-400">Release timeline for standard sets, Universes Beyond expansions, and Secret Lair drops.</p>
+        </div>
+      </div>
+
+      <div id="sets-loading" class="text-xs text-zinc-500 py-8 text-center animate-pulse">Loading upcoming set releases...</div>
+      <div id="sets-grid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- ======================================================================
+         SECTION 3: MTG NEWS, SECRET LAIR & B&R ARTICLES
+         ====================================================================== -->
+    <div class="space-y-4">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <div>
+          <h2 class="font-cinzel text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+            <span>Official News & Format Updates</span>
+            <span class="text-[10px] font-bold text-blue-400 bg-blue-950/60 border border-blue-600/30 px-2 py-0.5 rounded uppercase">Live Feed</span>
+          </h2>
+          <p class="text-xs text-zinc-400">Rules changes, Banned & Restricted announcements, and Secret Lair drop alerts.</p>
+        </div>
+      </div>
+
+      <div id="news-loading" class="text-xs text-zinc-500 py-8 text-center animate-pulse">Streaming MTG community news feed...</div>
+      <div id="news-grid" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-zinc-900 bg-zinc-950 py-8 text-center text-xs text-zinc-500 space-y-2">
+    <p>© 2026 SoCal Pauper Community. Real-time card and set data powered by the Scryfall API and MTG community feeds.</p>
+    <p>Magic: The Gathering is a trademark of Wizards of the Coast LLC.</p>
+  </footer>
+
+  <!-- Script: Scryfall Common Spoilers, Sets & News -->
+  <script>
+    let activeRarity = 'common'; // 'common' or 'all'
+    let availableSetsList = [];
+    let selectedSetCode = 'AUTO_LATEST';
+
+    // 1. Fetch Upcoming & Recent Sets, then populate dropdown
+    async function fetchUpcomingSets() {
+      const loader = document.getElementById('sets-loading');
+      const grid = document.getElementById('sets-grid');
+      const setSelect = document.getElementById('spoiler-set-select');
+
+      try {
+        const res = await fetch('https://api.scryfall.com/sets');
+        if (!res.ok) throw new Error("Scryfall sets request failed");
+        const data = await res.json();
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        // Filter upcoming sets, recent main expansions, or box sets
+        availableSetsList = data.data.filter(s => {
+          const isUpcoming = s.released_at && s.released_at >= todayStr;
+          const isRecent = s.released_at && (s.set_type === 'expansion' || s.set_type === 'masters' || s.set_type === 'draft_innovation');
+          const isSecretLair = s.set_type === 'box' || s.code === 'sld' || (s.name && s.name.includes('Secret Lair'));
+          return isUpcoming || isRecent || isSecretLair;
+        }).slice(0, 15);
+
+        // Populate Spoiler Set Select Dropdown
+        const preservedVal = setSelect.value;
+        setSelect.innerHTML = '<option value="AUTO_LATEST">⚡ Latest Spoiled Commons (All Sets)</option>';
+        availableSetsList.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.code;
+          opt.textContent = `${s.name} [${s.code.toUpperCase()}] (${s.released_at || 'TBA'})`;
+          setSelect.appendChild(opt);
+        });
+        setSelect.value = preservedVal || 'AUTO_LATEST';
+
+        // Render Roadmap Grid
+        grid.innerHTML = '';
+        availableSetsList.slice(0, 9).forEach(s => {
+          const isUpcoming = s.released_at && s.released_at >= todayStr;
+          const isSecretLair = s.set_type === 'box' || s.code === 'sld' || (s.name && s.name.includes('Secret Lair'));
+          
+          const card = document.createElement('div');
+          card.className = "card-frame p-4 rounded-xl flex flex-col justify-between space-y-3 relative overflow-hidden group";
+          card.innerHTML = `
+            <div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded ${
+                  isUpcoming ? 'bg-amber-950/80 border border-amber-600/40 text-amber-300' :
+                  isSecretLair ? 'bg-purple-950/80 border border-purple-600/40 text-purple-300' :
+                  'bg-zinc-800 text-zinc-300'
+                }">
+                  ${isUpcoming ? 'Upcoming Release' : isSecretLair ? 'Secret Lair' : 'Recent Release'}
+                </span>
+                <span class="text-xs font-mono font-bold text-zinc-500 uppercase">${s.code}</span>
+              </div>
+              <h3 class="text-base font-bold text-white mt-2 group-hover:text-amber-400 transition-colors">${s.name}</h3>
+            </div>
+
+            <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs text-zinc-400">
+              <span class="flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                ${s.released_at || 'TBA'}
+              </span>
+              <span>${s.card_count} cards</span>
+            </div>
+
+            <a href="https://scryfall.com/sets/${s.code}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 z-10" aria-label="View set on Scryfall"></a>
+          `;
+          grid.appendChild(card);
+        });
+
+        loader.classList.add('hidden');
+        grid.classList.remove('hidden');
+      } catch (err) {
+        loader.textContent = "Unable to load set roadmap from Scryfall.";
+        console.error(err);
+      }
+    }
+
+    // 2. Fetch and Display All Commons (or all cards) for the Selected Set
+    async function fetchSpoilers() {
+      const loader = document.getElementById('spoilers-loading');
+      const emptyBox = document.getElementById('spoilers-empty');
+      const grid = document.getElementById('spoilers-grid');
+      const countBadge = document.getElementById('spoiler-count-badge');
+
+      loader.classList.remove('hidden');
+      emptyBox.classList.add('hidden');
+      grid.classList.add('hidden');
+      countBadge.textContent = '';
+
+      const rarityParam = (activeRarity === 'common') ? '+r:common' : '';
+      let queryUrl = '';
+
+      if (selectedSetCode === 'AUTO_LATEST') {
+        // Query recent previewed cards with rarity filter, falling back to recent commons
+        queryUrl = `https://api.scryfall.com/cards/search?q=(is:previewed+or+year%3E%3D2026)${rarityParam}&order=spoiled&unique=cards`;
+      } else {
+        // Query all cards from the specified set with rarity filter (Scryfall returns up to 175 per page, covering all ~100 commons in a set)
+        queryUrl = `https://api.scryfall.com/cards/search?q=set:${selectedSetCode}${rarityParam}&order=set&unique=cards`;
+      }
+
+      try {
+        let allCards = [];
+        let nextUrl = queryUrl;
+
+        // Fetch cards (and handle multi-page if set exceeds 175 cards)
+        while (nextUrl && allCards.length < 350) {
+          const res = await fetch(nextUrl);
+          if (!res.ok) break;
+          const data = await res.json();
+          if (data && data.data) {
+            allCards = allCards.concat(data.data);
+          }
+          nextUrl = (data.has_more && data.next_page) ? data.next_page : null;
+        }
+
+        loader.classList.add('hidden');
+
+        if (allCards.length === 0) {
+          emptyBox.classList.remove('hidden');
+          countBadge.textContent = '0 cards found';
+          return;
+        }
+
+        countBadge.textContent = `${allCards.length} ${activeRarity === 'common' ? 'commons' : 'cards'} displayed`;
+        grid.innerHTML = '';
+
+        allCards.forEach(c => {
+          let img = "https://placehold.co/200x280/161922/amber?text=No+Preview";
+          if (c.image_uris && c.image_uris.normal) {
+            img = c.image_uris.normal;
+          } else if (c.card_faces && c.card_faces[0].image_uris) {
+            img = c.card_faces[0].image_uris.normal;
+          }
+
+          const cardEl = document.createElement('div');
+          cardEl.className = "group relative rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950 hover:border-amber-500/50 transition duration-150 flex flex-col justify-between shadow-lg";
+          cardEl.innerHTML = `
+            <div class="overflow-hidden bg-zinc-900">
+              <img src="${img}" alt="${c.name}" class="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-200" loading="lazy">
+            </div>
+            <div class="p-2 text-center bg-zinc-900/90 border-t border-zinc-800/80">
+              <div class="text-[11px] font-bold text-zinc-100 truncate">${c.name}</div>
+              <div class="flex items-center justify-between text-[10px] text-zinc-400 mt-0.5">
+                <span class="font-mono uppercase font-semibold text-amber-400/90">${c.set.toUpperCase()}</span>
+                <span>#${c.collector_number}</span>
+              </div>
+            </div>
+            <a href="${c.scryfall_uri}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 z-10" aria-label="${c.name}"></a>
+          `;
+          grid.appendChild(cardEl);
+        });
+
+        grid.classList.remove('hidden');
+      } catch (err) {
+        loader.classList.add('hidden');
+        emptyBox.classList.remove('hidden');
+        console.warn("Spoiler query error:", err);
+      }
+    }
+
+    function onSpoilerSetChange(newSetCode) {
+      selectedSetCode = newSetCode;
+      fetchSpoilers();
+    }
+
+    function setSpoilerRarity(rarity) {
+      activeRarity = rarity;
+
+      const btnCommon = document.getElementById('btn-rarity-common');
+      const btnAll = document.getElementById('btn-rarity-all');
+
+      if (rarity === 'common') {
+        btnCommon.className = "px-3 py-1.5 rounded-lg border border-amber-500 bg-amber-500/20 text-amber-300 text-xs font-bold shadow-sm transition cursor-pointer";
+        btnAll.className = "px-3 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-semibold hover:text-zinc-200 transition cursor-pointer";
+      } else {
+        btnAll.className = "px-3 py-1.5 rounded-lg border border-amber-500 bg-amber-500/20 text-amber-300 text-xs font-bold shadow-sm transition cursor-pointer";
+        btnCommon.className = "px-3 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-semibold hover:text-zinc-200 transition cursor-pointer";
+      }
+
+      fetchSpoilers();
+    }
+
+    // 3. Fetch MTG News & Ban Announcements
+    async function fetchNewsArticles() {
+      const loader = document.getElementById('news-loading');
+      const grid = document.getElementById('news-grid');
+
+      try {
+        const feedUrl = encodeURIComponent('https://api.mtgstocks.com/news/feed');
+        const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
+        const data = await res.json();
+
+        if (data && data.items && data.items.length > 0) {
+          grid.innerHTML = '';
+          data.items.slice(0, 6).forEach(item => {
+            const dateStr = item.pubDate ? item.pubDate.split(' ')[0] : 'Recent';
+            const cleanSnippet = item.description ? item.description.replace(/<[^>]*>?/gm, '').slice(0, 140) + '...' : '';
+
+            const article = document.createElement('div');
+            article.className = "card-frame p-5 rounded-xl space-y-3 relative group";
+            article.innerHTML = `
+              <div class="flex items-center justify-between text-xs text-zinc-500">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-amber-400 px-2 py-0.5 rounded bg-amber-950/60 border border-amber-600/30">
+                  MTG Article & Market
+                </span>
+                <span>${dateStr}</span>
+              </div>
+              <h3 class="text-base font-bold text-white group-hover:text-amber-300 transition-colors leading-snug">${item.title}</h3>
+              <p class="text-xs text-zinc-400 leading-relaxed">${cleanSnippet}</p>
+              <div class="pt-2 flex items-center text-xs font-semibold text-amber-400 gap-1">
+                <span>Read Full Article</span>
+                <span>&rarr;</span>
+              </div>
+              <a href="${item.link}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 z-10" aria-label="${item.title}"></a>
+            `;
+            grid.appendChild(article);
+          });
+        }
+
+        loader.classList.add('hidden');
+        grid.classList.remove('hidden');
+      } catch (err) {
+        loader.innerHTML = `
+          <div class="p-6 rounded-xl border border-zinc-800 text-center text-xs text-zinc-400 space-y-2">
+            <p>Live article streaming proxy is refreshing.</p>
+            <p>Check the latest official announcements directly at <a href="https://magic.wizards.com/en/news" target="_blank" class="text-amber-400 underline">DailyMTG</a>.</p>
+          </div>
+        `;
+      }
+    }
+
+    function fetchAllFeeds() {
+      const icon = document.getElementById('sync-icon');
+      if (icon) icon.classList.add('animate-spin');
+
+      Promise.all([fetchUpcomingSets(), fetchSpoilers(), fetchNewsArticles()]).finally(() => {
+        if (icon) icon.classList.remove('animate-spin');
+      });
+    }
+
+    // Initial Load
+    fetchAllFeeds();
+  </script>
+
+<script type="text/javascript" src="/unprotected/back_to_spaceship.js?hash=4975d460e508829e8fb64d3962bc44ad35f3a95a"></script>
+
+</body>
+</html>
