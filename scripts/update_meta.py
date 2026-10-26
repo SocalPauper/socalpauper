@@ -26,7 +26,7 @@ def classify_advantage(win_rate: float) -> str:
     return "even"
 
 async def scrape_metagame():
-    print("[*] Launching Chromium in headless mode...")
+    print("[*] Launching Chromium via Playwright...")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -39,7 +39,7 @@ async def scrape_metagame():
         await page.goto(MTGDECKS_PAUPER_URL, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(3000)
 
-        # Extract top archetypes from table
+        # Scrape top 10 archetypes from the metagame table
         archetypes = await page.evaluate('''() => {
             const results = [];
             const rows = document.querySelectorAll("table tr");
@@ -94,33 +94,38 @@ async def scrape_metagame():
             print(f"  [{idx}/10] Visiting: {arch['name']}...")
             try:
                 await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
-                await page.wait_for_timeout(2000)
+                await page.wait_for_timeout(2500)
 
-                # Look for tournament placement decklink
+                # Locate tournament decklink on the archetype overview page
                 deck_url = await page.evaluate('''() => {
                     const links = Array.from(document.querySelectorAll("a[href]"));
                     for (const a of links) {
                         const h = a.getAttribute("href") || "";
-                        if (/\\/pauper\\/.*-\\d+$|\\/deck\\/\\d+$/i.test(h)) {
+                        if (h.includes("decklist-by-") || /\\/deck\\/\\d+/i.test(h)) {
                             return h.startsWith("http") ? h : "https://mtgdecks.net" + h;
                         }
                     }
                     return null;
                 }''')
 
-                target = deck_url or arch["url"]
-                if target != arch["url"]:
-                    await page.goto(target, wait_until="domcontentloaded", timeout=45000)
-                    await page.wait_for_timeout(2000)
+                if not deck_url:
+                    print(f"      [!] No tournament placement link found on {arch['url']}")
+                    continue
 
+                print(f"      -> Drilling down to deck: {deck_url}")
+                await page.goto(deck_url, wait_until="domcontentloaded", timeout=45000)
+                await page.wait_for_timeout(2500)
+
+                # Extract card counts and names directly from the deck page
                 deck_cards = await page.evaluate('''() => {
                     const main = [];
                     const side = [];
                     let isSide = false;
 
-                    const rows = document.querySelectorAll("tr, .card-item, li");
+                    const rows = document.querySelectorAll("tr, li, .card-item");
                     for (const row of rows) {
                         const text = row.innerText.trim();
+
                         if (/\\b(Sideboard|Side)\\b/i.test(text) && !row.querySelector("a")) {
                             isSide = true;
                             continue;
@@ -128,9 +133,10 @@ async def scrape_metagame():
 
                         const cardAnchor = row.querySelector("a[href*='/cards/'], a[href*='/card/'], a");
                         if (!cardAnchor) continue;
+
                         const cname = cardAnchor.innerText.trim();
                         if (!cname || cname.length < 2) continue;
-                        if (["lands", "creatures", "spells", "artifacts", "instants", "sorceries"].includes(cname.lower())) continue;
+                        if (["lands", "creatures", "spells", "artifacts", "instants", "sorceries"].includes(cname.toLowerCase())) continue;
 
                         let qty = null;
                         const tds = row.querySelectorAll("td");
@@ -141,6 +147,7 @@ async def scrape_metagame():
                                 break;
                             }
                         }
+
                         if (!qty) {
                             const m = text.match(/^(\\d{1,2})\\b/);
                             if (m) qty = parseInt(m[1], 10);
@@ -160,7 +167,7 @@ async def scrape_metagame():
                 sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards["side"]]
 
                 if not mainboard:
-                    print(f"      [!] 0 cards extracted for {arch['name']}, skipping.")
+                    print(f"      [!] 0 cards extracted on deck page: {deck_url}")
                     continue
 
                 print(f"      [✓] Extracted {len(mainboard)} mainboard, {len(sideboard)} sideboard cards.")
@@ -185,7 +192,7 @@ async def scrape_metagame():
         if len(final_decks) < 4:
             raise RuntimeError(f"Retrieved only {len(final_decks)} decks. Halting update.")
 
-        # Build dynamic matchup matrix
+        # Compute dynamic cross-matchups
         for idx, d in enumerate(final_decks):
             opponents = [o for o in final_decks if o["id"] != d["id"]]
             matchups = []
@@ -209,7 +216,7 @@ async def scrape_metagame():
         with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
             json.dump(final_decks, f, indent=2, ensure_ascii=False)
 
-        print(f"\n[✓] Successfully compiled {len(final_decks)} decks to {OUTPUT_PATH}")
+        print(f"\n[✓] Successfully compiled {len(final_decks)} decks into {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     asyncio.run(scrape_metagame())
