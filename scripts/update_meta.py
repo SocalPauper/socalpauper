@@ -6,22 +6,15 @@ from playwright.async_api import async_playwright
 MTGDECKS_PAUPER_URL = "https://mtgdecks.net/Pauper"
 OUTPUT_PATH = "data/top_decks.json"
 
-SIGNATURE_CARDS = {
-    "mono-red-madness": "Sneaky Snacker",
-    "elves": "Priest of Titania",
-    "mono-blue-terror": "Tolarian Terror",
-    "rogue": "Slither Blade",
-    "grixis-affinity": "Blood Fountain",
-    "esper-affinity": "Refurbished Familiar",
-    "monster-tron": "Myr Enforcer",
-    "spy-combo": "Balustrade Spy",
-    "mono-red-rally": "Kuldotha Rebirth",
-    "ub-faeries": "Spellstutter Sprite",
-    "dimir-control": "Cast Down",
-    "gw-bogles": "Slippery Bogle",
-    "white-weenie": "Thraben Inspector",
-    "jund-wildfire": "Cleansing Wildfire",
-    "golgari-gardens": "Crypt Rats"
+EXCLUDED_SLUGS = {
+    "pauperstaples", "winrates", "staples", "mtgo", "meta", "major", 
+    "events", "tournaments", "filter", "decklists", "price", "archetype", "decks", "articles"
+}
+
+BASIC_LANDS = {
+    "plains", "island", "swamp", "mountain", "forest",
+    "snow-covered plains", "snow-covered island", "snow-covered swamp", 
+    "snow-covered mountain", "snow-covered forest"
 }
 
 def clean_card_name(raw_name: str) -> str:
@@ -51,6 +44,55 @@ def parse_deck_text(raw_text: str):
                 target.append({"name": cname, "count": qty})
 
     return mainboard, sideboard
+
+def determine_dynamic_signature_card(archetype_name: str, decks: list, dom_core_card: str = None) -> str:
+    """
+    Dynamically identifies the signature card of an archetype without hardcoding.
+    Evaluates:
+      1. DOM core/staple card from MTGDecks (if found).
+      2. Card presence & copy count across all tournament decklists.
+      3. Overlap between the archetype name and the card name.
+    """
+    if dom_core_card and dom_core_card.lower() not in BASIC_LANDS:
+        return dom_core_card
+
+    if not decks:
+        return "Brainstorm"
+
+    card_scores = {}
+    arch_words = [w.lower() for w in re.findall(r"[a-zA-Z]{3,}", archetype_name)]
+
+    for d in decks:
+        seen_in_deck = set()
+        for c in d.get("mainboard", []):
+            name = c["name"]
+            low_name = name.lower()
+            if low_name in BASIC_LANDS or len(name) < 3:
+                continue
+
+            if name not in card_scores:
+                card_scores[name] = {"count": 0, "deck_count": 0}
+
+            card_scores[name]["count"] += c["count"]
+            if name not in seen_in_deck:
+                card_scores[name]["deck_count"] += 1
+                seen_in_deck.add(name)
+
+    if not card_scores:
+        return "Brainstorm"
+
+    def rank_card(item):
+        name, stats = item
+        low = name.lower()
+        score = (stats["deck_count"] * 100) + stats["count"]
+        # Bonus for cards sharing keywords with the archetype name
+        for word in arch_words:
+            if word in low:
+                score += 300
+        return score
+
+    sorted_cards = sorted(card_scores.items(), key=rank_card, reverse=True)
+    return sorted_cards[0][0]
 
 async def scrape_metagame():
     print("[*] Launching Chromium via Playwright...")
@@ -115,7 +157,6 @@ async def scrape_metagame():
             return results;
         }''')
 
-        # Filter out utility links and limit to top 10
         unique_archetypes = []
         for a in archetypes:
             if not any(x["id"] == a["id"] for x in unique_archetypes):
@@ -123,7 +164,7 @@ async def scrape_metagame():
             if len(unique_archetypes) >= 10:
                 break
 
-        print(f"[✓] Found Top {len(unique_archetypes)} Archetypes:")
+        print(f"[✓] Identified Top {len(unique_archetypes)} Archetypes:")
         for idx, a in enumerate(unique_archetypes, 1):
             print(f"    {idx}. {a['name']} ({a['metaShare']})")
 
@@ -136,91 +177,125 @@ async def scrape_metagame():
                 await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
                 await page.wait_for_timeout(2500)
 
-                # Extract the 10 latest tournament placements from table
-                deck_entries = await page.evaluate('''() => {
+                # Locate tournament deck placement links and metadata
+                deck_data = await page.evaluate('''(archSlug) => {
                     const items = [];
-                    const rows = document.querySelectorAll("table tr");
+                    let domCoreCard = null;
 
-                    for (const row of rows) {
-                        const a = row.querySelector("a[href*='-decklist-by-'], a[href*='/deck/']");
-                        if (!a) continue;
-
-                        const href = a.getAttribute("href") || "";
-                        const rowText = row.innerText;
-                        const cells = Array.from(row.querySelectorAll("td")).map(td => td.innerText.trim());
-
-                        // Date (e.g. 25-Oct-2026 or 2026-10-25)
-                        let dateStr = "";
-                        const dateMatch = rowText.match(/\\b\\d{1,2}-[A-Za-z]{3}(?:-\\d{4})?\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b/);
-                        if (dateMatch) dateStr = dateMatch[0];
-
-                        // Placement (1st, 2nd, Top4, Top8, 5-0)
-                        let placement = "Top 8";
-                        if (/1st|winner|champion/i.test(rowText)) placement = "1st";
-                        else if (/2nd|finalist/i.test(rowText)) placement = "2nd";
-                        else if (/top\\s*4|semifinal/i.test(rowText)) placement = "Top 4";
-                        else if (/top\\s*8/i.test(rowText)) placement = "Top 8";
-                        else if (/top\\s*16/i.test(rowText)) placement = "Top 16";
-                        else if (/5\\s*-\\s*0/i.test(rowText)) placement = "5-0";
-
-                        // Record (W-L or W-L-T)
-                        let record = "";
-                        const recordMatch = rowText.match(/\\((\\d{1,2}\\s*-\\s*\\d{1,2}(?:\\s*-\\s*\\d{1,2})?)\\)/);
-                        if (recordMatch) {
-                            record = recordMatch[1].replace(/\\s+/g, "");
-                        } else {
-                            const rawRecord = rowText.match(/\\b(\\d{1,2}\\s*-\\s*\\d{1,2})\\b/);
-                            if (rawRecord) record = rawRecord[1].replace(/\\s+/g, "");
+                    // 1. Look for Core / Most Played card on archetype page
+                    const cardLinks = document.querySelectorAll("a[href*='/cards/']");
+                    for (const cl of cardLinks) {
+                        const cn = cl.innerText.trim();
+                        if (cn.length > 2 && !/mountain|island|swamp|plains|forest/i.test(cn)) {
+                            domCoreCard = cn;
+                            break;
                         }
-
-                        // Event Name
-                        let eventName = "Pauper Tournament";
-                        for (const cell of cells) {
-                            if (/challenge|league|championship|open|showcase|scg|qualifier|fnm|battle|autumn|stage/i.test(cell)) {
-                                eventName = cell.split("\\n")[0].trim();
-                                break;
-                            }
-                        }
-
-                        // Players Count
-                        let players = "32+";
-                        const pMatch = rowText.match(/(\\d{1,3})\\s*(?:players|player|p\\b)/i);
-                        if (pMatch) players = pMatch[1];
-                        else if (/challenge/i.test(rowText)) players = "64";
-                        else if (/showcase/i.test(rowText)) players = "128";
-                        else if (/league/i.test(rowText)) players = "League";
-
-                        // Pilot
-                        let pilot = a.innerText.trim();
-                        const byMatch = rowText.match(/by\\s+([^\\n·,]+)/i);
-                        if (byMatch) pilot = byMatch[1].trim();
-
-                        items.push({
-                            title: a.innerText.trim() || pilot,
-                            pilot: pilot,
-                            url: href.startsWith("http") ? href : "https://mtgdecks.net" + href,
-                            date: dateStr,
-                            placement: placement,
-                            record: record,
-                            eventName: eventName,
-                            players: players
-                        });
-
-                        if (items.length >= 10) break;
                     }
-                    return items;
-                }''')
 
-                print(f"    Found {len(deck_entries)} tournament placement entries.")
+                    // 2. Discover decklinks anywhere on the page
+                    const allAnchors = Array.from(document.querySelectorAll("a[href]"));
+                    for (const a of allAnchors) {
+                        const href = a.getAttribute("href") || "";
+                        if (/tournaments?|users?|search|filter|winrates|staples|login|#|articles?/i.test(href)) continue;
+                        if (href.toLowerCase().endsWith("/" + archSlug) || href.toLowerCase().endsWith("/pauper")) continue;
+
+                        // Target tournament decklinks (containing decklist or ending in numeric ID)
+                        if (href.includes("decklist") || /-\\d{6,8}$|\\/deck\\/\\d+/i.test(href)) {
+                            const fullUrl = href.startsWith("http") ? href : "https://mtgdecks.net" + href;
+                            if (items.some(x => x.url === fullUrl)) continue;
+
+                            const row = a.closest("tr") || a.closest("div.row") || a.parentElement;
+                            const rowText = row ? row.innerText : "";
+                            const cells = row ? Array.from(row.querySelectorAll("td")).map(td => td.innerText.trim()) : [];
+
+                            // Extract Submitter / User / Pilot
+                            let pilot = "";
+                            const byMatch = rowText.match(/(?:by|builder:?)\s+([^\n·,\(\)]+)/i);
+                            if (byMatch) {
+                                pilot = byMatch[1].trim();
+                            } else {
+                                // Extract from URL: -decklist-by-(username)-ID
+                                const urlByMatch = href.match(/-decklist-by-([^-]+)-\d+/i);
+                                if (urlByMatch) {
+                                    pilot = urlByMatch[1].trim();
+                                } else {
+                                    pilot = a.innerText.trim() || "Anonymous";
+                                }
+                            }
+
+                            // Extract Date
+                            let dateStr = "";
+                            const dateMatch = rowText.match(/\\b\\d{1,2}-[A-Za-z]{3}(?:-\\d{4})?\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b/);
+                            if (dateMatch) dateStr = dateMatch[0];
+
+                            // Extract Placement
+                            let placement = "Top 8";
+                            if (/1st|winner|champion/i.test(rowText)) placement = "1st";
+                            else if (/2nd|finalist/i.test(rowText)) placement = "2nd";
+                            else if (/top\\s*4|semifinal/i.test(rowText)) placement = "Top 4";
+                            else if (/top\\s*8/i.test(rowText)) placement = "Top 8";
+                            else if (/top\\s*16/i.test(rowText)) placement = "Top 16";
+                            else if (/5\\s*-\\s*0/i.test(rowText)) placement = "5-0";
+
+                            // Extract Record
+                            let record = "";
+                            const recordMatch = rowText.match(/\\((\\d{1,2}\\s*-\\s*\\d{1,2}(?:\\s*-\\s*\\d{1,2})?)\\)/);
+                            if (recordMatch) {
+                                record = recordMatch[1].replace(/\\s+/g, "");
+                            } else {
+                                const rawRecord = rowText.match(/\\b(\\d{1,2}\\s*-\\s*\\d{1,2})\\b/);
+                                if (rawRecord) record = rawRecord[1].replace(/\\s+/g, "");
+                            }
+
+                            // Extract Event Name
+                            let eventName = "Pauper Tournament";
+                            for (const cell of cells) {
+                                if (/challenge|league|championship|open|showcase|scg|qualifier|fnm|battle|autumn|stage/i.test(cell)) {
+                                    eventName = cell.split("\\n")[0].trim();
+                                    break;
+                                }
+                            }
+
+                            // Extract Players
+                            let players = "32+";
+                            const pMatch = rowText.match(/(\\d{1,3})\\s*(?:players|player|p\\b)/i);
+                            if (pMatch) players = pMatch[1];
+                            else if (/challenge/i.test(rowText)) players = "64";
+                            else if (/showcase/i.test(rowText)) players = "128";
+                            else if (/league/i.test(rowText)) players = "League";
+
+                            items.push({
+                                user: pilot,
+                                submitter: pilot,
+                                pilot: pilot,
+                                url: fullUrl,
+                                date: dateStr,
+                                placement: placement,
+                                record: record,
+                                eventName: eventName,
+                                players: players
+                            });
+
+                            if (items.length >= 10) break;
+                        }
+                    }
+
+                    return { items, domCoreCard };
+                }''', arch["id"])
+
+                deck_entries = deck_data.get("items", [])
+                dom_core_card = deck_data.get("domCoreCard")
+                print(f"    Found {len(deck_entries)} tournament placement decks.")
+
                 scraped_decks = []
 
                 for d_idx, deck_entry in enumerate(deck_entries, start=1):
                     try:
-                        print(f"      [{d_idx}/{len(deck_entries)}] Pulling list: {deck_entry['pilot']} ({deck_entry['placement']})...")
+                        print(f"      [{d_idx}/{len(deck_entries)}] Parsing list by {deck_entry['user']} ({deck_entry['placement']})...")
                         await page.goto(deck_entry["url"], wait_until="domcontentloaded", timeout=30000)
                         await page.wait_for_timeout(1500)
 
-                        # Try clicking plaintext export modal
+                        # Plaintext export modal
                         try:
                             btn = page.locator("a:has-text('Export'), button:has-text('Export'), .export-deck")
                             if await btn.count() > 0:
@@ -285,6 +360,8 @@ async def scrape_metagame():
                         if mainboard:
                             scraped_decks.append({
                                 "id": f"{arch['id']}-{d_idx}",
+                                "user": deck_entry["user"],
+                                "submitter": deck_entry["submitter"],
                                 "pilot": deck_entry["pilot"],
                                 "eventName": deck_entry["eventName"],
                                 "date": deck_entry["date"] or "Recent",
@@ -298,17 +375,16 @@ async def scrape_metagame():
                     except Exception as e:
                         print(f"        [!] Error scraping {deck_entry['url']}: {e}")
 
-                # Choose signature key card for archetype artwork
-                sig_card = SIGNATURE_CARDS.get(arch["id"])
-                if not sig_card and scraped_decks and scraped_decks[0]["mainboard"]:
-                    sig_card = scraped_decks[0]["mainboard"][0]["name"]
+                # Compute dynamic signature card across parsed tournament lists
+                dynamic_sig_card = determine_dynamic_signature_card(arch["name"], scraped_decks, dom_core_card)
+                print(f"    [★] Dynamic Signature Card: {dynamic_sig_card}")
 
                 output_archetypes.append({
                     "id": arch["id"],
                     "name": arch["name"],
                     "metaShare": arch["metaShare"],
                     "winRate": arch["winRate"],
-                    "signatureCard": sig_card or "Brainstorm",
+                    "signatureCard": dynamic_sig_card,
                     "decks": scraped_decks
                 })
 
@@ -317,13 +393,11 @@ async def scrape_metagame():
 
         await browser.close()
 
-        if len(output_archetypes) < 4:
-            raise RuntimeError(f"Retrieved only {len(output_archetypes)} archetypes. Halting update.")
-
         with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
             json.dump(output_archetypes, f, indent=2, ensure_ascii=False)
 
-        print(f"\n[✓] Successfully compiled {len(output_archetypes)} archetypes and their tournament decks into {OUTPUT_PATH}")
+        total_scraped_lists = sum(len(a["decks"]) for a in output_archetypes)
+        print(f"\n[✓] Compiled {len(output_archetypes)} archetypes with {total_scraped_lists} total tournament decklists into {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     asyncio.run(scrape_metagame())
