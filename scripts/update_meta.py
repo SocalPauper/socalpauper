@@ -55,6 +55,189 @@ def determine_dynamic_signature_card(archetype_name: str, decks: list) -> str:
     sorted_cards = sorted(card_scores.items(), key=rank_card, reverse=True)
     return sorted_cards[0][0]
 
+JS_GET_ARCHETYPES = """
+() => {
+    const results = [];
+    const tables = Array.from(document.querySelectorAll("table"));
+    let metaTable = null;
+    for (const table of tables) {
+        const text = table.innerText.toLowerCase();
+        if ((text.includes("archetype") || text.includes("deck")) && (text.includes("meta") || text.includes("%"))) {
+            metaTable = table;
+            break;
+        }
+    }
+    if (!metaTable && tables.length > 0) metaTable = tables[0];
+
+    const rows = metaTable ? Array.from(metaTable.querySelectorAll("tr")) : [];
+    for (const tr of rows) {
+        const a = tr.querySelector("a[href*='/Pauper/']");
+        if (!a) continue;
+
+        const href = a.getAttribute("href") || "";
+        if (/\\/deck\\/|decklist|winrates|staples|metagame:/i.test(href)) continue;
+
+        const slug = href.split("/").pop().toLowerCase();
+        const name = a.innerText.trim();
+        if (!name || name.length < 3 || /^(pauper|decks|articles|filter)$/i.test(slug)) continue;
+
+        const tds = Array.from(tr.querySelectorAll("td")).map(td => td.innerText.trim());
+        let metaShare = "5.0%";
+        let winRate = "52.0%";
+
+        for (const t of tds) {
+            if (t.includes("%") && metaShare === "5.0%") {
+                metaShare = t;
+            } else if (t.includes("%") && winRate === "52.0%") {
+                winRate = t;
+            }
+        }
+
+        results.push({
+            id: slug,
+            name: name,
+            url: href.startsWith("http") ? href : "https://mtgdecks.net" + href,
+            metaShare: metaShare,
+            winRate: winRate
+        });
+    }
+    return results;
+}
+"""
+
+JS_GET_DECKS = """
+() => {
+    const allAnchors = Array.from(document.querySelectorAll("a[href]"));
+    const deckItems = [];
+
+    for (const a of allAnchors) {
+        const href = a.getAttribute("href") || "";
+        if (href.includes("-stats-") || href.includes("-swing-")) continue;
+
+        const isTournamentDeck = href.includes("decklist") || /\\/deck\\/\\d+/i.test(href);
+
+        if (isTournamentDeck) {
+            const fullUrl = href.startsWith("http") ? href : "https://mtgdecks.net" + href;
+            if (deckItems.some(x => x.url === fullUrl)) continue;
+
+            const row = a.closest("tr") || a.parentElement;
+            const rowText = row ? row.innerText : "";
+            const cells = row ? Array.from(row.querySelectorAll("td")).map(td => td.innerText.trim()) : [];
+
+            // Submitter / User / Pilot
+            let pilot = "";
+            const byMatch = rowText.match(/(?:by|builder:?)\\s+([^\\n\\r·,()]+)/i);
+            if (byMatch) {
+                pilot = byMatch[1].trim();
+            } else {
+                const urlByMatch = href.match(/-decklist-by-([^-]+)-\\d+/i);
+                if (urlByMatch) {
+                    pilot = urlByMatch[1].trim();
+                } else {
+                    pilot = a.innerText.trim() || "Anonymous";
+                }
+            }
+
+            // Date
+            let dateStr = "";
+            const dateMatch = rowText.match(/\\b\\d{1,2}-[A-Za-z]{3}(?:-\\d{4})?\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b/);
+            if (dateMatch) dateStr = dateMatch[0];
+
+            // Placement
+            let placement = "Top 8";
+            if (/1st|winner|champion/i.test(rowText)) placement = "1st";
+            else if (/2nd|finalist/i.test(rowText)) placement = "2nd";
+            else if (/top\\s*4|semifinal/i.test(rowText)) placement = "Top 4";
+            else if (/top\\s*8/i.test(rowText)) placement = "Top 8";
+            else if (/top\\s*16/i.test(rowText)) placement = "Top 16";
+            else if (/5\\s*-\\s*0/i.test(rowText)) placement = "5-0";
+
+            // Record
+            let record = "";
+            const recordMatch = rowText.match(/\\((\\d{1,2}\\s*-\\s*\\d{1,2}(?:\\s*-\\s*\\d{1,2})?)\\)/);
+            if (recordMatch) {
+                record = recordMatch[1].replace(/\\s+/g, "");
+            } else {
+                const rawRecord = rowText.match(/\\b(\\d{1,2}\\s*-\\s*\\d{1,2})\\b/);
+                if (rawRecord) record = rawRecord[1].replace(/\\s+/g, "");
+            }
+
+            // Event name
+            let eventName = "Pauper Tournament";
+            for (const cell of cells) {
+                if (/challenge|league|championship|open|showcase|scg|qualifier|fnm|battle|autumn|stage|last sun/i.test(cell)) {
+                    eventName = cell.split("\\n")[0].trim();
+                    break;
+                }
+            }
+
+            // Attendance
+            let players = "32+";
+            const pMatch = rowText.match(/(\\d{1,3})\\s*(?:players|player|p\\b)/i);
+            if (pMatch) players = pMatch[1];
+            else if (/challenge/i.test(rowText)) players = "64";
+            else if (/showcase/i.test(rowText)) players = "128";
+            else if (/league/i.test(rowText)) players = "League";
+
+            deckItems.push({
+                user: pilot,
+                submitter: pilot,
+                pilot: pilot,
+                url: fullUrl,
+                date: dateStr,
+                placement: placement,
+                record: record,
+                eventName: eventName,
+                players: players
+            });
+
+            if (deckItems.length >= 10) break;
+        }
+    }
+    return deckItems;
+}
+"""
+
+JS_GET_CARDS = """
+() => {
+    const main = [];
+    const side = [];
+    let isSide = false;
+
+    const rows = Array.from(document.querySelectorAll("table tr, tr"));
+    for (const row of rows) {
+        const rowText = row.innerText || "";
+
+        if (/sideboard/i.test(rowText) && !row.querySelector("a[href*='/prices/']")) {
+            isSide = true;
+            continue;
+        }
+
+        const cardLink = row.querySelector("a[href*='/prices/']");
+        if (!cardLink) continue;
+
+        const cardName = cardLink.innerText.trim();
+        if (!cardName || cardName.length < 2) continue;
+
+        let qty = 1;
+        const numberTd = row.querySelector("td.number");
+        const textToScan = numberTd ? numberTd.innerText : rowText;
+
+        const match = textToScan.match(/\\b([1-4])\\b/);
+        if (match) {
+            qty = parseInt(match[1], 10);
+        }
+
+        const target = isSide ? side : main;
+        if (!target.some(c => c.name.toLowerCase() === cardName.toLowerCase())) {
+            target.push({ name: cardName, count: qty });
+        }
+    }
+
+    return { main, side };
+}
+"""
+
 async def scrape_metagame():
     print("[*] Launching Chromium with headful emulation...")
     async with async_playwright() as p:
@@ -86,27 +269,87 @@ async def scrape_metagame():
         await page.wait_for_timeout(3000)
 
         # 1. Scrape Top 10 Metagame Archetypes
-        archetypes = await page.evaluate(r"""() => {
-            const results = [];
-            const tables = Array.from(document.querySelectorAll("table"));
-            let metaTable = null;
-            for (const table of tables) {
-                const text = table.innerText.toLowerCase();
-                if ((text.includes("archetype") || text.includes("deck")) && (text.includes("meta") || text.includes("%"))) {
-                    metaTable = table;
-                    break;
-                }
-            }
-            if (!metaTable && tables.length > 0) metaTable = tables[0];
+        archetypes = await page.evaluate(JS_GET_ARCHETYPES)
 
-            const rows = metaTable ? Array.from(metaTable.querySelectorAll("tr")) : [];
-            for (const tr of rows) {
-                const a = tr.querySelector("a[href*='/Pauper/']");
-                if (!a) continue;
+        unique_archetypes = []
+        for a in archetypes:
+            if not any(x["id"] == a["id"] for x in unique_archetypes):
+                unique_archetypes.append(a)
+            if len(unique_archetypes) >= 10:
+                break
 
-                const href = a.getAttribute("href") || "";
-                if (/\/deck\/|decklist|winrates|staples|metagame:/i.test(href)) continue;
+        print(f"[✓] Identified Top {len(unique_archetypes)} Archetypes:")
+        for idx, a in enumerate(unique_archetypes, 1):
+            print(f"    {idx}. {a['name']} ({a['metaShare']})")
 
-                const slug = href.split("/").pop().toLowerCase();
-                const name = a.innerText.trim();
-                if (!name || name.
+        output_archetypes = []
+
+        # 2. Iterate each Archetype & Scrape 10 Latest Tournament Lists
+        for arch_idx, arch in enumerate(unique_archetypes, start=1):
+            print(f"\n[{arch_idx}/10] Visiting: {arch['name']} ({arch['url']})...")
+            try:
+                await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
+                await page.wait_for_timeout(2500)
+
+                deck_entries = await page.evaluate(JS_GET_DECKS)
+                print(f"    Found {len(deck_entries)} tournament placement decks.")
+                scraped_decks = []
+
+                for d_idx, deck_entry in enumerate(deck_entries, start=1):
+                    try:
+                        print(f"      [{d_idx}/{len(deck_entries)}] Parsing: {deck_entry['user']} ({deck_entry['placement']})...")
+                        await page.goto(deck_entry["url"], wait_until="domcontentloaded", timeout=30000)
+                        await page.wait_for_timeout(1000)
+
+                        deck_cards = await page.evaluate(JS_GET_CARDS)
+
+                        mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("main", [])]
+                        sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("side", [])]
+
+                        if mainboard:
+                            scraped_decks.append({
+                                "id": f"{arch['id']}-{d_idx}",
+                                "user": deck_entry["user"],
+                                "submitter": deck_entry["submitter"],
+                                "pilot": deck_entry["pilot"],
+                                "eventName": deck_entry["eventName"],
+                                "date": deck_entry["date"] or "Recent",
+                                "placement": deck_entry["placement"],
+                                "record": deck_entry["record"] or "N/A",
+                                "players": deck_entry["players"],
+                                "url": deck_entry["url"],
+                                "mainboard": mainboard,
+                                "sideboard": sideboard
+                            })
+                            print(f"        -> Extracted {len(mainboard)} main / {len(sideboard)} side cards.")
+                        else:
+                            print(f"        -> [!] Failed to extract cards from {deck_entry['url']}")
+
+                    except Exception as e:
+                        print(f"        [!] Error scraping {deck_entry['url']}: {e}")
+
+                dynamic_sig_card = determine_dynamic_signature_card(arch["name"], scraped_decks)
+                print(f"    [★] Dynamic Signature Card: {dynamic_sig_card}")
+
+                output_archetypes.append({
+                    "id": arch["id"],
+                    "name": arch["name"],
+                    "metaShare": arch["metaShare"],
+                    "winRate": arch["winRate"],
+                    "signatureCard": dynamic_sig_card,
+                    "decks": scraped_decks
+                })
+
+            except Exception as e:
+                print(f"    [!] Error loading archetype {arch['name']}: {e}")
+
+        await browser.close()
+
+        with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+            json.dump(output_archetypes, f, indent=2, ensure_ascii=False)
+
+        total_scraped_lists = sum(len(a["decks"]) for a in output_archetypes)
+        print(f"\n[✓] Compiled {len(output_archetypes)} archetypes with {total_scraped_lists} total tournament decklists into {OUTPUT_PATH}")
+
+if __name__ == "__main__":
+    asyncio.run(scrape_metagame())
