@@ -1,320 +1,193 @@
-let decksDatabase = [];
-let activeDeck = null;
-const CARD_CACHE_KEY = 'socal_card_meta_v1';
+document.addEventListener("DOMContentLoaded", async () => {
+    const metaContainer = document.getElementById("meta-archetypes-grid");
+    const subdecksSection = document.getElementById("subdecks-section");
+    const subdecksTitle = document.getElementById("subdecks-archetype-title");
+    const subdecksTableBody = document.getElementById("subdecks-table-body");
+    const modal = document.getElementById("deck-modal");
+    const modalCloseBtn = document.getElementById("deck-modal-close");
+    const modalDeckTitle = document.getElementById("modal-deck-title");
+    const modalDeckMeta = document.getElementById("modal-deck-meta");
+    const modalCardsContainer = document.getElementById("modal-cards-container");
+    const cardTooltip = document.getElementById("scryfall-card-tooltip");
 
-// Load persistent card cache from localStorage
-function getLocalCache() {
-  try {
-    return JSON.parse(localStorage.getItem(CARD_CACHE_KEY)) || {};
-  } catch (e) {
-    return {};
-  }
-}
+    let archetypesData = [];
+    const cardImageCache = {};
 
-function setLocalCache(cache) {
-  try {
-    localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(cache));
-  } catch (e) {}
-}
-
-document.addEventListener('DOMContentLoaded', initMetagame);
-
-async function initMetagame() {
-  try {
-    const res = await fetch('/data/top_decks.json');
-    if (!res.ok) throw new Error('Failed to load metagame data');
-    decksDatabase = await res.json();
-
-    if (!decksDatabase || decksDatabase.length === 0) {
-      renderEmptyState();
-      return;
-    }
-
-    // Resolve key card art for tile banners first
-    await hydrateBanners(decksDatabase);
-    renderDeckTiles(decksDatabase);
-  } catch (err) {
-    console.error('Metagame error:', err);
-    renderEmptyState();
-  }
-}
-
-function renderEmptyState() {
-  document.getElementById('deck-grid').innerHTML = `
-    <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1rem; color: #a1a1aa;">
-      <p style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Metagame data is updating.</p>
-      <p style="font-size: 0.9rem;">Check back shortly for the latest tournament breakdown.</p>
-    </div>
-  `;
-}
-
-// Batch query Scryfall for missing cards
-async function resolveCardsWithScryfall(cardNames) {
-  const cache = getLocalCache();
-  const missing = [...new Set(cardNames.map(n => n.split(' // ')[0].trim()))]
-    .filter(name => !cache[name.toLowerCase()]);
-
-  if (missing.length === 0) return cache;
-
-  // Scryfall allows up to 75 identifiers per POST
-  for (let i = 0; i < missing.length; i += 75) {
-    const chunk = missing.slice(i, i + 75);
     try {
-      const resp = await fetch('https://api.scryfall.com/cards/collection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifiers: chunk.map(name => ({ name })) })
-      });
-
-      if (resp.ok) {
-        const result = await resp.json();
-        for (const card of (result.data || [])) {
-          const cleanName = card.name.split(' // ')[0].trim().toLowerCase();
-          const typeLine = card.type_line || '';
-
-          let primaryType = 'Other';
-          const candidates = ['Creature', 'Artifact', 'Enchantment', 'Planeswalker', 'Instant', 'Sorcery', 'Battle', 'Land'];
-          for (const cand of candidates) {
-            if (typeLine.includes(cand)) {
-              primaryType = cand;
-              break;
-            }
-          }
-
-          let artCrop = card.image_uris?.art_crop || '';
-          if (!artCrop && card.card_faces) {
-            artCrop = card.card_faces[0]?.image_uris?.art_crop || '';
-          }
-
-          cache[cleanName] = {
-            id: card.id,
-            type: primaryType,
-            artCrop: artCrop
-          };
-        }
-      }
+        const res = await fetch("/data/top_decks.json");
+        archetypesData = await res.json();
     } catch (e) {
-      console.warn('Scryfall lookup error:', e);
+        console.error("Failed to load top_decks.json", e);
+        return;
     }
-  }
 
-  setLocalCache(cache);
-  return cache;
-}
+    // Helper: Fetch Scryfall card info (cached in localStorage)
+    async function getScryfallCard(cardName) {
+        if (cardImageCache[cardName]) return cardImageCache[cardName];
+        const local = localStorage.getItem(`scry_${cardName}`);
+        if (local) {
+            const parsed = JSON.parse(local);
+            cardImageCache[cardName] = parsed;
+            return parsed;
+        }
+        try {
+            const resp = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardName)}`);
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            const cardInfo = {
+                image: data.image_uris?.normal || data.card_faces?.[0]?.image_uris?.normal,
+                artCrop: data.image_uris?.art_crop || data.card_faces?.[0]?.image_uris?.art_crop,
+                type: data.type_line || ""
+            };
+            localStorage.setItem(`scry_${cardName}`, JSON.stringify(cardInfo));
+            cardImageCache[cardName] = cardInfo;
+            return cardInfo;
+        } catch {
+            return null;
+        }
+    }
 
-// Preload banner art for the top tiles
-async function hydrateBanners(decks) {
-  const keyCards = decks.map(d => d.keyCard).filter(Boolean);
-  const cache = await resolveCardsWithScryfall(keyCards);
-
-  for (const d of decks) {
-    const key = (d.keyCard || '').toLowerCase();
-    d.bannerArt = cache[key]?.artCrop || 'https://cards.scryfall.io/art_crop/front/4/f/4f30bc04-2477-4def-97ff-50a97dc3d56d.jpg';
-  }
-}
-
-function renderDeckTiles(decks) {
-  const container = document.getElementById('deck-grid');
-  container.innerHTML = decks.map(deck => `
-    <article class="deck-tile" onclick="openDeckModal('${deck.id}')">
-      <img src="${deck.bannerArt}" alt="${deck.name}" class="deck-banner" loading="lazy" />
-      <div class="deck-content">
-        <h3 class="deck-title">${deck.name}</h3>
-        <div class="deck-stat-badges">
-          <span class="badge">Share: ${deck.metaShare}</span>
-          <span class="badge">Win: ${deck.overallWinRate}</span>
-        </div>
-      </div>
-    </article>
-  `).join('');
-}
-
-async function openDeckModal(deckId) {
-  activeDeck = decksDatabase.find(d => d.id === deckId);
-  if (!activeDeck) return;
-
-  document.getElementById('modal-deck-header').innerHTML = `
-    <h2 id="modal-deck-title" style="color: #fff; font-size: 1.4rem;">${activeDeck.name}</h2>
-    <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">
-      Meta Share: ${activeDeck.metaShare} &bull; Sample: ${activeDeck.sampleMatches} Matches
-    </div>
-  `;
-
-  // Collect card names in this deck
-  const allCardNames = [
-    ...(activeDeck.mainboard || []).map(c => c.name),
-    ...(activeDeck.sideboard || []).map(c => c.name)
-  ];
-
-  // Resolve types & UUIDs via cache / Scryfall collection API
-  const cardDb = await resolveCardsWithScryfall(allCardNames);
-
-  renderCategorizedDecklist(activeDeck, cardDb);
-  renderMatchups(activeDeck);
-  switchModalTab('decklist');
-
-  document.getElementById('deck-modal').classList.remove('hidden');
-}
-
-function closeDeckModal() {
-  document.getElementById('deck-modal').classList.add('hidden');
-  clearCardPreview();
-}
-
-function switchModalTab(targetTab) {
-  const btnList = document.getElementById('tab-btn-decklist');
-  const btnMatch = document.getElementById('tab-btn-matchups');
-  const viewList = document.getElementById('tab-decklist');
-  const viewMatch = document.getElementById('tab-matchups');
-
-  if (targetTab === 'decklist') {
-    btnList.classList.add('active');
-    btnMatch.classList.remove('active');
-    viewList.classList.remove('hidden');
-    viewMatch.classList.add('hidden');
-  } else {
-    btnMatch.classList.add('active');
-    btnList.classList.remove('active');
-    viewMatch.classList.remove('hidden');
-    viewList.classList.add('hidden');
-  }
-}
-
-function renderCategorizedDecklist(deck, cardDb) {
-  const container = document.getElementById('deck-breakdown');
-  
-  // Group mainboard by resolved supertype
-  const categorized = {};
-  for (const item of (deck.mainboard || [])) {
-    const key = item.name.split(' // ')[0].trim().toLowerCase();
-    const meta = cardDb[key] || { id: '', type: 'Other' };
-    const t = meta.type || 'Other';
-
-    if (!categorized[t]) categorized[t] = [];
-    categorized[t].push({ ...item, scryfallId: meta.id });
-  }
-
-  let markup = '';
-  // Preferred type ordering
-  const typeOrder = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Land', 'Other'];
-  const sortedTypes = Object.keys(categorized).sort((a, b) => {
-    let ia = typeOrder.indexOf(a);
-    let ib = typeOrder.indexOf(b);
-    if (ia === -1) ia = 99;
-    if (ib === -1) ib = 99;
-    return ia - ib;
-  });
-
-  for (const type of sortedTypes) {
-    const cards = categorized[type];
-    const total = cards.reduce((sum, c) => sum + c.count, 0);
-    markup += `
-      <div class="type-group">
-        <div class="type-group-title">${type} (${total})</div>
-        ${cards.map(c => `
-          <div class="card-item" 
-               onmouseenter="setCardPreview('${c.scryfallId}')" 
-               onclick="setCardPreview('${c.scryfallId}')">
-            <span class="card-count">${c.count}</span>
-            <span class="card-name">${c.name}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  // Render sideboard
-  if (deck.sideboard && deck.sideboard.length > 0) {
-    const totalSide = deck.sideboard.reduce((sum, c) => sum + c.count, 0);
-    markup += `
-      <div class="type-group">
-        <div class="type-group-title">Sideboard (${totalSide})</div>
-        ${deck.sideboard.map(c => {
-          const key = c.name.split(' // ')[0].trim().toLowerCase();
-          const sid = cardDb[key]?.id || '';
-          return `
-            <div class="card-item" 
-                 onmouseenter="setCardPreview('${sid}')" 
-                 onclick="setCardPreview('${sid}')">
-              <span class="card-count">${c.count}</span>
-              <span class="card-name">${c.name}</span>
+    // 1. Render Top 10 Archetype Tiles with Opaque Card Art Backgrounds
+    metaContainer.innerHTML = "";
+    for (const arch of archetypesData) {
+        const cardTile = document.createElement("div");
+        cardTile.className = "archetype-card";
+        cardTile.innerHTML = `
+            <div class="archetype-art-bg" id="bg-${arch.id}"></div>
+            <div class="archetype-info">
+                <h3>${arch.name}</h3>
+                <div class="archetype-meta-badges">
+                    <span class="badge meta-share">${arch.metaShare} Meta</span>
+                    <span class="badge win-rate">${arch.winRate} WR</span>
+                </div>
+                <p class="sample-count">${arch.decks?.length || 0} Recent Decks</p>
             </div>
-          `;
-        }).join('')}
-      </div>
-    `;
-  }
+        `;
 
-  container.innerHTML = markup;
-}
+        // Load background art asynchronously
+        if (arch.signatureCard) {
+            getScryfallCard(arch.signatureCard).then(info => {
+                if (info?.artCrop) {
+                    const bgEl = document.getElementById(`bg-${arch.id}`);
+                    if (bgEl) bgEl.style.backgroundImage = `url('${info.artCrop}')`;
+                }
+            });
+        }
 
-function renderMatchups(deck) {
-  document.getElementById('stat-winrate').innerText = deck.overallWinRate;
-  document.getElementById('stat-share').innerText = deck.metaShare;
-  document.getElementById('stat-matches').innerText = deck.sampleMatches;
+        // On Click Archetype -> Show its 10 latest decks
+        cardTile.addEventListener("click", () => {
+            document.querySelectorAll(".archetype-card").forEach(c => c.classList.remove("active"));
+            cardTile.classList.add("active");
+            displaySubDecks(arch);
+        });
 
-  const favBox = document.getElementById('matchups-favorable');
-  const evenBox = document.getElementById('matchups-even');
-  const unfavBox = document.getElementById('matchups-unfavorable');
-
-  favBox.innerHTML = '';
-  evenBox.innerHTML = '';
-  unfavBox.innerHTML = '';
-
-  (deck.matchups || []).forEach(m => {
-    const element = `
-      <div class="matchup-card ${m.advantage}">
-        <div class="matchup-line">
-          <span>${m.opponentName}</span>
-          <span>${m.winRate}%</span>
-        </div>
-        <div class="bar-track">
-          <div class="bar-fill ${m.advantage}" style="width: ${Math.min(m.winRate, 100)}%;"></div>
-        </div>
-        <div class="matchup-sub">Record: ${m.record}</div>
-      </div>
-    `;
-
-    if (m.advantage === 'favorable') favBox.innerHTML += element;
-    else if (m.advantage === 'unfavorable') unfavBox.innerHTML += element;
-    else evenBox.innerHTML += element;
-  });
-}
-
-function setCardPreview(scryfallId) {
-  if (!scryfallId) return;
-  const img = document.getElementById('card-preview-img');
-  const emptyText = document.getElementById('card-preview-placeholder');
-
-  img.src = `https://cards.scryfall.io/normal/front/${scryfallId[0]}/${scryfallId[1]}/${scryfallId}.jpg`;
-  img.classList.remove('hidden');
-  emptyText.classList.add('hidden');
-}
-
-function clearCardPreview() {
-  const img = document.getElementById('card-preview-img');
-  const emptyText = document.getElementById('card-preview-placeholder');
-  img.classList.add('hidden');
-  img.src = '';
-  emptyText.classList.remove('hidden');
-}
-
-function copyDecklistText() {
-  if (!activeDeck) return;
-  let text = '';
-
-  for (const c of (activeDeck.mainboard || [])) {
-    text += `${c.count} ${c.name}\n`;
-  }
-
-  if (activeDeck.sideboard && activeDeck.sideboard.length > 0) {
-    text += `\nSideboard\n`;
-    for (const c of activeDeck.sideboard) {
-      text += `${c.count} ${c.name}\n`;
+        metaContainer.appendChild(cardTile);
     }
-  }
 
-  navigator.clipboard.writeText(text.trim()).then(() => {
-    alert(`Decklist for ${activeDeck.name} copied to clipboard!`);
-  });
-}
+    // 2. Render 10 Latest Tournament Decks for Selected Archetype
+    function displaySubDecks(arch) {
+        subdecksSection.classList.remove("hidden");
+        subdecksTitle.innerText = `${arch.name} — Recent Tournament Decks`;
+        subdecksTableBody.innerHTML = "";
+
+        if (!arch.decks || arch.decks.length === 0) {
+            subdecksTableBody.innerHTML = `<tr><td colspan="6" class="text-center">No recent tournament lists available.</td></tr>`;
+            return;
+        }
+
+        arch.decks.forEach(deck => {
+            const tr = document.createElement("tr");
+            tr.className = "deck-row-clickable";
+            tr.innerHTML = `
+                <td><strong>${deck.date}</strong></td>
+                <td><span class="placement-pill placement-${deck.placement.toLowerCase().replace(/[^a-z0-9]/g, '')}">${deck.placement}</span></td>
+                <td>${deck.pilot}</td>
+                <td>${deck.record}</td>
+                <td>${deck.players} Players</td>
+                <td><span class="event-name">${deck.eventName}</span></td>
+            `;
+
+            tr.addEventListener("click", () => openDeckModal(arch, deck));
+            subdecksTableBody.appendChild(tr);
+        });
+
+        subdecksSection.scrollIntoView({ behavior: "smooth" });
+    }
+
+    // 3. Render Categorized 75-Card Decklist Modal
+    async function openDeckModal(arch, deck) {
+        modalDeckTitle.innerText = `${arch.name} (${deck.pilot})`;
+        modalDeckMeta.innerText = `${deck.eventName} · ${deck.placement} (${deck.record}) · ${deck.date}`;
+        modalCardsContainer.innerHTML = "<p>Loading categorized decklist...</p>";
+        modal.classList.remove("hidden");
+
+        // Categorize mainboard cards
+        const categories = {
+            "Creatures": [],
+            "Spells": [],
+            "Artifacts & Enchantments": [],
+            "Lands": []
+        };
+
+        for (const card of deck.mainboard) {
+            const scry = await getScryfallCard(card.name);
+            const type = (scry?.type || "").toLowerCase();
+
+            if (type.includes("creature")) categories["Creatures"].push(card);
+            else if (type.includes("land")) categories["Lands"].push(card);
+            else if (type.includes("artifact") || type.includes("enchantment")) categories["Artifacts & Enchantments"].push(card);
+            else categories["Spells"].push(card);
+        }
+
+        modalCardsContainer.innerHTML = "";
+
+        function createSection(title, list) {
+            if (!list || list.length === 0) return;
+            const totalCount = list.reduce((sum, c) => sum + c.count, 0);
+            const sec = document.createElement("div");
+            sec.className = "deck-type-column";
+            sec.innerHTML = `<h4>${title} (${totalCount})</h4>`;
+            const ul = document.createElement("ul");
+
+            list.forEach(card => {
+                const li = document.createElement("li");
+                li.className = "card-list-item";
+                li.innerHTML = `<span class="card-count">${card.count}</span> <span class="card-name-hover">${card.name}</span>`;
+
+                // Scryfall Hover Preview
+                li.addEventListener("mouseenter", async (e) => {
+                    const info = await getScryfallCard(card.name);
+                    if (info?.image) {
+                        cardTooltip.src = info.image;
+                        cardTooltip.style.display = "block";
+                        cardTooltip.style.top = `${e.clientY + 15}px`;
+                        cardTooltip.style.left = `${e.clientX + 20}px`;
+                    }
+                });
+                li.addEventListener("mousemove", (e) => {
+                    cardTooltip.style.top = `${e.clientY + 15}px`;
+                    cardTooltip.style.left = `${e.clientX + 20}px`;
+                });
+                li.addEventListener("mouseleave", () => {
+                    cardTooltip.style.display = "none";
+                });
+
+                ul.appendChild(li);
+            });
+            sec.appendChild(ul);
+            modalCardsContainer.appendChild(sec);
+        }
+
+        createSection("Creatures", categories["Creatures"]);
+        createSection("Spells", categories["Spells"]);
+        createSection("Artifacts & Enchantments", categories["Artifacts & Enchantments"]);
+        createSection("Lands", categories["Lands"]);
+        createSection("Sideboard", deck.sideboard);
+    }
+
+    // Modal Close
+    modalCloseBtn.addEventListener("click", () => modal.classList.add("hidden"));
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) modal.classList.add("hidden");
+    });
+});
