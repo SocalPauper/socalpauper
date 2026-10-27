@@ -88,12 +88,29 @@ def determine_dynamic_signature_card(archetype_name: str, decks: list, page_stap
     return sorted_cards[0][0]
 
 async def scrape_metagame():
-    print("[*] Launching Chromium via Playwright...")
+    print("[*] Launching Chromium with headful emulation...")
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # headless=False runs inside xvfb in CI and visible on desktop
+        browser = await p.chromium.launch(
+            headless=False,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage"
+            ]
+        )
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            viewport={"width": 1920, "height": 1080}
+            locale="en-US",
+            timezone_id="America/Los_Angeles",
+            viewport={"width": 1920, "height": 1080},
+            extra_http_headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"'
+            }
         )
         page = await context.new_page()
 
@@ -101,7 +118,7 @@ async def scrape_metagame():
         await page.goto(MTGDECKS_PAUPER_URL, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(3000)
 
-        # 1. Scrape Top 10 Archetypes
+        # 1. Scrape Top 10 Archetypes from Primary Ranking Table
         archetypes = await page.evaluate(r"""() => {
             const results = [];
             const tables = Array.from(document.querySelectorAll("table"));
@@ -163,15 +180,15 @@ async def scrape_metagame():
 
         output_archetypes = []
 
-        # 2. Iterate each Archetype
+        # 2. Iterate each Archetype & Scrape 10 Latest Tournament Lists
         for arch_idx, arch in enumerate(unique_archetypes, start=1):
-            print(f"\n[{arch_idx}/10] Visiting archetype: {arch['name']} ({arch['url']})...")
+            print(f"\n[{arch_idx}/10] Visiting: {arch['name']} ({arch['url']})...")
             try:
                 await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
                 await page.wait_for_timeout(2500)
 
-                # Extract dynamic staple card & 10 tournament placement finishes
-                page_data = await page.evaluate(r"""(archSlug) => {
+                # Extract signature staple card and valid tournament decklinks
+                page_data = await page.evaluate(r"""() => {
                     const allAnchors = Array.from(document.querySelectorAll("a[href]"));
 
                     // A. Signature staple card detection
@@ -185,7 +202,7 @@ async def scrape_metagame():
                         }
                     }
 
-                    // B. Target tournament deck links (contains 'decklist', excluding '-stats-' and '-swing-')
+                    // B. Filter tournament deck finishes (ignore aggregate -stats- and -swing- tabs)
                     const deckItems = [];
 
                     for (const a of allAnchors) {
@@ -277,7 +294,7 @@ async def scrape_metagame():
                         topStapleCard: topStapleCard,
                         deckItems: deckItems
                     };
-                }""", arch["id"])
+                }""")
 
                 deck_entries = page_data.get("deckItems", [])
                 top_staple = page_data.get("topStapleCard")
@@ -287,7 +304,7 @@ async def scrape_metagame():
 
                 for d_idx, deck_entry in enumerate(deck_entries, start=1):
                     try:
-                        print(f"      [{d_idx}/{len(deck_entries)}] Parsing list by {deck_entry['user']} ({deck_entry['placement']})...")
+                        print(f"      [{d_idx}/{len(deck_entries)}] Parsing: {deck_entry['user']} ({deck_entry['placement']})...")
                         await page.goto(deck_entry["url"], wait_until="domcontentloaded", timeout=30000)
                         await page.wait_for_timeout(1200)
 
