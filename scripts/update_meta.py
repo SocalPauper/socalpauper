@@ -30,7 +30,7 @@ def parse_deck_text(raw_text: str):
         if re.search(r"^(sideboard|side|sb:)", line, re.IGNORECASE):
             is_side = True
             continue
-        if re.search(r"^(deck|mainboard|main):?$", line, re.IGNORECASE):
+        if re.search(r"^(deck|maindeck|main):?$", line, re.IGNORECASE):
             is_side = False
             continue
 
@@ -45,10 +45,6 @@ def parse_deck_text(raw_text: str):
     return mainboard, sideboard
 
 def determine_dynamic_signature_card(archetype_name: str, decks: list) -> str:
-    """
-    Ranks cards across the 10 tournament decklists by frequency and copy count.
-    Awards heavy bonus points if the card name shares words with the archetype name.
-    """
     if not decks:
         return "Brainstorm"
 
@@ -204,7 +200,7 @@ async def scrape_metagame():
                             const rowText = row ? row.innerText : "";
                             const cells = row ? Array.from(row.querySelectorAll("td")).map(td => td.innerText.trim()) : [];
 
-                            // Submitter / User / Pilot
+                            // Submitter / Pilot
                             let pilot = "";
                             const byMatch = rowText.match(/(?:by|builder:?)\s+([^\n\r·,()]+)/i);
                             if (byMatch) {
@@ -284,84 +280,72 @@ async def scrape_metagame():
                     try:
                         print(f"      [{d_idx}/{len(deck_entries)}] Parsing: {deck_entry['user']} ({deck_entry['placement']})...")
                         await page.goto(deck_entry["url"], wait_until="domcontentloaded", timeout=30000)
-                        await page.wait_for_timeout(1500)
+                        await page.wait_for_timeout(1000)
 
-                        # Try clicking Arena Export tab/button
+                        # Click 'Arena Export' tab if present
                         try:
-                            arena_tab = page.locator("a:has-text('Arena Export'), button:has-text('Arena Export'), [data-target*='arena']")
-                            if await arena_tab.count() > 0:
-                                await arena_tab.first.click()
-                                await page.wait_for_timeout(600)
+                            arena_btn = page.locator("a:has-text('Arena Export'), button:has-text('Arena Export')")
+                            if await arena_btn.count() > 0:
+                                await arena_btn.first.click()
+                                await page.wait_for_timeout(500)
                         except Exception:
                             pass
 
-                        # Strategy 1: Check textareas/pre blocks (Arena export format)
-                        raw_txt = await page.evaluate(r"""() => {
-                            const blocks = document.querySelectorAll("textarea, pre, .export-box");
-                            for (const b of blocks) {
-                                const text = b.value || b.innerText || "";
-                                if (text.length > 50 && (/\bDeck\b/.test(text) || /\d+\s+[A-Za-z]/.test(text))) {
-                                    return text;
+                        # Strategy: Extract card list text from textareas, pre tags, or body content
+                        card_text = await page.evaluate(r"""() => {
+                            // 1. Check all textareas and pre tags
+                            const inputs = Array.from(document.querySelectorAll("textarea, pre, .export-box, code"));
+                            for (const el of inputs) {
+                                const val = el.value || el.innerText || "";
+                                if (val.length > 50 && (/\bDeck\b/i.test(val) || /\d+\s+[A-Za-z]/.test(val))) {
+                                    return val;
                                 }
+                            }
+
+                            // 2. Fallback: Parse card blocks directly from the rendered page
+                            // Locate the main deck text container
+                            const pageText = document.body.innerText;
+                            const match = pageText.match(/(?:Maindeck|Deck)[\s\S]*?(?:Sideboard[\s\S]*?)?(?:Buy this deck|Comments|Suggest Archetype|$)/i);
+                            if (match && match[0].length > 40) {
+                                return match[0];
                             }
                             return null;
                         }""")
 
                         mainboard, sideboard = [], []
-                        if raw_txt:
-                            mainboard, sideboard = parse_deck_text(raw_txt)
+                        if card_text:
+                            mainboard, sideboard = parse_deck_text(card_text)
 
-                        # Strategy 2: Parse table rows using MTGDecks card links (/prices/<name>)
+                        # Fallback: DOM line-by-line regex if parse_deck_text was incomplete
                         if not mainboard:
-                            card_data = await page.evaluate(r"""() => {
+                            dom_cards = await page.evaluate(r"""() => {
                                 const main = [];
                                 const side = [];
                                 let isSide = false;
 
-                                // MTGDecks lists cards linking to /prices/
-                                const rows = document.querySelectorAll("tr, li, div.card-row");
-                                for (const row of rows) {
-                                    const text = row.innerText.trim();
-                                    if (/\b(Sideboard|Side)\b/i.test(text) && !row.querySelector("a[href*='/prices/']")) {
+                                const elements = Array.from(document.querySelectorAll("tr, li, div"));
+                                for (const el of elements) {
+                                    const txt = el.innerText.trim();
+                                    if (/^sideboard/i.test(txt)) {
                                         isSide = true;
                                         continue;
                                     }
-
-                                    const a = row.querySelector("a[href*='/prices/'], a[href*='/cards/'], a[href*='/card/']");
-                                    if (!a) continue;
-
-                                    const cname = a.innerText.trim();
-                                    if (!cname || cname.length < 2) continue;
-                                    if (["lands", "creatures", "spells", "artifacts", "instants", "sorceries"].includes(cname.toLowerCase())) continue;
-
-                                    // Extract quantity
-                                    let qty = null;
-                                    const m = text.match(/^(\d{1,2})\b/);
+                                    const m = txt.match(/^(\d{1,2})\s+([A-Za-z][A-Za-z0-9',\-\s\/]+?)(?:\s+\$[\d\.]+)?$/);
                                     if (m) {
-                                        qty = parseInt(m[1], 10);
-                                    } else {
-                                        const tds = row.querySelectorAll("td");
-                                        for (const td of tds) {
-                                            const v = td.innerText.trim();
-                                            if (/^\d{1,2}$/.test(v)) {
-                                                qty = parseInt(v, 10);
-                                                break;
+                                        const qty = parseInt(m[1], 10);
+                                        const cname = m[2].trim();
+                                        if (qty >= 1 && qty <= 30 && cname.length > 2) {
+                                            const target = isSide ? side : main;
+                                            if (!target.some(x => x.name === cname)) {
+                                                target.push({ name: cname, count: qty });
                                             }
-                                        }
-                                    }
-
-                                    if (qty && qty >= 1 && qty <= 30) {
-                                        const target = isSide ? side : main;
-                                        if (!target.some(x => x.name === cname)) {
-                                            target.push({ name: cname, count: qty });
                                         }
                                     }
                                 }
                                 return { main, side };
                             }""")
-
-                            mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in card_data["main"]]
-                            sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in card_data["side"]]
+                            mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in dom_cards.get("main", [])]
+                            sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in dom_cards.get("side", [])]
 
                         if mainboard:
                             scraped_decks.append({
@@ -380,12 +364,12 @@ async def scrape_metagame():
                             })
                             print(f"        -> Extracted {len(mainboard)} main / {len(sideboard)} side cards.")
                         else:
-                            print(f"        -> [!] Failed to extract cards from {deck_entry['url']}")
+                            print(f"        -> [!] Could not parse cards from {deck_entry['url']}")
 
                     except Exception as e:
                         print(f"        [!] Error scraping {deck_entry['url']}: {e}")
 
-                # Dynamic signature card computed from consensus across the tournament lists
+                # Dynamic signature card computed from tournament deck consensus
                 dynamic_sig_card = determine_dynamic_signature_card(arch["name"], scraped_decks)
                 print(f"    [★] Dynamic Signature Card: {dynamic_sig_card}")
 
