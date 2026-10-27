@@ -4,7 +4,7 @@
     "name": "MONO RED MADNESS",
     "metaShare": "10.78%",
     "winRate": "+1.96%",
-    "signatureCard": "Brainstorm",
+    "signatureCard": "MADNESS",
     "decks": []
   },
   {
@@ -12,7 +12,7 @@
     "name": "ELVES",
     "metaShare": "5.29%",
     "winRate": "+1.30%",
-    "signatureCard": "Brainstorm",
+    "signatureCard": "ELVES",
     "decks": []
   },
   {
@@ -20,7 +20,7 @@
     "name": "MONO BLUE TERROR",
     "metaShare": "5.27%",
     "winRate": "-0.79%",
-    "signatureCard": "Brainstorm",
+    "signatureCard": "TERROR",
     "decks": []
   },
   {
@@ -28,7 +28,7 @@
     "name": "ROGUE",
     "metaShare": "5.08%",
     "winRate": "52.0%",
-    "signatureCard": "Brainstorm",
+    "signatureCard": "ROGUE",
     "decks": []
   },
   {
@@ -36,7 +36,7 @@
     "name": "GRIXIS AFFINITY",
     "metaShare": "4.82%",
     "winRate": "-2.05%",
-    "signatureCard": "Brainstorm",
+    "signatureCard": "GRIXIS",
     "decks": []
   },
   {
@@ -44,7 +44,7 @@
     "name": "ESPER AFFINITY",
     "metaShare": "4.80%",
     "winRate": "+4.41%",
-    "signatureCard": "Brainstorm",
+    "signatureCard": "ESPER",
     "decks": []
   },
   {
@@ -52,7 +52,7 @@
     "name": "MONSTER TRON",
     "metaShare": "4.68%",
     "winRate": "+0.35%",
-    "signatureCard": "Brainstorm",
+    "signatureCard": "MONSTER",
     "decks": []
   },
   {
@@ -60,7 +60,7 @@
     "name": "SPY COMBO",
     "metaShare": "4.25%",
     "winRate": "+0.85%",
-    "signatureCard": "Brainstorm",
+    "signatureCard": "SPY",
     "decks": []
   },
   {
@@ -76,7 +76,7 @@
     "name": "UB FAERIES",
     "metaShare": "3.83%",
     "winRate": "+0.32%",
-    "signatureCard": "Brainstorm",
+    "signatureCard": "UB",
     "decks": []
   }
 ]
