@@ -45,31 +45,32 @@ def parse_deck_text(raw_text: str):
 
     return mainboard, sideboard
 
-def determine_dynamic_signature_card(archetype_name: str, decks: list, dom_core_card: str = None) -> str:
-    if dom_core_card and dom_core_card.lower() not in BASIC_LANDS:
-        return dom_core_card
+def determine_dynamic_signature_card(archetype_name: str, decks: list, page_staple_card: str = None) -> str:
+    if page_staple_card and page_staple_card.lower() not in BASIC_LANDS and len(page_staple_card) > 2:
+        return page_staple_card
 
     if not decks:
-        return "Brainstorm"
+        words = [w for w in archetype_name.split() if w.lower() not in ["mono", "red", "blue", "black", "white", "green", "combo", "rally", "tron"]]
+        return words[0] if words else "Brainstorm"
 
     card_scores = {}
     arch_words = [w.lower() for w in re.findall(r"[a-zA-Z]{3,}", archetype_name)]
 
     for d in decks:
-        seen_in_deck = set()
+        seen = set()
         for c in d.get("mainboard", []):
             name = c["name"]
-            low_name = name.lower()
-            if low_name in BASIC_LANDS or len(name) < 3:
+            low = name.lower()
+            if low in BASIC_LANDS or len(name) < 3:
                 continue
 
             if name not in card_scores:
                 card_scores[name] = {"count": 0, "deck_count": 0}
 
             card_scores[name]["count"] += c["count"]
-            if name not in seen_in_deck:
+            if name not in seen:
                 card_scores[name]["deck_count"] += 1
-                seen_in_deck.add(name)
+                seen.add(name)
 
     if not card_scores:
         return "Brainstorm"
@@ -100,7 +101,7 @@ async def scrape_metagame():
         await page.goto(MTGDECKS_PAUPER_URL, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(3000)
 
-        # 1. Scrape Top 10 Metagame Archetypes
+        # 1. Scrape Top 10 Archetypes
         archetypes = await page.evaluate(r"""() => {
             const results = [];
             const tables = Array.from(document.querySelectorAll("table"));
@@ -162,46 +163,46 @@ async def scrape_metagame():
 
         output_archetypes = []
 
-        # 2. Iterate each archetype and scrape its 10 latest tournament finishes
+        # 2. Iterate each Archetype
         for arch_idx, arch in enumerate(unique_archetypes, start=1):
-            print(f"\n[{arch_idx}/10] Scraping tournament history for: {arch['name']}...")
+            print(f"\n[{arch_idx}/10] Visiting archetype: {arch['name']} ({arch['url']})...")
             try:
                 await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
                 await page.wait_for_timeout(2500)
 
-                # Locate tournament deck placement links and metadata
-                deck_data = await page.evaluate(r"""(archSlug) => {
-                    const items = [];
-                    let domCoreCard = null;
+                # Extract dynamic staple card & 10 tournament placement finishes
+                page_data = await page.evaluate(r"""(archSlug) => {
+                    const allAnchors = Array.from(document.querySelectorAll("a[href]"));
 
-                    // Core card detection from staple links
-                    const cardLinks = document.querySelectorAll("a[href*='/cards/']");
-                    for (const cl of cardLinks) {
-                        const cn = cl.innerText.trim();
-                        if (cn.length > 2 && !/mountain|island|swamp|plains|forest/i.test(cn)) {
-                            domCoreCard = cn;
+                    // A. Signature staple card detection
+                    let topStapleCard = null;
+                    const possibleCardLinks = document.querySelectorAll("a[href*='/cards/'], a[href*='/card/'], td a");
+                    for (const ca of possibleCardLinks) {
+                        const txt = ca.innerText.trim();
+                        if (txt.length > 3 && !/mountain|island|swamp|plains|forest|pauper|decks|articles|filter|more|view/i.test(txt)) {
+                            topStapleCard = txt;
                             break;
                         }
                     }
 
-                    // Scan all links on the archetype page
-                    const allAnchors = Array.from(document.querySelectorAll("a[href]"));
+                    // B. Target tournament deck links (contains 'decklist', excluding '-stats-' and '-swing-')
+                    const deckItems = [];
 
                     for (const a of allAnchors) {
                         const href = a.getAttribute("href") || "";
-                        if (/tournaments?|users?|search|filter|winrates|staples|login|#|articles?/i.test(href)) continue;
-                        if (href.toLowerCase().endsWith("/" + archSlug) || href.toLowerCase().endsWith("/pauper")) continue;
+                        if (href.includes("-stats-") || href.includes("-swing-")) continue;
 
-                        // Target tournament deck links
-                        if (href.includes("decklist") || /-\d{5,8}$|\/deck\/\d+/i.test(href) || (href.includes("/Pauper/") && href.length > archSlug.length + 8)) {
+                        const isTournamentDeck = href.includes("decklist") || /\/deck\/\d+/i.test(href);
+
+                        if (isTournamentDeck) {
                             const fullUrl = href.startsWith("http") ? href : "https://mtgdecks.net" + href;
-                            if (items.some(x => x.url === fullUrl)) continue;
+                            if (deckItems.some(x => x.url === fullUrl)) continue;
 
                             const row = a.closest("tr") || a.parentElement;
                             const rowText = row ? row.innerText : "";
                             const cells = row ? Array.from(row.querySelectorAll("td")).map(td => td.innerText.trim()) : [];
 
-                            // Extract pilot / user
+                            // Submitter / User / Pilot
                             let pilot = "";
                             const byMatch = rowText.match(/(?:by|builder:?)\s+([^\n\r·,()]+)/i);
                             if (byMatch) {
@@ -215,12 +216,12 @@ async def scrape_metagame():
                                 }
                             }
 
-                            // Extract date
+                            // Date
                             let dateStr = "";
                             const dateMatch = rowText.match(/\b\d{1,2}-[A-Za-z]{3}(?:-\d{4})?\b|\b\d{4}-\d{2}-\d{2}\b/);
                             if (dateMatch) dateStr = dateMatch[0];
 
-                            // Extract placement
+                            // Placement
                             let placement = "Top 8";
                             if (/1st|winner|champion/i.test(rowText)) placement = "1st";
                             else if (/2nd|finalist/i.test(rowText)) placement = "2nd";
@@ -229,7 +230,7 @@ async def scrape_metagame():
                             else if (/top\s*16/i.test(rowText)) placement = "Top 16";
                             else if (/5\s*-\s*0/i.test(rowText)) placement = "5-0";
 
-                            // Extract record
+                            // Record
                             let record = "";
                             const recordMatch = rowText.match(/\((\d{1,2}\s*-\s*\d{1,2}(?:\s*-\s*\d{1,2})?)\)/);
                             if (recordMatch) {
@@ -242,7 +243,7 @@ async def scrape_metagame():
                             // Event name
                             let eventName = "Pauper Tournament";
                             for (const cell of cells) {
-                                if (/challenge|league|championship|open|showcase|scg|qualifier|fnm|battle|autumn|stage/i.test(cell)) {
+                                if (/challenge|league|championship|open|showcase|scg|qualifier|fnm|battle|autumn|stage|last sun/i.test(cell)) {
                                     eventName = cell.split("\n")[0].trim();
                                     break;
                                 }
@@ -256,7 +257,7 @@ async def scrape_metagame():
                             else if (/showcase/i.test(rowText)) players = "128";
                             else if (/league/i.test(rowText)) players = "League";
 
-                            items.push({
+                            deckItems.push({
                                 user: pilot,
                                 submitter: pilot,
                                 pilot: pilot,
@@ -268,15 +269,18 @@ async def scrape_metagame():
                                 players: players
                             });
 
-                            if (items.length >= 10) break;
+                            if (deckItems.length >= 10) break;
                         }
                     }
 
-                    return { items, domCoreCard };
+                    return {
+                        topStapleCard: topStapleCard,
+                        deckItems: deckItems
+                    };
                 }""", arch["id"])
 
-                deck_entries = deck_data.get("items", [])
-                dom_core_card = deck_data.get("domCoreCard")
+                deck_entries = page_data.get("deckItems", [])
+                top_staple = page_data.get("topStapleCard")
                 print(f"    Found {len(deck_entries)} tournament placement decks.")
 
                 scraped_decks = []
@@ -285,14 +289,14 @@ async def scrape_metagame():
                     try:
                         print(f"      [{d_idx}/{len(deck_entries)}] Parsing list by {deck_entry['user']} ({deck_entry['placement']})...")
                         await page.goto(deck_entry["url"], wait_until="domcontentloaded", timeout=30000)
-                        await page.wait_for_timeout(1500)
+                        await page.wait_for_timeout(1200)
 
                         # Plaintext export modal
                         try:
                             btn = page.locator("a:has-text('Export'), button:has-text('Export'), .export-deck")
                             if await btn.count() > 0:
                                 await btn.first.click()
-                                await page.wait_for_timeout(800)
+                                await page.wait_for_timeout(600)
                         except Exception:
                             pass
 
@@ -367,7 +371,7 @@ async def scrape_metagame():
                     except Exception as e:
                         print(f"        [!] Error scraping {deck_entry['url']}: {e}")
 
-                dynamic_sig_card = determine_dynamic_signature_card(arch["name"], scraped_decks, dom_core_card)
+                dynamic_sig_card = determine_dynamic_signature_card(arch["name"], scraped_decks, top_staple)
                 print(f"    [★] Dynamic Signature Card: {dynamic_sig_card}")
 
                 output_archetypes.append({
