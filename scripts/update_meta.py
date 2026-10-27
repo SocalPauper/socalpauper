@@ -12,37 +12,15 @@ BASIC_LANDS = {
     "snow-covered mountain", "snow-covered forest"
 }
 
+TYPE_HEADERS = {
+    "creature", "instant", "sorcery", "artifact", "enchantment", 
+    "land", "planeswalker", "battle", "deck", "maindeck", "sideboard"
+}
+
 def clean_card_name(raw_name: str) -> str:
-    name = re.sub(r"\.\s*\$[\d\.]+", "", raw_name)
-    name = re.sub(r"\$[\d\.]+", "", name)
-    name = re.sub(r"[\d\.]+\s*TIX", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"[.,]?\s*\$[\d\.]+(?:\s+[\d\.]+\s*(?:TIX|\$)?)?(?:\s+[CUMR])?.*$", "", raw_name, flags=re.IGNORECASE)
     name = name.split(" // ")[0].split(" / ")[0].strip()
-    return name.rstrip(".").strip()
-
-def parse_deck_text(raw_text: str):
-    mainboard, sideboard = [], []
-    is_side = False
-
-    for line in raw_text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("//"):
-            continue
-        if re.search(r"^(sideboard|side|sb:)", line, re.IGNORECASE):
-            is_side = True
-            continue
-        if re.search(r"^(deck|maindeck|main):?$", line, re.IGNORECASE):
-            is_side = False
-            continue
-
-        m = re.match(r"^(\d+)[xX]?\s+(.+)$", line)
-        if m:
-            qty = int(m.group(1))
-            cname = clean_card_name(m.group(2))
-            if len(cname) > 1 and cname.lower() not in ["lands", "creatures", "spells", "artifacts", "instants", "sorceries", "planeswalkers", "battles"]:
-                target = sideboard if is_side else mainboard
-                target.append({"name": cname, "count": qty})
-
-    return mainboard, sideboard
+    return name.rstrip(".,").strip()
 
 def determine_dynamic_signature_card(archetype_name: str, decks: list) -> str:
     if not decks:
@@ -112,7 +90,7 @@ async def scrape_metagame():
         await page.goto(MTGDECKS_PAUPER_URL, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(3000)
 
-        # 1. Scrape Top 10 Archetypes
+        # 1. Scrape Top 10 Metagame Archetypes
         archetypes = await page.evaluate(r"""() => {
             const results = [];
             const tables = Array.from(document.querySelectorAll("table"));
@@ -200,7 +178,7 @@ async def scrape_metagame():
                             const rowText = row ? row.innerText : "";
                             const cells = row ? Array.from(row.querySelectorAll("td")).map(td => td.innerText.trim()) : [];
 
-                            // Submitter / Pilot
+                            // Submitter / User / Pilot
                             let pilot = "";
                             const byMatch = rowText.match(/(?:by|builder:?)\s+([^\n\r·,()]+)/i);
                             if (byMatch) {
@@ -282,70 +260,99 @@ async def scrape_metagame():
                         await page.goto(deck_entry["url"], wait_until="domcontentloaded", timeout=30000)
                         await page.wait_for_timeout(1000)
 
-                        # Click 'Arena Export' tab if present
-                        try:
-                            arena_btn = page.locator("a:has-text('Arena Export'), button:has-text('Arena Export')")
-                            if await arena_btn.count() > 0:
-                                await arena_btn.first.click()
-                                await page.wait_for_timeout(500)
-                        except Exception:
-                            pass
+                        # Extract card list directly from MTGDecks rendered DOM structure
+                        deck_cards = await page.evaluate(r"""() => {
+                            const main = [];
+                            const side = [];
+                            let isSide = false;
 
-                        # Strategy: Extract card list text from textareas, pre tags, or body content
-                        card_text = await page.evaluate(r"""() => {
-                            // 1. Check all textareas and pre tags
-                            const inputs = Array.from(document.querySelectorAll("textarea, pre, .export-box, code"));
-                            for (const el of inputs) {
-                                const val = el.value || el.innerText || "";
-                                if (val.length > 50 && (/\bDeck\b/i.test(val) || /\d+\s+[A-Za-z]/.test(val))) {
-                                    return val;
+                            // 1. Table and cell evaluation
+                            const rows = Array.from(document.querySelectorAll("table tr, div.row, li"));
+                            for (const row of rows) {
+                                const text = row.innerText.trim();
+                                if (/\bsideboard\b/i.test(text) && !row.querySelector("a")) {
+                                    isSide = true;
+                                    continue;
+                                }
+
+                                let qty = null;
+                                let cardName = null;
+
+                                const cells = Array.from(row.querySelectorAll("td, th"));
+                                if (cells.length >= 2) {
+                                    const first = cells[0].innerText.trim();
+                                    const second = cells[1].innerText.trim();
+                                    if (/^\d{1,2}$/.test(first) && second.length > 2) {
+                                        qty = parseInt(first, 10);
+                                        cardName = second;
+                                    }
+                                }
+
+                                if (!cardName) {
+                                    const m = text.match(/^\s*(\d{1,2})[xX]?\s+([A-Za-z][A-Za-z0-9'’,\-\s\/]+?)(?:[.,]?\s+\$[\d\.]|[.,]\s*$|\s*$)/);
+                                    if (m) {
+                                        qty = parseInt(m[1], 10);
+                                        cardName = m[2];
+                                    }
+                                }
+
+                                if (cardName && qty && qty >= 1 && qty <= 30) {
+                                    cardName = cardName.replace(/[.,]$/, "").trim();
+                                    const low = cardName.toLowerCase();
+                                    const isHeader = ["creature", "instant", "sorcery", "artifact", "enchantment", "land", "planeswalker"].some(t => low.startsWith(t));
+                                    if (!isHeader) {
+                                        const target = isSide ? side : main;
+                                        if (!target.some(c => c.name.toLowerCase() === cardName.toLowerCase())) {
+                                            target.push({ name: cardName, count: qty });
+                                        }
+                                    }
                                 }
                             }
 
-                            // 2. Fallback: Parse card blocks directly from the rendered page
-                            // Locate the main deck text container
-                            const pageText = document.body.innerText;
-                            const match = pageText.match(/(?:Maindeck|Deck)[\s\S]*?(?:Sideboard[\s\S]*?)?(?:Buy this deck|Comments|Suggest Archetype|$)/i);
-                            if (match && match[0].length > 40) {
-                                return match[0];
-                            }
-                            return null;
-                        }""")
+                            // 2. Full-text block evaluation (handles pre-rendered Maindeck/Sideboard text blocks)
+                            if (main.length < 5) {
+                                const lines = document.body.innerText.split("\n");
+                                let activeSection = null;
+                                for (const rawLine of lines) {
+                                    const line = rawLine.trim();
+                                    if (!line) continue;
 
-                        mainboard, sideboard = [], []
-                        if card_text:
-                            mainboard, sideboard = parse_deck_text(card_text)
-
-                        # Fallback: DOM line-by-line regex if parse_deck_text was incomplete
-                        if not mainboard:
-                            dom_cards = await page.evaluate(r"""() => {
-                                const main = [];
-                                const side = [];
-                                let isSide = false;
-
-                                const elements = Array.from(document.querySelectorAll("tr, li, div"));
-                                for (const el of elements) {
-                                    const txt = el.innerText.trim();
-                                    if (/^sideboard/i.test(txt)) {
-                                        isSide = true;
+                                    if (/\b(?:maindeck|deck)\b/i.test(line)) {
+                                        activeSection = "main";
                                         continue;
                                     }
-                                    const m = txt.match(/^(\d{1,2})\s+([A-Za-z][A-Za-z0-9',\-\s\/]+?)(?:\s+\$[\d\.]+)?$/);
-                                    if (m) {
-                                        const qty = parseInt(m[1], 10);
-                                        const cname = m[2].trim();
-                                        if (qty >= 1 && qty <= 30 && cname.length > 2) {
-                                            const target = isSide ? side : main;
-                                            if (!target.some(x => x.name === cname)) {
-                                                target.push({ name: cname, count: qty });
+                                    if (/\b(?:sideboard)\b/i.test(line)) {
+                                        activeSection = "side";
+                                        continue;
+                                    }
+                                    if (/\b(?:buy this deck|archetype analysis|similar decks|visual view|comments)\b/i.test(line)) {
+                                        activeSection = null;
+                                        continue;
+                                    }
+
+                                    if (activeSection) {
+                                        const m = line.match(/^\s*(\d{1,2})[xX]?\s+([A-Za-z][A-Za-z0-9'’,\-\s\/]+?)(?:[.,]?\s+\$[\d\.]|[.,]\s*$|\s*$)/);
+                                        if (m) {
+                                            const q = parseInt(m[1], 10);
+                                            let cn = m[2].replace(/[.,]$/, "").trim();
+                                            const low = cn.toLowerCase();
+                                            const isHeader = ["creature", "instant", "sorcery", "artifact", "enchantment", "land", "planeswalker"].some(t => low.startsWith(t));
+                                            if (!isHeader) {
+                                                const target = activeSection === "side" ? side : main;
+                                                if (!target.some(c => c.name.toLowerCase() === cn.toLowerCase())) {
+                                                    target.push({ name: cn, count: q });
+                                                }
                                             }
                                         }
                                     }
                                 }
-                                return { main, side };
-                            }""")
-                            mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in dom_cards.get("main", [])]
-                            sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in dom_cards.get("side", [])]
+                            }
+
+                            return { main, side };
+                        }""")
+
+                        mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("main", [])]
+                        sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("side", [])]
 
                         if mainboard:
                             scraped_decks.append({
