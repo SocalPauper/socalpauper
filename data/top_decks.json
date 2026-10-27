@@ -2,31 +2,31 @@
   {
     "id": "mono-red-madness",
     "name": "MONO RED MADNESS",
-    "metaShare": "10.78%",
-    "winRate": "+1.96%",
+    "metaShare": "10.81%",
+    "winRate": "+1.98%",
     "signatureCard": "Brainstorm",
     "decks": []
   },
   {
     "id": "elves",
     "name": "ELVES",
-    "metaShare": "5.29%",
-    "winRate": "+1.30%",
+    "metaShare": "5.28%",
+    "winRate": "+1.29%",
     "signatureCard": "Brainstorm",
     "decks": []
   },
   {
     "id": "mono-blue-terror",
     "name": "MONO BLUE TERROR",
-    "metaShare": "5.27%",
-    "winRate": "-0.79%",
+    "metaShare": "5.26%",
+    "winRate": "-0.81%",
     "signatureCard": "Brainstorm",
     "decks": []
   },
   {
     "id": "rogue",
     "name": "ROGUE",
-    "metaShare": "5.08%",
+    "metaShare": "5.04%",
     "winRate": "52.0%",
     "signatureCard": "Brainstorm",
     "decks": []
@@ -34,16 +34,16 @@
   {
     "id": "grixis-affinity",
     "name": "GRIXIS AFFINITY",
-    "metaShare": "4.82%",
-    "winRate": "-2.05%",
+    "metaShare": "4.81%",
+    "winRate": "-2.06%",
     "signatureCard": "Brainstorm",
     "decks": []
   },
   {
     "id": "esper-affinity",
     "name": "ESPER AFFINITY",
-    "metaShare": "4.80%",
-    "winRate": "+4.41%",
+    "metaShare": "4.81%",
+    "winRate": "+4.43%",
     "signatureCard": "Brainstorm",
     "decks": []
   },
@@ -58,16 +58,16 @@
   {
     "id": "spy-combo",
     "name": "SPY COMBO",
-    "metaShare": "4.25%",
-    "winRate": "+0.85%",
+    "metaShare": "4.23%",
+    "winRate": "+0.84%",
     "signatureCard": "Brainstorm",
     "decks": []
   },
   {
     "id": "mono-red-rally",
     "name": "MONO RED RALLY",
-    "metaShare": "4.15%",
-    "winRate": "-0.95%",
+    "metaShare": "4.13%",
+    "winRate": "-0.97%",
     "signatureCard": "Brainstorm",
     "decks": []
   },
