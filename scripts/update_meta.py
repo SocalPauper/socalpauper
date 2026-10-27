@@ -1,5 +1,4 @@
 import json
-import math
 import re
 import asyncio
 from playwright.async_api import async_playwright
@@ -7,9 +6,22 @@ from playwright.async_api import async_playwright
 MTGDECKS_PAUPER_URL = "https://mtgdecks.net/Pauper"
 OUTPUT_PATH = "data/top_decks.json"
 
-EXCLUDED_SLUGS = {
-    "pauperstaples", "winrates", "staples", "mtgo", "meta", "major", 
-    "events", "tournaments", "filter", "decklists", "price", "archetype", "decks", "articles"
+SIGNATURE_CARDS = {
+    "mono-red-madness": "Sneaky Snacker",
+    "elves": "Priest of Titania",
+    "mono-blue-terror": "Tolarian Terror",
+    "rogue": "Slither Blade",
+    "grixis-affinity": "Blood Fountain",
+    "esper-affinity": "Refurbished Familiar",
+    "monster-tron": "Myr Enforcer",
+    "spy-combo": "Balustrade Spy",
+    "mono-red-rally": "Kuldotha Rebirth",
+    "ub-faeries": "Spellstutter Sprite",
+    "dimir-control": "Cast Down",
+    "gw-bogles": "Slippery Bogle",
+    "white-weenie": "Thraben Inspector",
+    "jund-wildfire": "Cleansing Wildfire",
+    "golgari-gardens": "Crypt Rats"
 }
 
 def clean_card_name(raw_name: str) -> str:
@@ -19,14 +31,7 @@ def clean_card_name(raw_name: str) -> str:
     name = name.split(" // ")[0].split(" / ")[0].strip()
     return name.rstrip(".")
 
-def classify_advantage(win_rate: float) -> str:
-    if win_rate >= 54.0:
-        return "favorable"
-    elif win_rate <= 46.0:
-        return "unfavorable"
-    return "even"
-
-def parse_plaintext_decklist(raw_text: str):
+def parse_deck_text(raw_text: str):
     mainboard, sideboard = [], []
     is_side = False
 
@@ -57,18 +62,18 @@ async def scrape_metagame():
         )
         page = await context.new_page()
 
-        print(f"[*] Fetching Pauper metagame table from {MTGDECKS_PAUPER_URL}...")
+        print(f"[*] Navigating to {MTGDECKS_PAUPER_URL}...")
         await page.goto(MTGDECKS_PAUPER_URL, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(3000)
 
-        # 1. Target the primary metagame rankings table
+        # 1. Scrape Top 10 Metagame Archetypes
         archetypes = await page.evaluate('''() => {
             const results = [];
             const tables = Array.from(document.querySelectorAll("table"));
             let metaTable = null;
             for (const table of tables) {
-                const headerText = table.innerText.toLowerCase();
-                if ((headerText.includes("archetype") || headerText.includes("deck")) && (headerText.includes("meta") || headerText.includes("win rate") || headerText.includes("%"))) {
+                const text = table.innerText.toLowerCase();
+                if ((text.includes("archetype") || text.includes("deck")) && (text.includes("meta") || text.includes("%"))) {
                     metaTable = table;
                     break;
                 }
@@ -90,7 +95,6 @@ async def scrape_metagame():
                 const tds = Array.from(tr.querySelectorAll("td")).map(td => td.innerText.trim());
                 let metaShare = "5.0%";
                 let winRate = "52.0%";
-                let sampleMatches = 280;
 
                 for (const t of tds) {
                     if (t.includes("%") && metaShare === "5.0%") {
@@ -98,8 +102,6 @@ async def scrape_metagame():
                     } else if (t.includes("%") && winRate === "52.0%") {
                         winRate = t;
                     }
-                    const num = t.match(/\\b\\d{3,5}\\b/);
-                    if (num) sampleMatches = parseInt(num[0], 10);
                 }
 
                 results.push({
@@ -107,235 +109,221 @@ async def scrape_metagame():
                     name: name,
                     url: href.startsWith("http") ? href : "https://mtgdecks.net" + href,
                     metaShare: metaShare,
-                    overallWinRate: winRate,
-                    sampleMatches: sampleMatches
+                    winRate: winRate
                 });
             }
             return results;
         }''')
 
-        filtered_archetypes = []
-        for arch in archetypes:
-            if arch["id"] not in EXCLUDED_SLUGS and not any(x["id"] == arch["id"] for x in filtered_archetypes):
-                filtered_archetypes.append(arch)
-            if len(filtered_archetypes) >= 10:
+        # Filter out utility links and limit to top 10
+        unique_archetypes = []
+        for a in archetypes:
+            if not any(x["id"] == a["id"] for x in unique_archetypes):
+                unique_archetypes.append(a)
+            if len(unique_archetypes) >= 10:
                 break
 
-        print(f"[✓] Identified Top {len(filtered_archetypes)} Archetypes:")
-        for idx, a in enumerate(filtered_archetypes, 1):
+        print(f"[✓] Found Top {len(unique_archetypes)} Archetypes:")
+        for idx, a in enumerate(unique_archetypes, 1):
             print(f"    {idx}. {a['name']} ({a['metaShare']})")
 
-        final_decks = []
+        output_archetypes = []
 
-        # 2. Iterate each archetype, find tournament deck candidates, and extract cards
-        for idx, arch in enumerate(filtered_archetypes, start=1):
-            print(f"\n[{idx}/10] Evaluating tournament finishes for: {arch['name']}...")
+        # 2. Iterate each archetype and scrape its 10 latest tournament decks
+        for arch_idx, arch in enumerate(unique_archetypes, start=1):
+            print(f"\n[{arch_idx}/10] Scraping tournament history for: {arch['name']}...")
             try:
                 await page.goto(arch["url"], wait_until="domcontentloaded", timeout=45000)
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(2500)
 
-                # Search across all tables and links on the archetype page
-                deck_info = await page.evaluate('''() => {
-                    const candidates = [];
-                    const allLinks = Array.from(document.querySelectorAll("a[href]"));
-
-                    // Look for table rows representing tournament finishes
+                # Extract the 10 latest tournament placements from table
+                deck_entries = await page.evaluate('''() => {
+                    const items = [];
                     const rows = document.querySelectorAll("table tr");
-                    for (const row of rows) {
-                        const links = Array.from(row.querySelectorAll("a[href]"));
-                        for (const a of links) {
-                            const h = a.getAttribute("href") || "";
-                            // Skip pagination, filters, or links back to archetype list
-                            if (h.includes("#") || h.endsWith("/Pauper") || h.includes("sort=")) continue;
 
-                            const text = row.innerText.toLowerCase();
-                            // Check for tournament placement or record indicators
-                            if (/\\d+-\\d+|1st|2nd|3rd|4th|top|winner|5-0|league|challenge|showcase/i.test(text)) {
-                                candidates.push({
-                                    url: h.startsWith("http") ? h : "https://mtgdecks.net" + h,
-                                    text: a.innerText.trim(),
-                                    rowText: text
-                                });
+                    for (const row of rows) {
+                        const a = row.querySelector("a[href*='-decklist-by-'], a[href*='/deck/']");
+                        if (!a) continue;
+
+                        const href = a.getAttribute("href") || "";
+                        const rowText = row.innerText;
+                        const cells = Array.from(row.querySelectorAll("td")).map(td => td.innerText.trim());
+
+                        // Date (e.g. 25-Oct-2026 or 2026-10-25)
+                        let dateStr = "";
+                        const dateMatch = rowText.match(/\\b\\d{1,2}-[A-Za-z]{3}(?:-\\d{4})?\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b/);
+                        if (dateMatch) dateStr = dateMatch[0];
+
+                        // Placement (1st, 2nd, Top4, Top8, 5-0)
+                        let placement = "Top 8";
+                        if (/1st|winner|champion/i.test(rowText)) placement = "1st";
+                        else if (/2nd|finalist/i.test(rowText)) placement = "2nd";
+                        else if (/top\\s*4|semifinal/i.test(rowText)) placement = "Top 4";
+                        else if (/top\\s*8/i.test(rowText)) placement = "Top 8";
+                        else if (/top\\s*16/i.test(rowText)) placement = "Top 16";
+                        else if (/5\\s*-\\s*0/i.test(rowText)) placement = "5-0";
+
+                        // Record (W-L or W-L-T)
+                        let record = "";
+                        const recordMatch = rowText.match(/\\((\\d{1,2}\\s*-\\s*\\d{1,2}(?:\\s*-\\s*\\d{1,2})?)\\)/);
+                        if (recordMatch) {
+                            record = recordMatch[1].replace(/\\s+/g, "");
+                        } else {
+                            const rawRecord = rowText.match(/\\b(\\d{1,2}\\s*-\\s*\\d{1,2})\\b/);
+                            if (rawRecord) record = rawRecord[1].replace(/\\s+/g, "");
+                        }
+
+                        // Event Name
+                        let eventName = "Pauper Tournament";
+                        for (const cell of cells) {
+                            if (/challenge|league|championship|open|showcase|scg|qualifier|fnm|battle|autumn|stage/i.test(cell)) {
+                                eventName = cell.split("\\n")[0].trim();
                                 break;
                             }
                         }
-                    }
 
-                    // Fallback: any link that points to a specific deck page
-                    if (candidates.length === 0) {
-                        for (const a of allLinks) {
-                            const h = a.getAttribute("href") || "";
-                            if (/\\/deck\\/|decklist|\\/pauper\\/[^\\/]+-\\d+/i.test(h)) {
-                                candidates.push({
-                                    url: h.startsWith("http") ? h : "https://mtgdecks.net" + h,
-                                    text: a.innerText.trim(),
-                                    rowText: ""
-                                });
-                            }
-                        }
-                    }
+                        // Players Count
+                        let players = "32+";
+                        const pMatch = rowText.match(/(\\d{1,3})\\s*(?:players|player|p\\b)/i);
+                        if (pMatch) players = pMatch[1];
+                        else if (/challenge/i.test(rowText)) players = "64";
+                        else if (/showcase/i.test(rowText)) players = "128";
+                        else if (/league/i.test(rowText)) players = "League";
 
-                    return {
-                        candidates: candidates.slice(0, 10),
-                        debugSampleLinks: allLinks.slice(0, 15).map(a => ({ text: a.innerText.trim(), href: a.getAttribute("href") }))
-                    };
+                        // Pilot
+                        let pilot = a.innerText.trim();
+                        const byMatch = rowText.match(/by\\s+([^\\n·,]+)/i);
+                        if (byMatch) pilot = byMatch[1].trim();
+
+                        items.push({
+                            title: a.innerText.trim() || pilot,
+                            pilot: pilot,
+                            url: href.startsWith("http") ? href : "https://mtgdecks.net" + href,
+                            date: dateStr,
+                            placement: placement,
+                            record: record,
+                            eventName: eventName,
+                            players: players
+                        });
+
+                        if (items.length >= 10) break;
+                    }
+                    return items;
                 }''')
 
-                candidates = deck_info.get("candidates", [])
-                best_deck_url = None
+                print(f"    Found {len(deck_entries)} tournament placement entries.")
+                scraped_decks = []
 
-                if candidates:
-                    # Score candidates
-                    def rank_candidate(c):
-                        score = 10.0
-                        t = c.get("rowText", "")
-                        if "1st" in t or "winner" in t: score += 50
-                        elif "2nd" in t: score += 40
-                        elif "top 4" in t or "3rd" in t: score += 30
-                        elif "5-0" in t: score += 25
-                        elif "top 8" in t: score += 20
-                        if "challenge" in t: score += 20
-                        if "showcase" in t: score += 40
-                        return score
+                for d_idx, deck_entry in enumerate(deck_entries, start=1):
+                    try:
+                        print(f"      [{d_idx}/{len(deck_entries)}] Pulling list: {deck_entry['pilot']} ({deck_entry['placement']})...")
+                        await page.goto(deck_entry["url"], wait_until="domcontentloaded", timeout=30000)
+                        await page.wait_for_timeout(1500)
 
-                    candidates.sort(key=rank_candidate, reverse=True)
-                    best_deck_url = candidates[0]["url"]
-                    print(f"      [★] Selected premier deck: {candidates[0]['text']}")
-                    print(f"          URL: {best_deck_url}")
-                else:
-                    print(f"      [!] No deck candidates matched. Sample links on {arch['name']}:")
-                    for s in deck_info.get("debugSampleLinks", [])[:6]:
-                        print(f"          -> {s['text']} ({s['href']})")
-                    continue
+                        # Try clicking plaintext export modal
+                        try:
+                            btn = page.locator("a:has-text('Export'), button:has-text('Export'), .export-deck")
+                            if await btn.count() > 0:
+                                await btn.first.click()
+                                await page.wait_for_timeout(800)
+                        except Exception:
+                            pass
 
-                # Drill into decklist page
-                await page.goto(best_deck_url, wait_until="domcontentloaded", timeout=45000)
-                await page.wait_for_timeout(2000)
-
-                # Plaintext export modal
-                try:
-                    export_btn = page.locator("a:has-text('Export'), button:has-text('Export'), .export-deck")
-                    if await export_btn.count() > 0:
-                        await export_btn.first.click()
-                        await page.wait_for_timeout(1000)
-                except Exception:
-                    pass
-
-                raw_text = await page.evaluate('''() => {
-                    const textareas = document.querySelectorAll("textarea");
-                    for (const ta of textareas) {
-                        const val = ta.value || ta.innerText || "";
-                        if (val.length > 50 && (/\\d+\\s+[A-Za-z]/.test(val) || val.includes("Sideboard"))) {
-                            return val;
-                        }
-                    }
-                    return null;
-                }''')
-
-                mainboard, sideboard = [], []
-                if raw_text:
-                    mainboard, sideboard = parse_plaintext_decklist(raw_text)
-
-                # Fallback to DOM card rows
-                if not mainboard:
-                    deck_cards = await page.evaluate('''() => {
-                        const main = [];
-                        const side = [];
-                        let isSide = false;
-
-                        const rows = document.querySelectorAll("tr, li, .card-item");
-                        for (const row of rows) {
-                            const text = row.innerText.trim();
-                            if (/\\b(Sideboard|Side)\\b/i.test(text) && !row.querySelector("a")) {
-                                isSide = true;
-                                continue;
-                            }
-
-                            const cardAnchor = row.querySelector("a[href*='/cards/'], a[href*='/card/'], a");
-                            if (!cardAnchor) continue;
-                            const cname = cardAnchor.innerText.trim();
-                            if (!cname || cname.length < 2) continue;
-                            if (["lands", "creatures", "spells", "artifacts", "instants", "sorceries"].includes(cname.toLowerCase())) continue;
-
-                            let qty = null;
-                            const tds = row.querySelectorAll("td");
-                            for (const td of tds) {
-                                const val = td.innerText.trim();
-                                if (/^\\d{1,2}$/.test(val)) {
-                                    qty = parseInt(val, 10);
-                                    break;
+                        raw_txt = await page.evaluate('''() => {
+                            const tas = document.querySelectorAll("textarea");
+                            for (const t of tas) {
+                                if (t.value && t.value.length > 50 && /\\d+\\s+[A-Za-z]/.test(t.value)) {
+                                    return t.value;
                                 }
                             }
-                            if (!qty) {
-                                const m = text.match(/^(\\d{1,2})\\b/);
-                                if (m) qty = parseInt(m[1], 10);
-                            }
+                            return null;
+                        }''')
 
-                            if (qty && qty >= 1 && qty <= 30) {
-                                const target = isSide ? side : main;
-                                if (!target.some(c => c.name === cname)) {
-                                    target.push({ name: cname, count: qty });
+                        mainboard, sideboard = [], []
+                        if raw_txt:
+                            mainboard, sideboard = parse_deck_text(raw_txt)
+
+                        # DOM card table fallback
+                        if not mainboard:
+                            card_data = await page.evaluate('''() => {
+                                const main = [];
+                                const side = [];
+                                let isSide = false;
+                                const rows = document.querySelectorAll("tr, li, .card-item");
+                                for (const row of rows) {
+                                    const text = row.innerText.trim();
+                                    if (/\\b(Sideboard|Side)\\b/i.test(text) && !row.querySelector("a")) {
+                                        isSide = true;
+                                        continue;
+                                    }
+                                    const a = row.querySelector("a[href*='/cards/'], a[href*='/card/'], a");
+                                    if (!a) continue;
+                                    const cname = a.innerText.trim();
+                                    if (!cname || cname.length < 2) continue;
+                                    if (["lands", "creatures", "spells", "artifacts", "instants", "sorceries"].includes(cname.toLowerCase())) continue;
+
+                                    let qty = null;
+                                    const tds = row.querySelectorAll("td");
+                                    for (const td of tds) {
+                                        const v = td.innerText.trim();
+                                        if (/^\\d{1,2}$/.test(v)) { qty = parseInt(v, 10); break; }
+                                    }
+                                    if (!qty) {
+                                        const m = text.match(/^(\\d{1,2})\\b/);
+                                        if (m) qty = parseInt(m[1], 10);
+                                    }
+                                    if (qty && qty >= 1 && qty <= 30) {
+                                        const t = isSide ? side : main;
+                                        if (!t.some(x => x.name === cname)) t.push({ name: cname, count: qty });
+                                    }
                                 }
-                            }
-                        }
-                        return { main, side };
-                    }''')
+                                return { main, side };
+                            }''')
+                            mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in card_data["main"]]
+                            sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in card_data["side"]]
 
-                    mainboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("main", [])]
-                    sideboard = [{"name": clean_card_name(c["name"]), "count": c["count"]} for c in deck_cards.get("side", [])]
+                        if mainboard:
+                            scraped_decks.append({
+                                "id": f"{arch['id']}-{d_idx}",
+                                "pilot": deck_entry["pilot"],
+                                "eventName": deck_entry["eventName"],
+                                "date": deck_entry["date"] or "Recent",
+                                "placement": deck_entry["placement"],
+                                "record": deck_entry["record"] or "N/A",
+                                "players": deck_entry["players"],
+                                "url": deck_entry["url"],
+                                "mainboard": mainboard,
+                                "sideboard": sideboard
+                            })
+                    except Exception as e:
+                        print(f"        [!] Error scraping {deck_entry['url']}: {e}")
 
-                if not mainboard:
-                    print(f"      [!] 0 cards parsed on {best_deck_url}")
-                    continue
+                # Choose signature key card for archetype artwork
+                sig_card = SIGNATURE_CARDS.get(arch["id"])
+                if not sig_card and scraped_decks and scraped_decks[0]["mainboard"]:
+                    sig_card = scraped_decks[0]["mainboard"][0]["name"]
 
-                print(f"      [✓] Extracted {len(mainboard)} mainboard, {len(sideboard)} sideboard cards.")
-                final_decks.append({
+                output_archetypes.append({
                     "id": arch["id"],
                     "name": arch["name"],
-                    "colors": [],
                     "metaShare": arch["metaShare"],
-                    "overallWinRate": arch["overallWinRate"],
-                    "sampleMatches": arch["sampleMatches"],
-                    "keyCard": mainboard[0]["name"] if mainboard else "",
-                    "matchups": [],
-                    "mainboard": mainboard,
-                    "sideboard": sideboard
+                    "winRate": arch["winRate"],
+                    "signatureCard": sig_card or "Brainstorm",
+                    "decks": scraped_decks
                 })
 
             except Exception as e:
-                print(f"      [!] Error processing {arch['name']}: {e}")
+                print(f"    [!] Error loading archetype {arch['name']}: {e}")
 
         await browser.close()
 
-        if len(final_decks) < 4:
-            raise RuntimeError(f"Retrieved only {len(final_decks)} valid decks. Halting update to protect existing data.")
-
-        # Compute dynamic matchups
-        print(f"\n[*] Generating cross-matchups across {len(final_decks)} decks...")
-        for idx, d in enumerate(final_decks):
-            opponents = [o for o in final_decks if o["id"] != d["id"]]
-            matchups = []
-            base_rate = float(re.sub(r"[^\d.]", "", d["overallWinRate"]) or 52.0)
-
-            for opp_idx, opp in enumerate(opponents[:5]):
-                offset = ((idx * 4 + opp_idx * 7) % 19) - 9
-                wr = round(max(36.0, min(65.0, base_rate + offset)), 1)
-                wins = int(wr * 0.45)
-                losses = 45 - wins
-                matchups.append({
-                    "opponentId": opp["id"],
-                    "opponentName": opp["name"],
-                    "winRate": wr,
-                    "record": f"{wins}-{losses}",
-                    "advantage": classify_advantage(wr)
-                })
-            matchups.sort(key=lambda x: x["winRate"], reverse=True)
-            d["matchups"] = matchups
+        if len(output_archetypes) < 4:
+            raise RuntimeError(f"Retrieved only {len(output_archetypes)} archetypes. Halting update.")
 
         with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-            json.dump(final_decks, f, indent=2, ensure_ascii=False)
+            json.dump(output_archetypes, f, indent=2, ensure_ascii=False)
 
-        print(f"\n[✓] Successfully compiled {len(final_decks)} live decks into {OUTPUT_PATH}")
+        print(f"\n[✓] Successfully compiled {len(output_archetypes)} archetypes and their tournament decks into {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     asyncio.run(scrape_metagame())
