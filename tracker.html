@@ -356,9 +356,20 @@
 
       <!-- Launch Action Bar -->
       <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between">
-        <button id="setup-casual-btn" type="button" class="text-xs text-zinc-400 hover:text-zinc-200 underline">
-          Quick Start (Untimed & Ready)
-        </button>
+        <div class="flex items-center gap-3">
+          <button id="setup-casual-btn" type="button" class="text-xs text-zinc-400 hover:text-zinc-200 underline">
+            Quick Start (Untimed & Ready)
+          </button>
+          <span class="text-zinc-700">•</span>
+          <button id="setup-guide-btn" type="button" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 transition">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span>Tutorial & Guide</span>
+          </button>
+        </div>
         <button id="start-round-btn" type="button" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-zinc-950 font-cinzel font-black text-xs uppercase tracking-wider shadow-lg transition flex items-center gap-2">
           <span>Enter Battlefield</span>
           <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -514,6 +525,16 @@
             <line x1="16" y1="17" x2="8" y2="17"></line>
           </svg>
           <span>Log</span>
+        </button>
+
+        <!-- Interactive Tutorial & Guide Button -->
+        <button id="open-guide-btn" class="flex items-center gap-1 px-2 py-1 rounded-lg border border-zinc-700 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-amber-400 text-[10px] font-bold uppercase tracking-wider transition" title="Interactive Tutorial & Guide">
+          <svg class="w-3 h-3 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span>Guide</span>
         </button>
 
         <!-- Background Art Selector Button -->
@@ -1299,6 +1320,320 @@
           Back
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- INTERACTIVE TUTORIAL & FEATURE GUIDE MODAL                -->
+  <!-- ========================================================= -->
+  <div id="tutorial-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="glass-panel w-full max-w-3xl max-h-[94vh] rounded-2xl border border-amber-500/50 p-4 sm:p-5 shadow-2xl flex flex-col gap-3 transform scale-95 transition-transform duration-200 overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-2.5 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-cinzel font-bold text-base text-zinc-100 flex items-center gap-2">
+              <span>Tournament Tracker Guide</span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-sans">Interactive Tutorial</span>
+            </h3>
+            <p class="text-[10px] text-zinc-400">Detailed component explanations and visual breakdowns for competitive tabletop play.</p>
+          </div>
+        </div>
+
+        <button id="close-guide-modal-btn" class="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Tutorial Navigation Tabs -->
+      <div class="flex items-center gap-1 border-b border-zinc-800/80 pb-2 shrink-0 overflow-x-auto text-xs scrollbar-none">
+        <button type="button" class="guide-tab-btn px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/60 text-amber-300 font-bold whitespace-nowrap" data-tab="tab-layout">1. Tabletop Layout</button>
+        <button type="button" class="guide-tab-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium whitespace-nowrap" data-tab="tab-hud">2. Two-Tier HUD</button>
+        <button type="button" class="guide-tab-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium whitespace-nowrap" data-tab="tab-life">3. Life & Poison</button>
+        <button type="button" class="guide-tab-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium whitespace-nowrap" data-tab="tab-storm-mana">4. Storm & 2×3 Mana</button>
+        <button type="button" class="guide-tab-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium whitespace-nowrap" data-tab="tab-mtr">5. MTR 2.5 & Wins</button>
+        <button type="button" class="guide-tab-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium whitespace-nowrap" data-tab="tab-logs">6. Rounds & Logs</button>
+      </div>
+
+      <!-- Scrollable Tutorial Content Body -->
+      <div class="flex-1 overflow-y-auto pr-1 text-xs space-y-4">
+
+        <!-- TAB 1: TABLETOP LAYOUT -->
+        <div id="tab-layout" class="guide-tab-panel space-y-3">
+          <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60 space-y-2">
+            <h4 class="font-cinzel font-bold text-amber-400 text-sm">Horizontal Tabletop Orientation</h4>
+            <p class="text-zinc-300 leading-relaxed">
+              The tracker is custom-designed for <strong>phone landscape mode</strong> resting between you and your opponent during casual or sanctioned tournaments. It provides one-touch access to life totals, poison counters, storm count, and all 6 mana pools without scrolling.
+            </p>
+          </div>
+
+          <!-- Visual Diagram: Layout Breakdown -->
+          <div class="p-3 rounded-xl border border-amber-500/30 bg-zinc-900/60 space-y-2">
+            <span class="block text-[10px] font-bold text-amber-400 uppercase font-cinzel tracking-wider">Screen Layout Architecture</span>
+            <div class="grid grid-cols-12 gap-1.5 p-2 rounded-lg bg-zinc-950 border border-zinc-800 text-center font-mono text-[10px]">
+              <div class="col-span-12 py-1.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold">
+                [TOP HUD] Tournament Round • Match W-L-D • Clock • Turn Step • End Turn • Log • Art
+              </div>
+              <div class="col-span-3 p-2 rounded bg-emerald-950/40 border border-emerald-600/40 text-emerald-300">
+                <span class="font-bold">YOU (Col 1)</span><br/>
+                Life & Poison
+              </div>
+              <div class="col-span-3 p-2 rounded bg-rose-950/40 border border-rose-600/40 text-rose-300">
+                <span class="font-bold">OPPONENT (Col 2)</span><br/>
+                Life & Poison
+              </div>
+              <div class="col-span-2 p-2 rounded bg-amber-950/40 border border-amber-600/40 text-amber-300">
+                <span class="font-bold">STORM (Col 3)</span><br/>
+                Spells & Peak
+              </div>
+              <div class="col-span-4 p-2 rounded bg-sky-950/40 border border-sky-600/40 text-sky-300">
+                <span class="font-bold">MANA GRID (Col 4)</span><br/>
+                {W}{U}{B} / {R}{G}{C}
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-zinc-300">
+            <div class="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800">
+              <strong class="text-white block mb-0.5">Custom Card Art Backdrop</strong>
+              Search any MTG card name via the built-in Scryfall search (or pick Pauper staple chips like <em>Writhing Chrysalis</em> or <em>Dark Ritual</em>) to set custom card art behind the transparent crystal modules.
+            </div>
+            <div class="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800">
+              <strong class="text-white block mb-0.5">Screen Wake Lock</strong>
+              Tap the sun icon in Tier 2 of the HUD to prevent your phone screen from dimming or going to sleep during prolonged matches.
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: TWO-TIER HUD -->
+        <div id="tab-hud" class="guide-tab-panel space-y-3 hidden">
+          <!-- Visual Mockup: Two Tier HUD -->
+          <div class="p-2.5 rounded-xl border border-zinc-700 bg-zinc-950 space-y-2 shadow-inner">
+            <span class="block text-[10px] font-bold text-amber-400 uppercase font-cinzel">Interactive HUD Preview</span>
+            
+            <!-- Simulated Tier 1 -->
+            <div class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-1 text-[10px] font-mono">
+              <div class="flex items-center gap-1">
+                <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-bold">←</span>
+                <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">Rnd 1/4</span>
+                <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">Match <span class="text-emerald-400">1</span>-<span class="text-rose-400">0</span>-<span class="text-amber-400">0</span></span>
+                <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-amber-400 font-bold">G2</span>
+                <span class="px-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-600">+W</span>
+                <span class="px-1 rounded bg-rose-950 text-rose-300 border border-rose-600">+L</span>
+                <span class="px-1 rounded bg-amber-950 text-amber-300 border border-amber-600">+D</span>
+              </div>
+              <div class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-200 font-bold">
+                <span>⏱ 48:32</span>
+                <span class="text-amber-400">▶</span>
+                <span class="text-zinc-400">+1m</span>
+              </div>
+            </div>
+
+            <!-- Simulated Tier 2 -->
+            <div class="p-2 rounded-lg bg-zinc-900/80 border border-zinc-800 flex items-center justify-between gap-1 text-[10px]">
+              <div class="flex items-center gap-1.5">
+                <div class="px-1.5 py-0.5 rounded bg-zinc-800 flex items-center gap-1 text-zinc-300 font-bold">
+                  <span>-</span>
+                  <span class="text-amber-400 font-cinzel">T 3</span>
+                  <span>+</span>
+                </div>
+                <div class="px-2 py-0.5 rounded bg-amber-600 text-zinc-950 font-bold font-cinzel uppercase">
+                  End Turn
+                </div>
+              </div>
+              <div class="flex items-center gap-1 text-[9px] font-bold">
+                <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">Log</span>
+                <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">Art</span>
+                <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">☀ Wake</span>
+                <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-amber-400">🔊</span>
+                <span class="px-1.5 py-0.5 rounded bg-red-950 text-red-400 border border-red-900/60">Reset</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-1.5 text-[11px] text-zinc-300">
+            <div class="p-2 rounded-lg bg-zinc-900 border border-zinc-800">
+              <strong class="text-amber-400 font-cinzel">Tier 1: Tournament Telemetry</strong>
+              Tracks your tournament round (e.g. <em>Rnd 1 of 4</em>), match record (Wins-Losses-Draws), and active game. Quick <code>+W</code>, <code>+L</code>, and <code>+D</code> buttons allow immediate outcome logging and instantly reset life, poison, storm, and mana for the next game.
+            </div>
+            <div class="p-2 rounded-lg bg-zinc-900 border border-zinc-800">
+              <strong class="text-amber-400 font-cinzel">Tier 2: Tactical Actions</strong>
+              Step through turns with <code>- / +</code>, tap <strong>End Turn</strong> (which resets temporary storm and mana), review the live action log, adjust audio/haptics, or trigger screen wake lock.
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: LIFE & POISON -->
+        <div id="tab-life" class="guide-tab-panel space-y-3 hidden">
+          <!-- Visual Mockup: Life & Poison Cards -->
+          <div class="grid grid-cols-2 gap-2 p-2.5 rounded-xl border border-zinc-700 bg-zinc-950">
+            
+            <!-- You Life Card Mockup -->
+            <div class="p-2 rounded-xl bg-zinc-900 border border-emerald-500/40 flex flex-col justify-between text-center relative overflow-hidden">
+              <div class="flex justify-between items-center text-[9px]">
+                <span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">YOU</span>
+                <span class="text-zinc-500">Low: 14</span>
+              </div>
+              <div class="py-2">
+                <span class="text-3xl font-cinzel font-black text-emerald-400">18</span>
+                <div class="text-[8px] text-zinc-500 uppercase tracking-widest mt-0.5">Top: +1 • Bottom: -1</div>
+              </div>
+              <div class="grid grid-cols-4 gap-0.5 text-[9px] font-bold">
+                <span class="py-0.5 rounded bg-zinc-800 text-zinc-300">-5</span>
+                <span class="py-0.5 rounded bg-zinc-800 text-zinc-300">-1</span>
+                <span class="py-0.5 rounded bg-zinc-800 text-zinc-300">+1</span>
+                <span class="py-0.5 rounded bg-zinc-800 text-zinc-300">+5</span>
+              </div>
+            </div>
+
+            <!-- Opponent Poison Card Mockup -->
+            <div class="p-2 rounded-xl bg-zinc-900 border border-rose-500/40 flex flex-col justify-between text-center">
+              <div class="flex justify-between items-center text-[9px]">
+                <span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">OPP</span>
+                <span class="text-[8px] px-1 py-0.2 rounded bg-red-600 text-white font-bold animate-pulse">☠ 8/10</span>
+              </div>
+              <div class="py-2 flex items-center justify-center gap-1.5">
+                <span class="w-6 h-6 rounded-full border border-rose-500 bg-rose-950 text-rose-300 flex items-center justify-center text-xs">Φ</span>
+                <span class="text-2xl font-cinzel font-black text-rose-400">8</span>
+                <span class="text-[9px] text-zinc-500 font-mono">/10</span>
+              </div>
+              <div class="grid grid-cols-2 gap-1 text-[9px] font-bold">
+                <span class="py-0.5 rounded bg-zinc-800 text-zinc-300">-1</span>
+                <span class="py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700">+1 Poison</span>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="space-y-1.5 text-[11px] text-zinc-300">
+            <div class="p-2 rounded-lg bg-zinc-900 border border-zinc-800">
+              <strong class="text-emerald-400">Dual Touch Zones:</strong> Tapping the top half of either player's life card adds <code>+1</code> life; tapping the bottom half subtracts <code>-1</code> life. Dedicated <code>-5</code> and <code>+5</code> buttons make large combat swings instant.
+            </div>
+            <div class="p-2 rounded-lg bg-zinc-900 border border-zinc-800">
+              <strong class="text-red-400">Automated State-Based Actions:</strong>
+              If your life hits <code>0</code> or poison reaches <code>10</code>, the opponent automatically wins. If the opponent hits <code>0</code> life or <code>10</code> poison, you automatically win. The outcome is logged with haptic feedback, and the board resets cleanly for game 2.
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: STORM & 2X3 MANA -->
+        <div id="tab-storm-mana" class="guide-tab-panel space-y-3 hidden">
+          <!-- Visual Mockup: Storm Card & 2x3 Mana -->
+          <div class="grid grid-cols-12 gap-2 p-2.5 rounded-xl border border-zinc-700 bg-zinc-950">
+            
+            <!-- Storm Mockup -->
+            <div class="col-span-5 p-2 rounded-xl bg-zinc-900 border border-amber-500/40 flex flex-col justify-between text-center">
+              <div class="flex justify-between items-center text-[9px]">
+                <span class="font-cinzel font-bold text-amber-400">⚡ STORM</span>
+                <span class="text-zinc-500">Pk: 7</span>
+              </div>
+              <div class="py-2">
+                <span class="text-3xl font-cinzel font-black text-amber-300">4</span>
+                <div class="text-[8px] text-zinc-500 uppercase mt-0.5">Spells Cast</div>
+              </div>
+              <div class="grid grid-cols-3 gap-0.5 text-[9px] font-bold">
+                <span class="py-0.5 rounded bg-zinc-800 text-zinc-300">-1</span>
+                <span class="py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50">+1</span>
+                <span class="py-0.5 rounded bg-zinc-800 text-zinc-300">+5</span>
+              </div>
+            </div>
+
+            <!-- 2x3 Mana Mockup -->
+            <div class="col-span-7 p-2 rounded-xl bg-zinc-900 border border-zinc-800 flex flex-col justify-between">
+              <div class="flex justify-between items-center text-[9px] pb-1">
+                <span class="font-cinzel font-bold text-zinc-300">MANA POOL</span>
+                <span class="px-1.5 py-0.2 rounded-full bg-zinc-800 text-amber-400 font-mono font-bold">Tot: 5</span>
+              </div>
+              <div class="grid grid-cols-3 gap-1 text-center font-bold text-[9px]">
+                <div class="p-1 rounded bg-zinc-950 border border-yellow-500/50 text-yellow-200">W: 1</div>
+                <div class="p-1 rounded bg-zinc-950 border border-sky-500/50 text-sky-300">U: 3</div>
+                <div class="p-1 rounded bg-zinc-950 border border-purple-500/50 text-purple-300">B: 1</div>
+                <div class="p-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-500">R: 0</div>
+                <div class="p-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-500">G: 0</div>
+                <div class="p-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-500">C: 0</div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="space-y-1.5 text-[11px] text-zinc-300">
+            <div class="p-2 rounded-lg bg-zinc-900 border border-zinc-800">
+              <strong class="text-amber-400">Storm Counter:</strong> Tap anywhere in the center to increment your storm count as you cast spells. The tool tracks your <strong>Peak Storm</strong> for the turn and compiles overall match spell totals.
+            </div>
+            <div class="p-2 rounded-lg bg-zinc-900 border border-zinc-800">
+              <strong class="text-sky-300">Floating Mana Grid:</strong> Structured into 2 balanced rows of 3 columns ({W}, {U}, {B} on top, {R}, {G}, {C} below). Tap the upper half to add floating mana and the lower half to spend it. As mana accumulates, the 3D spherical orb glows with ambient elemental lighting.
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: MTR 2.5 & MATCHES -->
+        <div id="tab-mtr" class="guide-tab-panel space-y-3 hidden">
+          <div class="p-3 rounded-xl border border-red-500/40 bg-zinc-950 space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-red-600 text-white font-black text-[9px] uppercase tracking-wider animate-pulse">MTR 2.5</span>
+              <h4 class="font-cinzel font-bold text-red-300 text-sm">End-of-Match Extra Turns Workflow</h4>
+            </div>
+            <p class="text-zinc-300 leading-relaxed">
+              When the match timer reaches <code>00:00</code>, the app triggers an automatic MTR 2.5 prompt:
+            </p>
+            <ol class="list-decimal list-inside space-y-1 text-zinc-400 pl-1">
+              <li>Select whether <strong class="text-white">You</strong> or your <strong class="text-white">Opponent</strong> is currently taking the active turn.</li>
+              <li>That player finishes <strong class="text-amber-400">Turn 0</strong>.</li>
+              <li>A red banner tracks <strong class="text-white">Turn 1 through Turn 5</strong> step-by-step as players pass turn.</li>
+              <li>If neither player wins at the conclusion of Turn 5, the game is declared an official <strong>Draw</strong>.</li>
+            </ol>
+          </div>
+
+          <div class="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300">
+            <strong class="text-amber-400 font-cinzel">End-of-Tournament Menu:</strong>
+            When the scheduled rounds conclude, you are presented with 4 direct options:
+            <ul class="list-disc list-inside mt-1 space-y-0.5 text-zinc-400">
+              <li><strong class="text-zinc-200">1. View Results:</strong> Review complete breakdown of all rounds, game records, turns, and life totals.</li>
+              <li><strong class="text-zinc-200">2. New Tournament:</strong> Configure new rounds and restart.</li>
+              <li><strong class="text-zinc-200">3. Save Results:</strong> Download the complete verified <code>.txt</code> tournament report.</li>
+              <li><strong class="text-zinc-200">4. Return to socalpauper.com:</strong> Quick return to the directory homepage.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- TAB 6: ROUNDS & LOGS -->
+        <div id="tab-logs" class="guide-tab-panel space-y-3 hidden">
+          <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950 space-y-2">
+            <h4 class="font-cinzel font-bold text-amber-400 text-sm">Action Logs & Match Telemetry</h4>
+            <p class="text-zinc-300 leading-relaxed">
+              Tap the amber <strong>Log</strong> button in the HUD at any time during gameplay to inspect timestamped logs of every action in the match.
+            </p>
+          </div>
+
+          <div class="space-y-1.5 text-[11px] text-zinc-300">
+            <div class="p-2 rounded-lg bg-zinc-900 border border-zinc-800">
+              <strong class="text-amber-400">Round Scoping & Filtering:</strong>
+              During a match, only events from the current round are shown. When multiple rounds are complete, round selector pills (<code>Rnd 1</code>, <code>Rnd 2</code>, etc.) let you jump back into previous round logs. You can filter by <strong>Life</strong>, <strong>Mana</strong>, <strong>Storm</strong>, <strong>Poison</strong>, or <strong>Turns & Games</strong>.
+            </div>
+            <div class="p-2 rounded-lg bg-zinc-900 border border-zinc-800">
+              <strong class="text-emerald-400">Untimed "Free Mode":</strong>
+              If you start an untimed casual game, <code>FREE MODE</code> activates. Live background logging is bypassed automatically to keep battery and performance completely lean.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Action Bar -->
+      <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between shrink-0">
+        <span class="text-[10px] text-zinc-500 font-mono">SoCal Pauper Competitive Tabletop Suite</span>
+        <button id="close-guide-footer-btn" class="px-5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-zinc-950 font-cinzel font-bold text-xs uppercase tracking-wider transition">
+          Got It, Back to Game
+        </button>
+      </div>
+
     </div>
   </div>
 
@@ -3196,6 +3531,64 @@
       if (downloadLogFromReviewBtn) {
         downloadLogFromReviewBtn.addEventListener('click', downloadMatchLog);
       }
+
+      // TUTORIAL & FEATURE GUIDE CONTROLS
+      const tutorialModal = document.getElementById('tutorial-modal');
+      const openGuideBtn = document.getElementById('open-guide-btn');
+      const setupGuideBtn = document.getElementById('setup-guide-btn');
+      const closeGuideModalBtn = document.getElementById('close-guide-modal-btn');
+      const closeGuideFooterBtn = document.getElementById('close-guide-footer-btn');
+
+      function openGuideModal() {
+        initAudio();
+        if (tutorialModal) {
+          tutorialModal.classList.remove('opacity-0', 'pointer-events-none');
+          tutorialModal.children[0].classList.remove('scale-95');
+          tutorialModal.children[0].classList.add('scale-100');
+          playTone(540, 'sine', 0.05);
+        }
+      }
+
+      function closeGuideModal() {
+        if (tutorialModal) {
+          tutorialModal.classList.add('opacity-0', 'pointer-events-none');
+          tutorialModal.children[0].classList.add('scale-95');
+          tutorialModal.children[0].classList.remove('scale-100');
+        }
+      }
+
+      if (openGuideBtn) openGuideBtn.addEventListener('click', openGuideModal);
+      if (setupGuideBtn) setupGuideBtn.addEventListener('click', openGuideModal);
+      if (closeGuideModalBtn) closeGuideModalBtn.addEventListener('click', closeGuideModal);
+      if (closeGuideFooterBtn) closeGuideFooterBtn.addEventListener('click', closeGuideModal);
+
+      // Tutorial Tab Switching
+      document.querySelectorAll('.guide-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          initAudio();
+          const targetTabId = btn.getAttribute('data-tab');
+
+          // Highlight active button
+          document.querySelectorAll('.guide-tab-btn').forEach(b => {
+            b.classList.remove('bg-amber-500/20', 'border-amber-500/60', 'text-amber-300', 'font-bold');
+            b.classList.add('bg-zinc-900', 'border-zinc-800', 'text-zinc-400');
+          });
+          btn.classList.add('bg-amber-500/20', 'border-amber-500/60', 'text-amber-300', 'font-bold');
+          btn.classList.remove('bg-zinc-900', 'border-zinc-800', 'text-zinc-400');
+
+          // Show corresponding panel
+          document.querySelectorAll('.guide-tab-panel').forEach(panel => {
+            if (panel.id === targetTabId) {
+              panel.classList.remove('hidden');
+            } else {
+              panel.classList.add('hidden');
+            }
+          });
+
+          playTone(460, 'sine', 0.03);
+          triggerHaptic('tap');
+        });
+      });
     });
   </script>
 </body>
