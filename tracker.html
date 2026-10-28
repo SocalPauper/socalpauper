@@ -1,0 +1,3202 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full select-none">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>SoCal Pauper | Tournament Combo & Mana Tracker</title>
+  <meta name="description" content="Landscape single-player MTG tournament tracker for Storm, Poison, 6-color glowing mana pools, Bo3 match telemetry, and round timers." />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mtg: {
+              dark: '#080a0e',
+              surface: '#0f1219',
+              card: '#151922',
+              border: '#242b3b',
+              accent: '#d97706'
+            }
+          },
+          fontFamily: {
+            cinzel: ['Cinzel', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Cinzel & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    body {
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+    .font-cinzel { font-family: 'Cinzel', serif; }
+
+    /* Ultra-Clear Frosted Crystal Glass Panels */
+    .glass-panel {
+      background: linear-gradient(180deg, rgba(18, 22, 33, 0.38) 0%, rgba(10, 13, 20, 0.48) 100%);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .mana-orb-tower {
+      background: rgba(10, 13, 20, 0.32) !important;
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      border-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    /* High-Contrast Text Shadows for Backlit Artwork Readability */
+    .text-shadow-contrast {
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 0, 0, 0.6);
+    }
+
+    /* 3D Glass Mana Orb Base (Streamlined & Compact) */
+    .mana-orb {
+      position: relative;
+      border-radius: 9999px;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: inset 0 -3px 8px rgba(0, 0, 0, 0.7), inset 0 2px 5px rgba(255, 255, 255, 0.2), 0 3px 8px rgba(0,0,0,0.6);
+      background: radial-gradient(circle at 35% 28%, rgba(255,255,255,0.18) 0%, rgba(30,35,48,0.7) 45%, rgba(10,12,18,0.95) 100%);
+    }
+
+    /* Specular highlight glint */
+    .mana-orb::after {
+      content: '';
+      position: absolute;
+      top: 9%;
+      left: 18%;
+      width: 32%;
+      height: 20%;
+      border-radius: 50%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.02) 100%);
+      transform: rotate(-25deg);
+      pointer-events: none;
+    }
+
+    /* Glowing States for Each Color (applied dynamically via JS) */
+    .orb-lit-w {
+      background: radial-gradient(circle at 35% 28%, #fffef0 0%, #ecdba8 35%, #786532 75%, #241d0c 100%) !important;
+    }
+    .orb-lit-u {
+      background: radial-gradient(circle at 35% 28%, #bfe3fc 0%, #38bdf8 38%, #0369a1 75%, #051d2f 100%) !important;
+    }
+    .orb-lit-b {
+      background: radial-gradient(circle at 35% 28%, #e9d5ff 0%, #a855f7 38%, #581c87 75%, #180924 100%) !important;
+    }
+    .orb-lit-r {
+      background: radial-gradient(circle at 35% 28%, #fed7aa 0%, #f97316 35%, #b91c1c 75%, #290806 100%) !important;
+    }
+    .orb-lit-g {
+      background: radial-gradient(circle at 35% 28%, #dcfce7 0%, #22c55e 35%, #15803d 75%, #05210e 100%) !important;
+    }
+    .orb-lit-c {
+      background: radial-gradient(circle at 35% 28%, #f8fafc 0%, #cbd5e1 38%, #64748b 75%, #18202d 100%) !important;
+    }
+
+    /* Poison lethal strobe */
+    @keyframes poison-strobe {
+      0%, 100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); border-color: rgba(239, 68, 68, 0.7); }
+      50% { box-shadow: 0 0 35px rgba(239, 68, 68, 0.85); border-color: rgba(254, 202, 202, 1); }
+    }
+    .lethal-strobe {
+      animation: poison-strobe 1.2s infinite ease-in-out;
+    }
+
+    /* Phyrexian Ichor / Toxicity Glow */
+    .phyrexian-glow {
+      filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.45)) drop-shadow(0 0 18px rgba(34, 197, 94, 0.25));
+      transition: filter 0.3s ease, color 0.3s ease;
+    }
+    .phyrexian-lethal {
+      filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.9)) drop-shadow(0 0 25px rgba(220, 38, 38, 0.6)) !important;
+      animation: lethal-pulse 1.2s infinite ease-in-out;
+    }
+    @keyframes lethal-pulse {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.7)); }
+      50% { transform: scale(1.05); filter: drop-shadow(0 0 22px rgba(239, 68, 68, 1)); }
+    }
+
+    @keyframes pop-bounce {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.14); }
+      100% { transform: scale(1); }
+    }
+    .pop {
+      animation: pop-bounce 0.14s ease-out;
+    }
+
+    /* Timer emergency flash */
+    @keyframes timer-warning {
+      0%, 100% { opacity: 1; color: #ef4444; }
+      50% { opacity: 0.4; color: #fee2e2; }
+    }
+    .timer-alert {
+      animation: timer-warning 1s infinite;
+    }
+
+    /* Ambient Dynamic Card Backdrop */
+    #custom-bg-backdrop {
+      transition: opacity 0.5s ease-in-out;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+    .battlefield-overlay {
+      background: radial-gradient(circle at 50% 50%, rgba(8, 10, 14, 0.05) 0%, rgba(8, 10, 14, 0.28) 75%, rgba(8, 10, 14, 0.45) 100%),
+                  linear-gradient(180deg, rgba(8, 10, 14, 0.1) 0%, rgba(8, 10, 14, 0.3) 100%);
+    }
+  </style>
+</head>
+<body class="bg-mtg-dark text-zinc-100 h-full w-full overflow-hidden flex flex-col antialiased selection:bg-amber-600 relative">
+
+  <!-- Ambient Card Art Backdrop (Vivid & Clear) -->
+  <div id="custom-bg-backdrop" class="fixed inset-0 z-0 opacity-0 pointer-events-none filter brightness-100 contrast-105"></div>
+  <div id="custom-bg-overlay" class="fixed inset-0 z-0 battlefield-overlay pointer-events-none opacity-0 transition-opacity duration-500"></div>
+
+  <!-- ========================================================= -->
+  <!-- 1. TOURNAMENT ROUND SETUP MODAL (Launch Prompt)           -->
+  <!-- ========================================================= -->
+  <div id="setup-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="glass-panel w-full max-w-3xl rounded-2xl border border-amber-500/40 p-4 sm:p-5 shadow-2xl flex flex-col gap-4 my-auto max-h-[95vh] overflow-y-auto">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+          <div>
+            <h2 class="font-cinzel text-lg sm:text-xl font-bold text-amber-400 tracking-wider">Tournament Pregame Setup</h2>
+            <p class="text-[11px] text-zinc-400">Configure round timer, match scoring, and your battlefield card art backdrop before starting.</p>
+          </div>
+        </div>
+        <span class="text-[10px] font-bold text-amber-400/80 font-cinzel tracking-widest px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 uppercase hidden sm:inline">
+          Single-Player
+        </span>
+      </div>
+
+      <!-- Two-Column Config Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+        
+        <!-- LEFT COLUMN: Tournament Rounds, Timer & Match Format (5 cols) -->
+        <div class="md:col-span-5 flex flex-col gap-3 justify-between border-b md:border-b-0 md:border-r border-zinc-800/80 pb-3 md:pb-0 md:pr-4">
+          
+          <!-- Tournament Rounds Selection -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-cinzel font-bold text-zinc-200 tracking-wider uppercase">
+                1. Tournament Rounds
+              </label>
+              <span class="text-[10px] text-zinc-500 font-mono">Swiss Format</span>
+            </div>
+            
+            <div class="grid grid-cols-4 gap-1.5">
+              <button type="button" class="setup-round-preset px-2 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 text-zinc-300 font-bold text-xs text-center transition" data-rounds="3">
+                3 Rnds
+              </button>
+              <button type="button" class="setup-round-preset px-2 py-1.5 rounded-lg border border-amber-500/80 bg-amber-500/20 text-amber-300 font-bold text-xs text-center transition" data-rounds="4">
+                4 Rnds
+              </button>
+              <button type="button" class="setup-round-preset px-2 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 text-zinc-300 font-bold text-xs text-center transition" data-rounds="5">
+                5 Rnds
+              </button>
+              <button type="button" class="setup-round-preset px-2 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 text-zinc-400 font-bold text-xs text-center transition" data-rounds="1">
+                Single
+              </button>
+            </div>
+            <div class="flex items-center gap-2 pt-0.5 text-[11px] text-zinc-400">
+              <span>Custom:</span>
+              <input id="setup-custom-rounds" type="number" min="1" max="15" placeholder="e.g. 6" class="w-14 px-2 py-0.5 text-xs rounded bg-zinc-900 border border-zinc-700 text-amber-300 font-bold text-center focus:outline-none focus:border-amber-500" />
+              <span class="text-[10px] text-zinc-500">rounds total</span>
+            </div>
+          </div>
+
+          <!-- Round Timer Selection -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-cinzel font-bold text-zinc-200 tracking-wider uppercase">
+                2. Round Timer & MTR 2.5
+              </label>
+              <span class="text-[10px] text-zinc-500 font-mono">Bo3 Match</span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-1.5">
+              <button type="button" class="setup-timer-preset px-2.5 py-1.5 rounded-lg border border-amber-500/80 bg-amber-500/20 text-amber-300 font-bold text-xs text-left transition" data-minutes="50">
+                50 Min
+                <span class="block text-[9px] font-normal text-amber-200/70">Standard MTR</span>
+              </button>
+              <button type="button" class="setup-timer-preset px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 hover:border-zinc-500 text-zinc-300 font-bold text-xs text-left transition" data-minutes="45">
+                45 Min
+                <span class="block text-[9px] font-normal text-zinc-400">Competitive</span>
+              </button>
+              <button type="button" class="setup-timer-preset px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 hover:border-zinc-500 text-zinc-300 font-bold text-xs text-left transition" data-minutes="30">
+                30 Min
+                <span class="block text-[9px] font-normal text-zinc-400">Single / Blitz</span>
+              </button>
+              <button type="button" class="setup-timer-preset px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 hover:border-zinc-500 text-zinc-400 font-bold text-xs text-left transition" data-minutes="0">
+                Untimed
+                <span class="block text-[9px] font-normal text-zinc-500">Casual Play</span>
+              </button>
+            </div>
+
+            <!-- Custom Minutes option -->
+            <div class="flex items-center gap-2 pt-0.5 text-xs text-zinc-400">
+              <span>Custom:</span>
+              <input id="setup-custom-minutes" type="number" min="1" max="180" placeholder="e.g. 55" class="w-16 px-2 py-0.5 text-xs rounded bg-zinc-900 border border-zinc-700 text-amber-300 font-bold text-center focus:outline-none focus:border-amber-500" />
+              <span class="text-[11px] text-zinc-500">minutes</span>
+            </div>
+          </div>
+
+          <!-- Format Rules Card -->
+          <div class="p-2 rounded-xl border border-zinc-800 bg-zinc-900/50 space-y-1">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-zinc-300">MTR 2.5 Extra Turns & Draws</span>
+              <span class="text-[9px] uppercase font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/10">W-L-D Engine</span>
+            </div>
+            <p class="text-[10px] text-zinc-400 leading-tight">
+              Tracks match ties, game draws, and automatic 5-turn end-of-round extension.
+            </p>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Card Art Backdrop Selector (7 cols) -->
+        <div class="md:col-span-7 flex flex-col gap-2.5">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-cinzel font-bold text-zinc-200 tracking-wider uppercase">
+              3. Battlefield Backdrop Art
+            </label>
+            <button id="setup-clear-art-btn" type="button" class="text-[10px] text-zinc-400 hover:text-red-400 transition underline">
+              Use Minimal Dark
+            </button>
+          </div>
+
+          <!-- Scryfall Live Search Input -->
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <input id="setup-art-input" type="text" placeholder="Search any MTG card (e.g. Brainstorm, Lotus Petal)..." class="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-amber-500" />
+              <svg class="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
+            <button id="setup-art-search-btn" type="button" class="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold text-xs uppercase font-cinzel tracking-wider transition shrink-0">
+              Find
+            </button>
+          </div>
+
+          <!-- Status & Preview Bar -->
+          <div class="flex items-center gap-2.5 p-2 rounded-xl border border-zinc-800 bg-zinc-900/60 min-h-[52px]">
+            <div id="setup-art-thumb" class="w-14 h-9 rounded-lg bg-zinc-950 border border-zinc-700 bg-cover bg-center shrink-0 flex items-center justify-center overflow-hidden">
+              <span id="setup-thumb-empty" class="text-[9px] text-zinc-600 font-mono">None</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[9px] uppercase font-bold text-zinc-400">Selected:</span>
+                <span id="setup-art-name" class="text-xs font-semibold text-amber-300 truncate">Default Dark Surface</span>
+              </div>
+              <div id="setup-art-status" class="text-[10px] text-zinc-500 truncate">Select a staple chip below or search Scryfall.</div>
+            </div>
+          </div>
+
+          <!-- Dynamic Printing & Art Version Selector (Setup Modal) -->
+          <div id="setup-versions-container" class="space-y-1.5 hidden">
+            <div class="flex items-center justify-between text-[9px] font-bold text-zinc-400 uppercase tracking-wider font-cinzel">
+              <span>Select Art Version</span>
+              <span id="setup-version-count" class="text-amber-400 font-mono">0 printings</span>
+            </div>
+            <div id="setup-versions-grid" class="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-zinc-700">
+              <!-- Dynamically populated printing thumbnails -->
+            </div>
+          </div>
+
+          <!-- Quick Pauper Staple Preset Chips -->
+          <div class="space-y-1">
+            <span class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider font-cinzel">Legal Pauper Staples (1-Click)</span>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-1">
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Refurbished Familiar">🐱 Familiar</button>
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Writhing Chrysalis">🐛 Chrysalis</button>
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Lightning Bolt">⚡ Bolt</button>
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Counterspell">💧 Counterspell</button>
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Dark Ritual">💀 Dark Ritual</button>
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Tolarian Terror">🐍 Terror</button>
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Priest of Titania">🧝 Titania</button>
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Balustrade Spy">🦇 Spy</button>
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Lotus Petal">🌸 Petal</button>
+              <button type="button" class="setup-art-chip px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:border-amber-500/70 hover:text-amber-300 text-zinc-300 text-[10px] font-medium truncate text-left transition" data-card="Brainstorm">🧠 Brainstorm</button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Launch Action Bar -->
+      <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between">
+        <button id="setup-casual-btn" type="button" class="text-xs text-zinc-400 hover:text-zinc-200 underline">
+          Quick Start (Untimed & Ready)
+        </button>
+        <button id="start-round-btn" type="button" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-zinc-950 font-cinzel font-black text-xs uppercase tracking-wider shadow-lg transition flex items-center gap-2">
+          <span>Enter Battlefield</span>
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- PORTRAIT ROTATION ADVISORY OVERLAY                        -->
+  <!-- ========================================================= -->
+  <div id="portrait-gate" class="fixed inset-0 z-40 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300 pointer-events-auto hidden">
+    <div class="relative w-16 h-16 mb-4 flex items-center justify-center">
+      <svg class="w-14 h-14 text-amber-500 animate-bounce" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+        <line x1="12" y1="18" x2="12" y2="18.01"></line>
+      </svg>
+    </div>
+    <h2 class="text-xl font-bold font-cinzel text-amber-400 tracking-wide mb-1">Rotate Device Horizontally</h2>
+    <p class="text-zinc-400 text-xs max-w-xs mb-4 leading-relaxed">
+      This tool is designed for horizontal tabletop phone use so Storm, Poison, Turn & 6-Color Mana are accessible in one touch.
+    </p>
+    <button id="dismiss-portrait-btn" class="px-4 py-2 rounded-lg border border-zinc-700 bg-zinc-900 text-xs text-zinc-300 uppercase tracking-widest font-semibold">
+      Continue Vertical
+    </button>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 2. HIGH-UTILITY TOURNAMENT HEADER BAR (Enlarged Mobile HUD) -->
+  <!-- ========================================================= -->
+  <header class="shrink-0 bg-black/65 backdrop-blur-md border-b border-white/15 px-2 py-1.5 flex flex-col gap-1 z-30 text-shadow-contrast shadow-lg">
+    
+    <!-- TIER 1: TOURNAMENT METRICS, MATCH W-L-D, GAME SCORING & ROUND TIMER -->
+    <div class="flex items-center justify-between gap-1 sm:gap-2 text-xs">
+      
+      <!-- Left: Navigation & Tournament Match Standings -->
+      <div class="flex items-center gap-1.5 min-w-0">
+        <!-- Back Link -->
+        <a href="/" class="flex items-center justify-center w-7 h-7 rounded-lg bg-zinc-900/90 border border-zinc-700/80 text-zinc-400 hover:text-amber-400 transition shrink-0" title="Return to SoCal Pauper">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+        </a>
+
+        <!-- Free Mode Pill (Visible only when untimed casual mode is active) -->
+        <div id="free-mode-banner" class="hidden items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-cinzel font-black text-[10px] uppercase tracking-wider shrink-0 shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>FREE MODE</span>
+        </div>
+
+        <!-- Tournament Round Badge -->
+        <div id="tournament-round-container" class="flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/40 rounded-lg shrink-0">
+          <span class="text-[9px] uppercase font-bold text-amber-300 font-cinzel">Rnd</span>
+          <span id="tournament-round-display" class="font-bold text-amber-400 text-xs font-mono">1/4</span>
+        </div>
+
+        <!-- Tournament Match Record (W-L-D) -->
+        <div id="tournament-match-container" class="flex items-center gap-1 px-1.5 py-0.5 bg-zinc-900/90 border border-zinc-700/80 rounded-lg shrink-0" title="Tournament Match Record (Wins-Losses-Draws)">
+          <span class="text-[9px] uppercase font-bold text-zinc-400 font-cinzel">Match</span>
+          <div class="flex items-center gap-0.5 text-xs font-mono font-bold">
+            <span id="match-record-w" class="text-emerald-400">0</span>
+            <span class="text-zinc-600">-</span>
+            <span id="match-record-l" class="text-rose-400">0</span>
+            <span class="text-zinc-600">-</span>
+            <span id="match-record-d" class="text-amber-400">0</span>
+          </div>
+        </div>
+
+        <!-- Current Match Game Wins/Draws (G1/G2/G3 W-L-D) -->
+        <div class="flex items-center gap-1 px-1.5 py-0.5 bg-zinc-900/90 border border-zinc-700/80 rounded-lg shrink-0">
+          <span id="current-game-badge" class="text-[9px] font-bold text-amber-400 font-cinzel">G1</span>
+          <div class="flex items-center gap-0.5 text-xs font-mono font-bold">
+            <span id="game-score-w" class="text-emerald-400" title="Game Wins">0</span>
+            <span class="text-zinc-600">-</span>
+            <span id="game-score-l" class="text-rose-400" title="Game Losses">0</span>
+            <span class="text-zinc-600">-</span>
+            <span id="game-score-d" class="text-amber-400" title="Game Draws">0</span>
+          </div>
+          <!-- Win / Loss / Draw Quick Toggles -->
+          <button id="win-game-btn" class="ml-0.5 px-1.5 py-0.5 rounded bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-600/60 text-emerald-300 text-[8px] font-bold uppercase transition" title="Win Game">+W</button>
+          <button id="lose-game-btn" class="px-1.5 py-0.5 rounded bg-rose-950/70 hover:bg-rose-900 border border-rose-600/60 text-rose-300 text-[8px] font-bold uppercase transition" title="Lose Game">+L</button>
+          <button id="draw-game-btn" class="px-1.5 py-0.5 rounded bg-amber-950/70 hover:bg-amber-900 border border-amber-600/60 text-amber-300 text-[8px] font-bold uppercase transition" title="Draw Game">+D</button>
+        </div>
+      </div>
+
+      <!-- Right: Round Countdown Timer & Extra Turns Indicator -->
+      <div id="timer-outer-container" class="flex items-center gap-1.5 shrink-0">
+        <div class="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-700/80 rounded-lg px-2 py-0.5 shadow-inner">
+          <svg class="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <div id="round-timer-display" class="font-mono font-black text-xs sm:text-sm tracking-widest text-zinc-200">
+            --:--
+          </div>
+          <button id="timer-toggle-btn" class="w-5 h-5 rounded hover:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-amber-400 transition active:scale-90" title="Play/Pause Timer">
+            <svg id="timer-play-icon" class="w-3 h-3 fill-current" viewBox="0 0 24 24">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <svg id="timer-pause-icon" class="w-3 h-3 fill-current hidden" viewBox="0 0 24 24">
+              <rect x="6" y="4" width="4" height="16"></rect>
+              <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
+          </button>
+          <button id="timer-add-min-btn" class="px-1 rounded text-[9px] font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 transition" title="Add 1 Minute">+1m</button>
+        </div>
+
+        <!-- Extra Turns (MTR 2.5) Status Pill -->
+        <button id="extra-turns-pill-btn" class="hidden px-2 py-0.5 rounded-lg bg-red-600/25 border border-red-500 text-red-300 font-bold text-[9px] uppercase tracking-wider flex items-center gap-1 animate-pulse" title="MTR 2.5 Extra Turns Active">
+          <span>Extra Turn:</span>
+          <span id="extra-turn-pill-step" class="font-mono font-black text-white text-xs">0</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- TIER 2: TURN CONTROLLERS, END TURN & IN-GAME TOOLBAR -->
+    <div class="flex items-center justify-between gap-2 border-t border-white/10 pt-1 text-xs">
+      
+      <!-- Left: Turn Controls & Primary "End Turn" Action -->
+      <div class="flex items-center gap-2">
+        <!-- Turn Stepper -->
+        <div class="flex items-center bg-zinc-900/90 border border-zinc-700/80 rounded-lg p-0.5">
+          <button id="turn-minus" class="w-6 h-6 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition active:scale-90 font-bold text-xs" title="Previous Turn">-</button>
+          <div class="px-2 flex items-center gap-1">
+            <span class="text-[8px] uppercase font-bold text-zinc-400">T</span>
+            <span id="turn-display" class="font-cinzel font-black text-amber-400 text-xs sm:text-sm">1</span>
+          </div>
+          <button id="turn-plus" class="w-6 h-6 rounded flex items-center justify-center text-zinc-200 hover:text-white hover:bg-zinc-800 transition active:scale-90 font-bold text-xs" title="Next Turn">+</button>
+        </div>
+
+        <!-- End Turn Button -->
+        <button id="pass-turn-btn" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold transition shadow text-[10px] uppercase tracking-wider font-cinzel">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8">
+            <polyline points="1 4 1 10 7 10"></polyline>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          </svg>
+          <span>End Turn</span>
+        </button>
+      </div>
+
+      <!-- Right: Action Buttons, Review, Backdrop & Settings -->
+      <div class="flex items-center gap-1.5">
+        <!-- Live Action Log Review Button -->
+        <button id="open-live-log-btn" class="flex items-center gap-1 px-2 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold uppercase tracking-wider transition text-[10px]" title="Review Match Action Log">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          <span>Log</span>
+        </button>
+
+        <!-- Background Art Selector Button -->
+        <button id="open-art-btn" class="flex items-center gap-1 px-2 py-1 rounded-lg border border-zinc-700 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-amber-400 text-[10px] font-bold uppercase tracking-wider transition" title="Choose Card Art Backdrop">
+          <svg class="w-3 h-3 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          <span>Art</span>
+        </button>
+
+        <!-- Screen Wake Lock -->
+        <button id="wake-lock-btn" class="w-6 h-6 rounded-lg border border-zinc-800 bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-amber-400 transition" title="Keep Screen Awake">
+          <svg id="wake-icon" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+          </svg>
+        </button>
+
+        <!-- Sound Toggle -->
+        <button id="sound-btn" class="w-6 h-6 rounded-lg border border-zinc-800 bg-zinc-900 flex items-center justify-center text-amber-400 hover:bg-zinc-800 transition" title="Toggle Haptics & Audio">
+          <svg id="sound-icon-on" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <svg id="sound-icon-off" class="w-3.5 h-3.5 hidden text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          </svg>
+        </button>
+
+        <!-- Reset Trigger -->
+        <button id="open-reset-btn" class="px-2 py-1 rounded-lg border border-red-900/50 bg-red-950/30 hover:bg-red-900/70 text-red-400 hover:text-red-200 font-semibold transition text-[10px]">
+          Reset
+        </button>
+      </div>
+
+    </div>
+
+  </header>
+
+  <!-- ========================================================= -->
+  <!-- MTR 2.5 EXTRA TURNS ACTIVE BANNER                         -->
+  <!-- ========================================================= -->
+  <div id="extra-turns-banner" class="hidden bg-gradient-to-r from-red-950/90 via-red-900/90 to-red-950/90 border-b border-red-500/60 px-3 py-1 flex items-center justify-between text-xs z-30 shadow-md">
+    <div class="flex items-center gap-2">
+      <span class="px-1.5 py-0.5 rounded bg-red-600 text-white font-black text-[9px] uppercase tracking-wider animate-pulse">MTR 2.5</span>
+      <span class="font-cinzel font-bold text-red-200">Extra Turns in Progress:</span>
+      <span id="extra-turn-label" class="font-mono font-bold text-white text-xs">Turn 0 (Active Player Finishes Turn)</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="step-extra-turn-btn" class="px-2.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider shadow">
+        Next Extra Turn (Step)
+      </button>
+      <button id="cancel-extra-turns-btn" class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[10px]">
+        Dismiss
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 3. MAIN DASHBOARD: SPLIT LANDSCAPE LAYOUT                 -->
+  <!-- ========================================================= -->
+  <main class="flex-1 w-full p-2 grid grid-cols-12 gap-2 min-h-0 overflow-hidden relative z-10">
+
+    <!-- COL 1: PLAYER (YOU) - LIFE & POISON (3 of 12 columns) -->
+    <section class="col-span-3 flex flex-col gap-1.5 min-h-0">
+      
+      <!-- PLAYER LIFE COUNTER CARD -->
+      <div id="life-card" class="glass-panel flex-[1.1] rounded-2xl border border-emerald-500/30 flex flex-col p-2 relative overflow-hidden transition-all shadow-lg justify-between min-h-0">
+        <!-- Top Half Tap (+1) -->
+        <div data-action="life-inc" class="absolute top-0 left-0 right-0 h-1/2 z-10 cursor-pointer"></div>
+
+        <!-- Header with Label YOU -->
+        <div class="flex items-center justify-between z-20 pointer-events-none">
+          <div class="flex items-center gap-1">
+            <span class="px-1.5 py-0.2 rounded bg-emerald-500/20 border border-emerald-500/40 text-[9px] font-cinzel font-black text-emerald-300 uppercase tracking-widest">YOU</span>
+            <span class="font-cinzel text-[11px] font-bold text-zinc-200 tracking-wider uppercase">Life</span>
+          </div>
+          <div class="text-[9px] text-zinc-400 font-bold uppercase tracking-tight">
+            Low: <span id="life-low" class="text-zinc-300">20</span>
+          </div>
+        </div>
+
+        <!-- Giant Touchable Life Value -->
+        <div class="flex-1 flex flex-col items-center justify-center relative my-0.5 z-20 pointer-events-none">
+          <div id="life-display" class="text-4xl sm:text-5xl font-cinzel font-black tracking-tight text-emerald-400 drop-shadow-[0_4px_16px_rgba(16,185,129,0.3)] transition-all">
+            20
+          </div>
+        </div>
+
+        <!-- Bottom Half Tap (-1) -->
+        <div data-action="life-dec" class="absolute bottom-0 left-0 right-0 h-1/2 z-10 cursor-pointer"></div>
+
+        <!-- Quick Increments -->
+        <div class="grid grid-cols-4 gap-1 z-20">
+          <button id="life-minus-5" class="py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">-5</button>
+          <button id="life-minus-1" class="py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">-1</button>
+          <button id="life-plus-1" class="py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">+1</button>
+          <button id="life-plus-5" class="py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">+5</button>
+        </div>
+      </div>
+
+      <!-- PLAYER POISON COUNTER CARD -->
+      <div id="poison-card" class="glass-panel flex-[0.9] rounded-2xl border border-zinc-800 p-1.5 flex flex-col justify-between relative overflow-hidden transition-all shadow-md min-h-0">
+        
+        <!-- Subtle Phyrexian Watermark Vector -->
+        <svg id="phyrexian-watermark" class="absolute -right-3 -bottom-5 w-20 h-20 text-emerald-500/10 pointer-events-none transition-all duration-500" viewBox="0 0 100 100" fill="currentColor">
+          <path d="M 50,3 C 54,16 55.5,25 55.5,50 C 55.5,75 54,84 50,97 C 46,84 44.5,75 44.5,50 C 44.5,25 46,16 50,3 Z" />
+          <path d="M 40,24 C 23,26 12,36 12,50 C 12,64 23,74 40,76 L 40,64 C 29,62 23,56 23,50 C 23,44 29,38 40,36 Z" />
+          <path d="M 60,24 C 77,26 88,36 88,50 C 88,64 77,74 60,76 L 60,64 C 71,62 77,56 77,50 C 77,44 71,38 60,36 Z" />
+        </svg>
+
+        <!-- Header -->
+        <div class="flex items-center justify-between z-10">
+          <div class="flex items-center gap-1">
+            <span class="px-1 py-0.2 rounded bg-zinc-800 text-[8px] font-cinzel font-black text-zinc-300 uppercase">YOU</span>
+            <span class="font-cinzel text-[10px] font-bold text-zinc-300 tracking-wider uppercase">Poison</span>
+          </div>
+
+          <div id="poison-lethal-pill" class="hidden text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider bg-red-600 text-white animate-pulse">
+            ☠ LETHAL
+          </div>
+
+          <button id="poison-clear-btn" class="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[8px] uppercase font-bold transition">
+            0
+          </button>
+        </div>
+
+        <!-- Center Tappable Phyrexian Emblem & Counter -->
+        <div id="poison-tap-area" class="flex-1 flex items-center justify-center gap-2 z-10 cursor-pointer my-0.5">
+          <div id="phyrexian-orb" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-zinc-700 bg-zinc-950/80 flex items-center justify-center relative shadow-inner transition-all duration-300">
+            <svg id="phyrexian-emblem" class="w-5 h-5 sm:w-6 sm:h-6 text-zinc-600 transition-all duration-300" viewBox="0 0 100 100" fill="currentColor">
+              <path d="M 50,3 C 54,16 55.5,25 55.5,50 C 55.5,75 54,84 50,97 C 46,84 44.5,75 44.5,50 C 44.5,25 46,16 50,3 Z" />
+              <path d="M 40,24 C 23,26 12,36 12,50 C 12,64 23,74 40,76 L 40,64 C 29,62 23,56 23,50 C 23,44 29,38 40,36 Z" />
+              <path d="M 60,24 C 77,26 88,36 88,50 C 88,64 77,74 60,76 L 60,64 C 71,62 77,56 77,50 C 77,44 71,38 60,36 Z" />
+            </svg>
+          </div>
+
+          <div class="flex flex-col">
+            <span id="poison-display" class="text-2xl sm:text-3xl font-cinzel font-black tracking-tight text-zinc-400 leading-none transition-colors">0</span>
+            <span class="text-[8px] text-zinc-500 font-semibold tracking-wider uppercase mt-0.5">/ 10</span>
+          </div>
+        </div>
+
+        <!-- Touch Controls -->
+        <div class="grid grid-cols-2 gap-1 z-10">
+          <button id="poison-minus-btn" class="py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-black text-[11px] flex items-center justify-center active:bg-zinc-800 transition">-1</button>
+          <button id="poison-plus-btn" class="py-1 rounded-lg bg-emerald-950/40 border border-emerald-700/60 hover:bg-emerald-900/60 text-emerald-300 font-black text-[11px] flex items-center justify-center active:scale-95 transition shadow-sm">+1</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- COL 2: OPPONENT - LIFE & POISON (3 of 12 columns) -->
+    <section class="col-span-3 flex flex-col gap-1.5 min-h-0">
+      
+      <!-- OPPONENT LIFE COUNTER CARD -->
+      <div id="opp-life-card" class="glass-panel flex-[1.1] rounded-2xl border border-rose-500/30 flex flex-col p-2 relative overflow-hidden transition-all shadow-lg justify-between min-h-0">
+        <!-- Top Half Tap (+1) -->
+        <div data-action="opp-life-inc" class="absolute top-0 left-0 right-0 h-1/2 z-10 cursor-pointer"></div>
+
+        <!-- Header with Label OPPONENT -->
+        <div class="flex items-center justify-between z-20 pointer-events-none">
+          <div class="flex items-center gap-1">
+            <span class="px-1.5 py-0.2 rounded bg-rose-500/20 border border-rose-500/40 text-[9px] font-cinzel font-black text-rose-300 uppercase tracking-widest">OPPONENT</span>
+            <span class="font-cinzel text-[11px] font-bold text-zinc-200 tracking-wider uppercase">Life</span>
+          </div>
+          <div class="text-[9px] text-zinc-400 font-bold uppercase tracking-tight">
+            Low: <span id="opp-life-low" class="text-zinc-300">20</span>
+          </div>
+        </div>
+
+        <!-- Giant Touchable Opponent Life Value -->
+        <div class="flex-1 flex flex-col items-center justify-center relative my-0.5 z-20 pointer-events-none">
+          <div id="opp-life-display" class="text-4xl sm:text-5xl font-cinzel font-black tracking-tight text-rose-400 drop-shadow-[0_4px_16px_rgba(244,63,94,0.3)] transition-all">
+            20
+          </div>
+        </div>
+
+        <!-- Bottom Half Tap (-1) -->
+        <div data-action="opp-life-dec" class="absolute bottom-0 left-0 right-0 h-1/2 z-10 cursor-pointer"></div>
+
+        <!-- Quick Increments -->
+        <div class="grid grid-cols-4 gap-1 z-20">
+          <button id="opp-life-minus-5" class="py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">-5</button>
+          <button id="opp-life-minus-1" class="py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">-1</button>
+          <button id="opp-life-plus-1" class="py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">+1</button>
+          <button id="opp-life-plus-5" class="py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">+5</button>
+        </div>
+      </div>
+
+      <!-- OPPONENT POISON COUNTER CARD -->
+      <div id="opp-poison-card" class="glass-panel flex-[0.9] rounded-2xl border border-zinc-800 p-1.5 flex flex-col justify-between relative overflow-hidden transition-all shadow-md min-h-0">
+        
+        <!-- Subtle Phyrexian Watermark Vector -->
+        <svg id="opp-phyrexian-watermark" class="absolute -right-3 -bottom-5 w-20 h-20 text-rose-500/10 pointer-events-none transition-all duration-500" viewBox="0 0 100 100" fill="currentColor">
+          <path d="M 50,3 C 54,16 55.5,25 55.5,50 C 55.5,75 54,84 50,97 C 46,84 44.5,75 44.5,50 C 44.5,25 46,16 50,3 Z" />
+          <path d="M 40,24 C 23,26 12,36 12,50 C 12,64 23,74 40,76 L 40,64 C 29,62 23,56 23,50 C 23,44 29,38 40,36 Z" />
+          <path d="M 60,24 C 77,26 88,36 88,50 C 88,64 77,74 60,76 L 60,64 C 71,62 77,56 77,50 C 77,44 71,38 60,36 Z" />
+        </svg>
+
+        <!-- Header -->
+        <div class="flex items-center justify-between z-10">
+          <div class="flex items-center gap-1">
+            <span class="px-1 py-0.2 rounded bg-zinc-800 text-[8px] font-cinzel font-black text-rose-300 uppercase">OPP</span>
+            <span class="font-cinzel text-[10px] font-bold text-zinc-300 tracking-wider uppercase">Poison</span>
+          </div>
+
+          <div id="opp-poison-lethal-pill" class="hidden text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider bg-red-600 text-white animate-pulse">
+            ☠ LETHAL
+          </div>
+
+          <button id="opp-poison-clear-btn" class="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[8px] uppercase font-bold transition">
+            0
+          </button>
+        </div>
+
+        <!-- Center Tappable Opponent Phyrexian Emblem & Counter -->
+        <div id="opp-poison-tap-area" class="flex-1 flex items-center justify-center gap-2 z-10 cursor-pointer my-0.5">
+          <div id="opp-phyrexian-orb" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-zinc-700 bg-zinc-950/80 flex items-center justify-center relative shadow-inner transition-all duration-300">
+            <svg id="opp-phyrexian-emblem" class="w-5 h-5 sm:w-6 sm:h-6 text-zinc-600 transition-all duration-300" viewBox="0 0 100 100" fill="currentColor">
+              <path d="M 50,3 C 54,16 55.5,25 55.5,50 C 55.5,75 54,84 50,97 C 46,84 44.5,75 44.5,50 C 44.5,25 46,16 50,3 Z" />
+              <path d="M 40,24 C 23,26 12,36 12,50 C 12,64 23,74 40,76 L 40,64 C 29,62 23,56 23,50 C 23,44 29,38 40,36 Z" />
+              <path d="M 60,24 C 77,26 88,36 88,50 C 88,64 77,74 60,76 L 60,64 C 71,62 77,56 77,50 C 77,44 71,38 60,36 Z" />
+            </svg>
+          </div>
+
+          <div class="flex flex-col">
+            <span id="opp-poison-display" class="text-2xl sm:text-3xl font-cinzel font-black tracking-tight text-zinc-400 leading-none transition-colors">0</span>
+            <span class="text-[8px] text-zinc-500 font-semibold tracking-wider uppercase mt-0.5">/ 10</span>
+          </div>
+        </div>
+
+        <!-- Touch Controls -->
+        <div class="grid grid-cols-2 gap-1 z-10">
+          <button id="opp-poison-minus-btn" class="py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-black text-[11px] flex items-center justify-center active:bg-zinc-800 transition">-1</button>
+          <button id="opp-poison-plus-btn" class="py-1 rounded-lg bg-rose-950/40 border border-rose-700/60 hover:bg-rose-900/60 text-rose-300 font-black text-[11px] flex items-center justify-center active:scale-95 transition shadow-sm">+1</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- COL 3: STORM ENGINE (2 of 12 columns) -->
+    <section class="col-span-2 flex flex-col min-h-0">
+      
+      <!-- STORM COUNT CARD -->
+      <div id="storm-card" class="glass-panel h-full rounded-2xl border border-amber-500/30 flex flex-col p-2 relative overflow-hidden transition-all shadow-lg justify-between min-h-0">
+        
+        <!-- Subtle Storm Arc Background Graphic -->
+        <svg class="absolute -right-3 -bottom-3 w-24 h-24 text-amber-500/10 pointer-events-none" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+        </svg>
+
+        <!-- Storm Header & Telemetry -->
+        <div class="flex items-center justify-between z-10">
+          <div class="flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-amber-400 animate-pulse" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+            <span class="font-cinzel text-[11px] font-bold text-amber-400 tracking-wider uppercase">Storm</span>
+          </div>
+
+          <div class="flex items-center gap-1">
+            <div class="text-[8px] text-zinc-400 uppercase font-bold tracking-tight">
+              Pk: <span id="storm-peak" class="text-amber-300">0</span>
+            </div>
+            <button id="storm-clear-btn" class="px-1 py-0.2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[8px] uppercase font-bold transition">
+              0
+            </button>
+          </div>
+        </div>
+
+        <!-- Giant Touchable Storm Numeric Display -->
+        <div class="flex-1 flex flex-col items-center justify-center relative cursor-pointer my-0.5" id="storm-tap-area">
+          <div id="storm-display" class="text-4xl sm:text-5xl font-cinzel font-black tracking-tight text-white drop-shadow-[0_4px_16px_rgba(245,158,11,0.3)] transition-transform">
+            0
+          </div>
+          <span class="text-[8px] text-zinc-400 uppercase font-semibold tracking-wider">Tap +1</span>
+        </div>
+
+        <!-- Increment Buttons -->
+        <div class="grid grid-cols-3 gap-1 z-10">
+          <button id="storm-minus-btn" class="py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">-1</button>
+          <button id="storm-plus-1-btn" class="py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 hover:bg-amber-500/30 text-amber-300 font-cinzel font-black text-[10px] uppercase tracking-wider flex items-center justify-center active:scale-95 transition shadow-sm">+1</button>
+          <button id="storm-plus-5-btn" class="py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 font-bold text-[10px] flex items-center justify-center active:bg-zinc-800 transition">+5</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- COL 4: 6 COMPACT MANA ORBS (2 ROWS OF 3: W, U, B / R, G, C) (4 of 12 columns) -->
+    <section class="col-span-4 flex flex-col min-h-0">
+      
+      <!-- Header row for Mana Pool -->
+      <div class="flex items-center justify-between pb-1 px-1">
+        <div class="flex items-center gap-1.5">
+          <span class="font-cinzel text-[11px] font-bold text-zinc-300 tracking-wider uppercase">Pool</span>
+          <div class="flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-zinc-900/90 border border-zinc-700 text-zinc-300">
+            <span class="text-[8px] uppercase font-semibold text-zinc-400">Tot:</span>
+            <span id="total-floating-mana" class="font-bold text-amber-400 text-xs font-mono">0</span>
+          </div>
+        </div>
+
+        <button id="empty-mana-btn" class="px-2 py-0.5 rounded bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 hover:text-white text-[9px] font-bold uppercase tracking-wider transition border border-zinc-700/70">
+          Empty
+        </button>
+      </div>
+
+      <!-- 6 GLOWING BALANCED MANA ORBS (2 rows x 3 columns) -->
+      <div class="flex-1 grid grid-cols-3 grid-rows-2 gap-1.5 min-h-0">
+
+        <!-- ================= ROW 1: WHITE {W} ================= -->
+        <div data-color="w" class="mana-orb-tower relative rounded-xl border border-zinc-800 bg-zinc-950/60 p-1 flex flex-col items-center justify-between overflow-hidden shadow">
+          <div data-action="inc" class="absolute top-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+          
+          <div class="w-full flex items-center justify-between px-1 pointer-events-none z-10">
+            <span class="text-[9px] uppercase font-black tracking-wider text-amber-100/80">W</span>
+            <span id="mana-w" class="text-base sm:text-lg font-cinzel font-black text-zinc-500 transition-colors leading-none">0</span>
+          </div>
+
+          <div id="orb-w" class="mana-orb w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center my-0.5 z-10 pointer-events-none">
+            <svg id="glyph-w" class="w-3.5 h-3.5 transition-all duration-300 text-zinc-600 drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="12" r="4.2"></circle>
+              <path d="M12 2v2.5M12 19.5v2.5M2 12h2.5M19.5 12h2.5M4.93 4.93l1.8 1.8M17.27 17.27l1.8 1.8M4.93 19.07l1.8-1.8M17.27 6.73l1.8-1.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+            </svg>
+          </div>
+
+          <div data-action="dec" class="absolute bottom-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+
+          <div class="h-4 w-full flex items-center justify-between px-1 text-[10px] font-bold text-zinc-400 z-30">
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('w', -1)">-</button>
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('w', 1)">+</button>
+          </div>
+        </div>
+
+        <!-- ================= ROW 1: BLUE {U} ================= -->
+        <div data-color="u" class="mana-orb-tower relative rounded-xl border border-zinc-800 bg-zinc-950/60 p-1 flex flex-col items-center justify-between overflow-hidden shadow">
+          <div data-action="inc" class="absolute top-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+          
+          <div class="w-full flex items-center justify-between px-1 pointer-events-none z-10">
+            <span class="text-[9px] uppercase font-black tracking-wider text-sky-200/80">U</span>
+            <span id="mana-u" class="text-base sm:text-lg font-cinzel font-black text-zinc-500 transition-colors leading-none">0</span>
+          </div>
+
+          <div id="orb-u" class="mana-orb w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center my-0.5 z-10 pointer-events-none">
+            <svg id="glyph-u" class="w-3.5 h-3.5 transition-all duration-300 text-zinc-600 drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+            </svg>
+          </div>
+
+          <div data-action="dec" class="absolute bottom-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+          
+          <div class="h-4 w-full flex items-center justify-between px-1 text-[10px] font-bold text-zinc-400 z-30">
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('u', -1)">-</button>
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('u', 1)">+</button>
+          </div>
+        </div>
+
+        <!-- ================= ROW 1: BLACK {B} ================= -->
+        <div data-color="b" class="mana-orb-tower relative rounded-xl border border-zinc-800 bg-zinc-950/60 p-1 flex flex-col items-center justify-between overflow-hidden shadow">
+          <div data-action="inc" class="absolute top-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+          
+          <div class="w-full flex items-center justify-between px-1 pointer-events-none z-10">
+            <span class="text-[9px] uppercase font-black tracking-wider text-purple-200/80">B</span>
+            <span id="mana-b" class="text-base sm:text-lg font-cinzel font-black text-zinc-500 transition-colors leading-none">0</span>
+          </div>
+
+          <div id="orb-b" class="mana-orb w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center my-0.5 z-10 pointer-events-none">
+            <svg id="glyph-b" class="w-3.5 h-3.5 transition-all duration-300 text-zinc-600 drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2a8 8 0 0 0-8 8c0 3.1 1.8 5.8 4.4 7l-.4 3h8l-.4-3c2.6-1.2 4.4-3.9 4.4-7a8 8 0 0 0-8-8zm-2.5 8a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+            </svg>
+          </div>
+
+          <div data-action="dec" class="absolute bottom-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+
+          <div class="h-4 w-full flex items-center justify-between px-1 text-[10px] font-bold text-zinc-400 z-30">
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('b', -1)">-</button>
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('b', 1)">+</button>
+          </div>
+        </div>
+
+        <!-- ================= ROW 2: RED {R} ================= -->
+        <div data-color="r" class="mana-orb-tower relative rounded-xl border border-zinc-800 bg-zinc-950/60 p-1 flex flex-col items-center justify-between overflow-hidden shadow">
+          <div data-action="inc" class="absolute top-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+          
+          <div class="w-full flex items-center justify-between px-1 pointer-events-none z-10">
+            <span class="text-[9px] uppercase font-black tracking-wider text-rose-200/80">R</span>
+            <span id="mana-r" class="text-base sm:text-lg font-cinzel font-black text-zinc-500 transition-colors leading-none">0</span>
+          </div>
+
+          <div id="orb-r" class="mana-orb w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center my-0.5 z-10 pointer-events-none">
+            <svg id="glyph-r" class="w-3.5 h-3.5 transition-all duration-300 text-zinc-600 drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2c1.1 4.2 4 6 4 9 0 3.3-2.7 6-6 6s-6-2.7-6-6c0-3.2 3.1-5.1 4.2-7.5C9.3 5 10 7 11 8c.5-2.2 0-4.6 1-6z"/>
+            </svg>
+          </div>
+
+          <div data-action="dec" class="absolute bottom-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+
+          <div class="h-4 w-full flex items-center justify-between px-1 text-[10px] font-bold text-zinc-400 z-30">
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('r', -1)">-</button>
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('r', 1)">+</button>
+          </div>
+        </div>
+
+        <!-- ================= ROW 2: GREEN {G} ================= -->
+        <div data-color="g" class="mana-orb-tower relative rounded-xl border border-zinc-800 bg-zinc-950/60 p-1 flex flex-col items-center justify-between overflow-hidden shadow">
+          <div data-action="inc" class="absolute top-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+          
+          <div class="w-full flex items-center justify-between px-1 pointer-events-none z-10">
+            <span class="text-[9px] uppercase font-black tracking-wider text-emerald-200/80">G</span>
+            <span id="mana-g" class="text-base sm:text-lg font-cinzel font-black text-zinc-500 transition-colors leading-none">0</span>
+          </div>
+
+          <div id="orb-g" class="mana-orb w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center my-0.5 z-10 pointer-events-none">
+            <svg id="glyph-g" class="w-3.5 h-3.5 transition-all duration-300 text-zinc-600 drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L6 9h3l-4 6h5v5h4v-5h5l-4-6h3L12 2z"/>
+            </svg>
+          </div>
+
+          <div data-action="dec" class="absolute bottom-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+
+          <div class="h-4 w-full flex items-center justify-between px-1 text-[10px] font-bold text-zinc-400 z-30">
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('g', -1)">-</button>
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('g', 1)">+</button>
+          </div>
+        </div>
+
+        <!-- ================= ROW 2: COLORLESS {C} ================= -->
+        <div data-color="c" class="mana-orb-tower relative rounded-xl border border-zinc-800 bg-zinc-950/60 p-1 flex flex-col items-center justify-between overflow-hidden shadow">
+          <div data-action="inc" class="absolute top-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+          
+          <div class="w-full flex items-center justify-between px-1 pointer-events-none z-10">
+            <span class="text-[9px] uppercase font-black tracking-wider text-zinc-400">C</span>
+            <span id="mana-c" class="text-base sm:text-lg font-cinzel font-black text-zinc-500 transition-colors leading-none">0</span>
+          </div>
+
+          <div id="orb-c" class="mana-orb w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center my-0.5 z-10 pointer-events-none">
+            <svg id="glyph-c" class="w-3.5 h-3.5 transition-all duration-300 text-zinc-600 drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L4 12l8 10 8-10L12 2zm0 4.2L17.5 12 12 18.8 6.5 12 12 6.2z"/>
+            </svg>
+          </div>
+
+          <div data-action="dec" class="absolute bottom-0 left-0 right-0 h-1/2 z-20 cursor-pointer"></div>
+
+          <div class="h-4 w-full flex items-center justify-between px-1 text-[10px] font-bold text-zinc-400 z-30">
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('c', -1)">-</button>
+            <button class="w-5 h-4 rounded hover:bg-white/10 flex items-center justify-center active:scale-90" onclick="adjustMana('c', 1)">+</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================= -->
+  <!-- 4. MODALS (Full Reset, Match Over, Live Log, Art)        -->
+  <!-- ========================================================= -->
+
+  <!-- LIVE IN-GAME ACTION LOG REVIEW MODAL -->
+  <div id="live-log-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="glass-panel w-full max-w-2xl max-h-[90vh] rounded-2xl border border-amber-500/50 p-4 sm:p-5 shadow-2xl flex flex-col gap-3 transform scale-95 transition-transform duration-200 overflow-hidden">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-2.5 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-cinzel font-bold text-base text-zinc-100 flex items-center gap-2">
+              <span>Match & Turn Action Log</span>
+              <span id="log-round-badge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/25 border border-amber-500/40 text-amber-300">Round 1 (Current)</span>
+              <span id="log-count-pill" class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-zinc-800 text-zinc-300">0 events</span>
+            </h3>
+            <p class="text-[10px] text-zinc-400">Timestamped record of life swings, mana generated, poison counters, and storm counts for this round.</p>
+          </div>
+        </div>
+
+        <button id="close-live-log-btn" class="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Round Selector Tabs (Visible when previous rounds exist) -->
+      <div id="log-round-selector" class="flex items-center gap-1.5 border-b border-zinc-800/80 pb-2 shrink-0 overflow-x-auto text-xs hidden">
+        <span class="text-[10px] font-cinzel font-bold text-zinc-400 uppercase mr-1">View Round:</span>
+        <div id="log-round-tabs" class="flex items-center gap-1"></div>
+      </div>
+
+      <!-- Filter Category Tabs -->
+      <div class="flex items-center gap-1.5 border-b border-zinc-800/80 pb-2 shrink-0 overflow-x-auto text-xs">
+        <button type="button" class="log-filter-btn px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/60 text-amber-300 font-bold" data-filter="all">All Events</button>
+        <button type="button" class="log-filter-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium" data-filter="life">Life</button>
+        <button type="button" class="log-filter-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium" data-filter="mana">Mana</button>
+        <button type="button" class="log-filter-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium" data-filter="storm">Storm</button>
+        <button type="button" class="log-filter-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium" data-filter="poison">Poison</button>
+        <button type="button" class="log-filter-btn px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium" data-filter="turn">Turns & Game</button>
+      </div>
+
+      <!-- Scrollable Event Stream List -->
+      <div id="live-log-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 font-mono text-xs divide-y divide-zinc-800/40">
+        <!-- Rendered via JS -->
+      </div>
+
+      <!-- Footer Action Bar -->
+      <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between shrink-0">
+        <button id="download-log-from-review-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-xs uppercase tracking-wider transition">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Download .TXT Log</span>
+        </button>
+        <button id="close-live-log-footer-btn" class="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-zinc-950 font-cinzel font-bold text-xs uppercase tracking-wider transition">
+          Back to Battlefield
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Scryfall Card Art Selector Modal -->
+  <div id="art-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="glass-panel w-full max-w-md rounded-2xl border border-zinc-700 p-5 shadow-2xl flex flex-col gap-3.5 transform scale-95 transition-transform duration-200">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          <h3 class="font-cinzel font-bold text-base text-zinc-100">Battlefield Backdrop</h3>
+        </div>
+        <button id="close-art-modal-btn" class="w-6 h-6 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800">
+          ✕
+        </button>
+      </div>
+
+      <!-- Search Input via Scryfall -->
+      <div class="space-y-1">
+        <label class="block text-[11px] font-semibold text-zinc-400">Search Any MTG Card Art (Scryfall)</label>
+        <div class="flex gap-2">
+          <input id="art-search-input" type="text" placeholder="e.g. Lotus Petal, Brainstorm..." class="flex-1 px-3 py-2 text-xs rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-100 focus:outline-none focus:border-amber-500" />
+          <button id="art-search-submit" class="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold text-xs uppercase font-cinzel tracking-wider transition">
+            Search
+          </button>
+        </div>
+        <div id="art-search-status" class="text-[10px] text-zinc-500 h-4"></div>
+      </div>
+
+      <!-- Dynamic Printing & Art Version Selector (In-Game Modal) -->
+      <div id="art-versions-container" class="space-y-1.5 hidden">
+        <div class="flex items-center justify-between text-[10px] font-bold text-zinc-400 uppercase tracking-wider font-cinzel">
+          <span>Select Art Version</span>
+          <span id="art-version-count" class="text-amber-400 font-mono">0 printings</span>
+        </div>
+        <div id="art-versions-grid" class="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-zinc-700">
+          <!-- Dynamically populated printing thumbnails -->
+        </div>
+      </div>
+
+      <!-- Quick Staple Presets -->
+      <div class="space-y-1.5">
+        <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider font-cinzel">Legal Pauper Staples</span>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Refurbished Familiar">Refurbished Familiar</button>
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Writhing Chrysalis">Writhing Chrysalis</button>
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Lightning Bolt">Lightning Bolt</button>
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Counterspell">Counterspell</button>
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Dark Ritual">Dark Ritual</button>
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Tolarian Terror">Tolarian Terror</button>
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Priest of Titania">Priest of Titania</button>
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Balustrade Spy">Balustrade Spy</button>
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Lotus Petal">Lotus Petal</button>
+          <button class="art-preset-btn px-2 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-amber-500/60 hover:text-amber-300 text-zinc-300 text-[10px] font-semibold truncate transition text-left" data-card="Brainstorm">Brainstorm</button>
+        </div>
+      </div>
+
+      <!-- Reset / Remove Backdrop -->
+      <div class="pt-2 flex items-center justify-between border-t border-zinc-800">
+        <button id="clear-art-btn" class="text-xs text-red-400 hover:text-red-300 underline font-semibold">
+          Reset to Default Dark Theme
+        </button>
+        <span id="current-art-name" class="text-[10px] text-zinc-500 truncate max-w-[180px]">No custom art</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Modal -->
+  <div id="reset-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="glass-panel w-full max-w-sm rounded-2xl border border-zinc-700 p-5 shadow-2xl transform scale-95 transition-transform duration-200">
+      <div class="flex items-center gap-3 text-red-400 mb-2">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <h3 class="font-cinzel font-bold text-lg text-zinc-100">Reset Match?</h3>
+      </div>
+      <p class="text-xs text-zinc-400 mb-4 leading-relaxed">
+        Choose whether to reset the current game state or start a brand new Bo3 match from scratch.
+      </p>
+      <div class="flex flex-col gap-2">
+        <button id="reset-current-game-btn" class="py-2.5 rounded-lg border border-amber-500/40 bg-zinc-800 hover:bg-zinc-700 text-amber-300 font-bold text-xs transition">
+          Reset Current Game Only (Keep Scores)
+        </button>
+        <button id="reset-full-match-btn" class="py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow transition">
+          Full Tournament Reset (Score 0-0 & Setup Modal)
+        </button>
+        <button id="cancel-reset-btn" class="py-2 rounded-lg text-zinc-400 hover:text-zinc-200 font-semibold text-xs transition">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MTR 2.5 Time Expired / Extra Turns Prompt Modal -->
+  <div id="time-expired-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="glass-panel w-full max-w-md rounded-2xl border border-red-500/60 p-5 shadow-2xl transform scale-95 transition-transform duration-200 text-center">
+      <div class="w-12 h-12 mx-auto mb-2 rounded-full flex items-center justify-center bg-red-500/20 text-red-400 border border-red-500/40">
+        <svg class="w-6 h-6 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+      </div>
+      <h3 class="font-cinzel font-black text-xl text-red-400 mb-1">Time Has Expired!</h3>
+      <p class="text-xs text-zinc-300 mb-3 leading-relaxed">
+        Under <strong class="text-amber-400">Magic Tournament Rules (MTR 2.5)</strong>, when time in the round is called, the active player finishes their turn (<strong class="text-white">Turn 0</strong>), followed by <strong class="text-white">5 additional turns</strong>.
+      </p>
+
+      <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/70 mb-4 text-left space-y-2">
+        <span class="block text-[11px] font-bold text-zinc-300 uppercase font-cinzel">Who is currently taking the active turn?</span>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="turns-active-player-me" type="button" class="py-2 px-3 rounded-lg border border-amber-500/60 bg-amber-500/20 text-amber-300 font-bold text-xs text-center transition">
+            Me (My Turn 0)
+          </button>
+          <button id="turns-active-player-opp" type="button" class="py-2 px-3 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-300 font-bold text-xs text-center transition">
+            Opponent (Their Turn 0)
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <button id="start-extra-turns-btn" class="py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 text-white font-cinzel font-bold text-xs uppercase tracking-wider shadow">
+          Begin MTR 2.5 Extra Turns (Turn 0 to 5)
+        </button>
+        <button id="record-immediate-draw-btn" class="py-2 rounded-lg border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold">
+          Conclude as Immediate Draw
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Win / Match Complete Modal -->
+  <div id="game-over-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="glass-panel w-full max-w-sm rounded-2xl border border-amber-500/50 p-5 shadow-2xl text-center transform scale-95 transition-transform duration-200">
+      <div id="game-over-icon" class="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center bg-amber-500/20 text-amber-400 border border-amber-500/40">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+          <path d="M4 22h16"></path>
+          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+        </svg>
+      </div>
+      <h3 id="game-over-title" class="font-cinzel font-black text-xl text-amber-400 mb-1">Game Finished</h3>
+      <p id="game-over-subtitle" class="text-xs text-zinc-300 mb-4">You have claimed Game 1.</p>
+      
+      <!-- Mid-Tournament Actions (Between Games & Rounds) -->
+      <div id="mid-match-actions" class="flex flex-col gap-2">
+        <button id="next-game-btn" class="py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs uppercase font-cinzel tracking-wider shadow">
+          Proceed
+        </button>
+        <button id="open-previous-rounds-btn" class="py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 14 14"></polyline>
+          </svg>
+          Review Previous Rounds History
+        </button>
+        <button id="download-from-modal-btn" class="py-2.5 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-xs flex items-center justify-center gap-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download Report (.txt)
+        </button>
+        <button id="close-game-over-btn" class="py-2 text-xs text-zinc-400 hover:text-white">
+          Close & Stay Here
+        </button>
+      </div>
+
+      <!-- Tournament Complete Actions (End of Tournament Menu) -->
+      <div id="tournament-end-actions" class="flex flex-col gap-2 hidden">
+        <!-- 1) View Results -->
+        <button id="end-view-results-btn" type="button" class="py-2.5 px-3 rounded-xl bg-amber-500/20 border border-amber-500/60 hover:bg-amber-500/30 text-amber-300 font-cinzel font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span>1. View Results</span>
+        </button>
+
+        <!-- 2) New Tournament -->
+        <button id="end-new-tourney-btn" type="button" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-cinzel font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+          <span>2. New Tournament</span>
+        </button>
+
+        <!-- 3) Save Results -->
+        <button id="end-save-results-btn" type="button" class="py-2.5 px-3 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800 text-zinc-200 font-cinzel font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow">
+          <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>3. Save Results (.txt)</span>
+        </button>
+
+        <!-- 4) Return to socalpauper.com -->
+        <a href="/" id="end-return-home-btn" class="py-2.5 px-3 rounded-xl bg-zinc-900/80 border border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800 text-zinc-300 hover:text-amber-300 font-cinzel font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span>4. Return to socalpauper.com</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PREVIOUS ROUNDS HISTORY MODAL (BETWEEN MATCHES) -->
+  <div id="rounds-history-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="glass-panel w-full max-w-2xl max-h-[90vh] rounded-2xl border border-amber-500/50 p-4 sm:p-5 shadow-2xl flex flex-col gap-3 transform scale-95 transition-transform duration-200 overflow-hidden">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-2.5 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-cinzel font-bold text-base text-zinc-100 flex items-center gap-2">
+              <span>Tournament Rounds History</span>
+              <span id="rounds-history-summary-pill" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">0 Rounds Logged</span>
+            </h3>
+            <p class="text-[10px] text-zinc-400">Detailed breakdown of games, match decisions, life lows, and turn counts from previous rounds.</p>
+          </div>
+        </div>
+        <button id="close-rounds-history-btn" class="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Scrollable Rounds Accordion / List -->
+      <div id="rounds-history-list" class="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
+        <!-- Injected via JS -->
+      </div>
+
+      <!-- Footer -->
+      <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between shrink-0">
+        <span class="text-[10px] text-zinc-500 font-mono">Telemetry preserved in session storage</span>
+        <button id="close-rounds-history-footer-btn" class="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-zinc-950 font-cinzel font-bold text-xs uppercase tracking-wider transition">
+          Back
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 5. JAVASCRIPT STATE ENGINE & AUDIO/HAPTIC TELEMETRY       -->
+  <!-- ========================================================= -->
+  <script>
+    // State Architecture
+    const state = {
+      // Free / Untimed Mode Flag
+      isFreeMode: false,
+
+      // Tournament Structure
+      tournament: {
+        totalRounds: 4,
+        currentRound: 1,
+        matchWins: 0,
+        matchLosses: 0,
+        matchDraws: 0,
+        roundsHistory: [],
+        isComplete: false
+      },
+
+      // Current Match & Game State (Bo3: First to 2 or Draw)
+      match: {
+        gameWins: 0,
+        gameLosses: 0,
+        gameDraws: 0,
+        games: []
+      },
+
+      turn: 1,
+      currentGameNumber: 1,
+      
+      // Player (YOU)
+      life: 20,
+      lowestLifeTurn: 20,
+      lowestLifeMatch: 20,
+      poison: 0,
+
+      // Opponent (OPP)
+      oppLife: 20,
+      lowestOppLifeTurn: 20,
+      lowestOppLifeMatch: 20,
+      oppPoison: 0,
+
+      // Storm & Mana
+      storm: 0,
+      peakStormTurn: 0,
+      mana: { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 },
+      soundEnabled: true,
+      wakeLockSentinel: null,
+
+      // Live Action Event Log
+      actionLog: [],
+      currentLogFilter: 'all',
+      selectedLogRound: null, // null defaults to current round
+
+      // MTR 2.5 Extra Turns State
+      extraTurns: {
+        active: false,
+        step: 0,
+        activeTurn0Player: 'Player'
+      },
+
+      // Telemetry Log Structure
+      matchStartTime: new Date(),
+      totalSpellsCastMatch: 0,
+      manaProducedMatch: { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 },
+
+      // Round Countdown Timer
+      timer: {
+        totalSeconds: 50 * 60,
+        remainingSeconds: 50 * 60,
+        intervalId: null,
+        isRunning: false,
+        isConfigured: true
+      }
+    };
+
+    // Color Glow Styles Configuration
+    const MANA_CONFIG = {
+      w: { litOrbClass: 'orb-lit-w', color: '#fef08a', glyphColor: '#1e1b13', freq: 640 },
+      u: { litOrbClass: 'orb-lit-u', color: '#38bdf8', glyphColor: '#ffffff', freq: 720 },
+      b: { litOrbClass: 'orb-lit-b', color: '#c084fc', glyphColor: '#ffffff', freq: 460 },
+      r: { litOrbClass: 'orb-lit-r', color: '#f87171', glyphColor: '#ffffff', freq: 540 },
+      g: { litOrbClass: 'orb-lit-g', color: '#4ade80', glyphColor: '#ffffff', freq: 500 },
+      c: { litOrbClass: 'orb-lit-c', color: '#e2e8f0', glyphColor: '#090d16', freq: 400 }
+    };
+
+    // ACTION LOGGER (Bypassed completely in Free / Untimed Mode)
+    function logAction(category, text, delta = '') {
+      if (state.isFreeMode) return;
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0];
+      const entry = {
+        id: Date.now() + Math.random(),
+        time: timeStr,
+        round: state.tournament.currentRound,
+        turn: state.turn,
+        game: state.currentGameNumber,
+        category: category, // 'life', 'mana', 'storm', 'poison', 'turn', 'match'
+        text: text,
+        delta: delta
+      };
+      state.actionLog.unshift(entry);
+      renderLiveLogList();
+    }
+
+    function renderLiveLogList() {
+      const container = document.getElementById('live-log-list');
+      const countPill = document.getElementById('log-count-pill');
+      const roundBadge = document.getElementById('log-round-badge');
+      const roundSelector = document.getElementById('log-round-selector');
+      const roundTabs = document.getElementById('log-round-tabs');
+      if (!container) return;
+
+      // In Free Mode, display notice
+      if (state.isFreeMode) {
+        if (countPill) countPill.textContent = 'Free Mode';
+        if (roundBadge) roundBadge.textContent = 'Untimed Casual';
+        if (roundSelector) roundSelector.classList.add('hidden');
+        container.innerHTML = `
+          <div class="py-12 text-center text-zinc-400 space-y-2">
+            <span class="inline-block px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 font-cinzel font-bold text-xs uppercase tracking-wider">Free Mode Active</span>
+            <p class="text-xs text-zinc-500">Live action logging is disabled during untimed casual play.</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Determine active viewed round (defaults to current tournament round)
+      const activeRound = state.selectedLogRound || state.tournament.currentRound;
+
+      // Update Header Round Indicator
+      if (roundBadge) {
+        roundBadge.textContent = activeRound === state.tournament.currentRound
+          ? `Round ${activeRound} (Current)`
+          : `Round ${activeRound}`;
+      }
+
+      // Render round switcher tabs if there are past rounds
+      if (roundSelector && roundTabs) {
+        if (state.tournament.currentRound > 1 || state.tournament.roundsHistory.length > 0) {
+          roundSelector.classList.remove('hidden');
+          const maxRound = Math.max(state.tournament.currentRound, ...state.tournament.roundsHistory.map(r => r.round));
+          let tabsHtml = '';
+          for (let r = 1; r <= maxRound; r++) {
+            const isSelected = r === activeRound;
+            const isCurrent = r === state.tournament.currentRound;
+            tabsHtml += `
+              <button type="button" class="log-round-tab-btn px-2 py-0.5 rounded text-[10px] font-mono font-bold transition ${
+                isSelected 
+                  ? 'bg-amber-500 text-zinc-950 shadow' 
+                  : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+              }" data-round="${r}">
+                Rnd ${r}${isCurrent ? '*' : ''}
+              </button>
+            `;
+          }
+          roundTabs.innerHTML = tabsHtml;
+
+          // Attach listeners to round tab buttons
+          roundTabs.querySelectorAll('.log-round-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              state.selectedLogRound = parseInt(btn.getAttribute('data-round'), 10);
+              renderLiveLogList();
+            });
+          });
+        } else {
+          roundSelector.classList.add('hidden');
+        }
+      }
+
+      // Filter by both Round and Category
+      const filtered = state.actionLog.filter(item => {
+        if (item.round !== activeRound) return false;
+        if (state.currentLogFilter === 'all') return true;
+        if (state.currentLogFilter === 'turn') return item.category === 'turn' || item.category === 'match';
+        return item.category === state.currentLogFilter;
+      });
+
+      if (countPill) countPill.textContent = `${filtered.length} events`;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="py-8 text-center text-zinc-500">
+            No events recorded for Round ${activeRound}${state.currentLogFilter !== 'all' ? ` in the "${state.currentLogFilter}" category` : ''}.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(item => {
+        let catBadge = '';
+        if (item.category === 'life') catBadge = '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold uppercase text-[9px]">LIFE</span>';
+        else if (item.category === 'mana') catBadge = '<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold uppercase text-[9px]">MANA</span>';
+        else if (item.category === 'storm') catBadge = '<span class="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold uppercase text-[9px]">STORM</span>';
+        else if (item.category === 'poison') catBadge = '<span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold uppercase text-[9px]">POISON</span>';
+        else if (item.category === 'turn') catBadge = '<span class="px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-200 font-bold uppercase text-[9px]">TURN</span>';
+        else catBadge = '<span class="px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 font-bold uppercase text-[9px]">MATCH</span>';
+
+        return `
+          <div class="py-1.5 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-zinc-500 font-mono text-[10px]">${item.time}</span>
+              <span class="text-zinc-400 text-[10px] font-bold">G${item.game} T${item.turn}</span>
+              ${catBadge}
+              <span class="text-zinc-200 text-xs">${item.text}</span>
+            </div>
+            ${item.delta ? `<span class="font-bold font-mono text-xs ${item.delta.startsWith('+') ? 'text-emerald-400' : 'text-rose-400'}">${item.delta}</span>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // PREVIOUS ROUNDS HISTORY VIEWER
+    function openRoundsHistoryModal() {
+      initAudio();
+      renderRoundsHistoryModal();
+      const modal = document.getElementById('rounds-history-modal');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      modal.children[0].classList.remove('scale-95');
+      modal.children[0].classList.add('scale-100');
+      playTone(560, 'sine', 0.05);
+    }
+
+    function closeRoundsHistoryModal() {
+      const modal = document.getElementById('rounds-history-modal');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      modal.children[0].classList.add('scale-95');
+      modal.children[0].classList.remove('scale-100');
+
+      // If tournament is concluded, return back to the 4-choice menu instead of the battlefield!
+      if (state.tournament.isComplete) {
+        const gameOverModal = document.getElementById('game-over-modal');
+        gameOverModal.classList.remove('opacity-0', 'pointer-events-none');
+        gameOverModal.children[0].classList.remove('scale-95');
+        gameOverModal.children[0].classList.add('scale-100');
+      }
+    }
+
+    function renderRoundsHistoryModal() {
+      const container = document.getElementById('rounds-history-list');
+      const summaryPill = document.getElementById('rounds-history-summary-pill');
+      if (!container) return;
+
+      const history = state.tournament.roundsHistory;
+      if (summaryPill) {
+        summaryPill.textContent = `${history.length} Round${history.length !== 1 ? 's' : ''} Completed (${state.tournament.matchWins}W-${state.tournament.matchLosses}L-${state.tournament.matchDraws}D)`;
+      }
+
+      if (history.length === 0) {
+        container.innerHTML = `
+          <div class="py-10 text-center text-zinc-500">
+            No previous rounds have been concluded yet.<br/>
+            Completed round telemetry and game logs will appear here between matches.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = history.map(r => {
+        let badgeColor = 'bg-zinc-800 text-zinc-300 border-zinc-700';
+        if (r.matchResult === 'Win') badgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+        else if (r.matchResult === 'Loss') badgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+        else if (r.matchResult === 'Draw') badgeColor = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+
+        const gamesHtml = r.games.map(g => {
+          let gResBadge = 'bg-zinc-800 text-zinc-400';
+          if (g.result === 'Player') gResBadge = 'bg-emerald-950/80 text-emerald-300 border border-emerald-600/50';
+          else if (g.result === 'Opponent') gResBadge = 'bg-rose-950/80 text-rose-300 border border-rose-600/50';
+          else gResBadge = 'bg-amber-950/80 text-amber-300 border border-amber-600/50';
+
+          return `
+            <div class="p-2 rounded-lg bg-zinc-950/60 border border-zinc-800 flex items-center justify-between text-[11px]">
+              <div class="flex items-center gap-2">
+                <span class="px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${gResBadge}">
+                  G${g.game} ${g.result === 'Player' ? 'WIN' : g.result === 'Opponent' ? 'LOSS' : 'DRAW'}
+                </span>
+                <span class="text-zinc-300">${g.turns} turns taken</span>
+                ${g.wasExtraTurns ? '<span class="text-[9px] px-1 py-0.2 rounded bg-red-600/30 text-red-300 font-bold">MTR 2.5</span>' : ''}
+              </div>
+              <div class="flex items-center gap-3 text-zinc-400 font-mono text-[10px]">
+                <span>Life: ${g.finalLife}</span>
+                <span>Peak Storm: ${g.peakStorm}</span>
+                <span>Poison: ${g.finalPoison}</span>
+                <span class="text-zinc-500">${g.timestamp}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-900/50 space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="font-cinzel font-bold text-amber-400 text-sm">Round ${r.round}</span>
+                <span class="px-2 py-0.5 rounded border font-mono font-bold text-[10px] ${badgeColor}">
+                  ${r.matchResult.toUpperCase()} (${r.score})
+                </span>
+              </div>
+              <button type="button" class="view-round-events-btn px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold transition" data-round="${r.round}">
+                View Play-by-Play Log →
+              </button>
+            </div>
+            <div class="space-y-1">
+              ${gamesHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Wire up the "View Play-by-Play Log" buttons inside previous rounds dialog
+      container.querySelectorAll('.view-round-events-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetRound = parseInt(btn.getAttribute('data-round'), 10);
+          state.selectedLogRound = targetRound;
+          const roundsModal = document.getElementById('rounds-history-modal');
+          roundsModal.classList.add('opacity-0', 'pointer-events-none');
+          roundsModal.children[0].classList.add('scale-95');
+          roundsModal.children[0].classList.remove('scale-100');
+
+          const liveLogModal = document.getElementById('live-log-modal');
+          liveLogModal.classList.remove('opacity-0', 'pointer-events-none');
+          liveLogModal.children[0].classList.remove('scale-95');
+          liveLogModal.children[0].classList.add('scale-100');
+          renderLiveLogList();
+        });
+      });
+    }
+
+    // Synthesized Web Audio Engine
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) audioCtx = new AudioContext();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function triggerHaptic(type = 'tap') {
+      if (!('vibrate' in navigator)) return;
+      try {
+        if (type === 'tap') navigator.vibrate(12);
+        else if (type === 'pop') navigator.vibrate([15, 25, 20]);
+        else if (type === 'lethal') navigator.vibrate([60, 40, 60, 40, 90]);
+        else if (type === 'win') navigator.vibrate([40, 50, 40, 50, 100]);
+        else if (type === 'alarm') navigator.vibrate([200, 100, 200]);
+      } catch (e) {}
+    }
+
+    function playTone(freq = 440, type = 'sine', duration = 0.05, volume = 0.08) {
+      if (!state.soundEnabled) return;
+      try {
+        initAudio();
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    // UI RENDERERS
+    function renderTurn() {
+      document.getElementById('turn-display').textContent = state.turn;
+    }
+
+    function renderScore() {
+      document.getElementById('tournament-round-display').textContent = `${state.tournament.currentRound}/${state.tournament.totalRounds}`;
+      document.getElementById('match-record-w').textContent = state.tournament.matchWins;
+      document.getElementById('match-record-l').textContent = state.tournament.matchLosses;
+      document.getElementById('match-record-d').textContent = state.tournament.matchDraws;
+
+      document.getElementById('game-score-w').textContent = state.match.gameWins;
+      document.getElementById('game-score-l').textContent = state.match.gameLosses;
+      document.getElementById('game-score-d').textContent = state.match.gameDraws;
+      document.getElementById('current-game-badge').textContent = `G${state.currentGameNumber}`;
+    }
+
+    function renderExtraTurnsUI() {
+      const banner = document.getElementById('extra-turns-banner');
+      const pill = document.getElementById('extra-turns-pill-btn');
+      const pillStep = document.getElementById('extra-turn-pill-step');
+      const label = document.getElementById('extra-turn-label');
+
+      if (!state.extraTurns.active) {
+        banner.classList.add('hidden');
+        pill.classList.add('hidden');
+        return;
+      }
+
+      banner.classList.remove('hidden');
+      pill.classList.remove('hidden');
+      pillStep.textContent = state.extraTurns.step;
+
+      let whoseTurn = '';
+      if (state.extraTurns.step === 0) {
+        whoseTurn = `${state.extraTurns.activeTurn0Player} finishes Turn 0`;
+      } else {
+        const isTurn0Player = (state.extraTurns.step % 2 === 0);
+        whoseTurn = isTurn0Player 
+          ? `${state.extraTurns.activeTurn0Player}'s Turn` 
+          : `${state.extraTurns.activeTurn0Player === 'Player' ? 'Opponent' : 'Player'}'s Turn`;
+      }
+
+      label.textContent = `Turn ${state.extraTurns.step} of 5 (${whoseTurn})`;
+    }
+
+    function renderLife() {
+      const el = document.getElementById('life-display');
+      const card = document.getElementById('life-card');
+      const lowEl = document.getElementById('life-low');
+
+      el.textContent = state.life;
+      lowEl.textContent = state.lowestLifeTurn;
+
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+
+      if (state.life <= 5) {
+        card.style.borderColor = 'rgba(239, 68, 68, 0.7)';
+        el.className = 'text-4xl sm:text-5xl font-cinzel font-black tracking-tight text-red-400 drop-shadow-[0_4px_16px_rgba(239,68,68,0.5)] transition-all animate-pulse';
+      } else if (state.life <= 10) {
+        card.style.borderColor = 'rgba(245, 158, 11, 0.6)';
+        el.className = 'text-4xl sm:text-5xl font-cinzel font-black tracking-tight text-amber-400 drop-shadow-[0_4px_16px_rgba(245,158,11,0.4)] transition-all';
+      } else {
+        card.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+        el.className = 'text-4xl sm:text-5xl font-cinzel font-black tracking-tight text-emerald-400 drop-shadow-[0_4px_16px_rgba(16,185,129,0.3)] transition-all';
+      }
+    }
+
+    function renderOppLife() {
+      const el = document.getElementById('opp-life-display');
+      const card = document.getElementById('opp-life-card');
+      const lowEl = document.getElementById('opp-life-low');
+
+      el.textContent = state.oppLife;
+      lowEl.textContent = state.lowestOppLifeTurn;
+
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+
+      if (state.oppLife <= 5) {
+        card.style.borderColor = 'rgba(239, 68, 68, 0.7)';
+        el.className = 'text-4xl sm:text-5xl font-cinzel font-black tracking-tight text-red-400 drop-shadow-[0_4px_16px_rgba(239,68,68,0.5)] transition-all animate-pulse';
+      } else if (state.oppLife <= 10) {
+        card.style.borderColor = 'rgba(245, 158, 11, 0.6)';
+        el.className = 'text-4xl sm:text-5xl font-cinzel font-black tracking-tight text-amber-400 drop-shadow-[0_4px_16px_rgba(245,158,11,0.4)] transition-all';
+      } else {
+        card.style.borderColor = 'rgba(244, 63, 94, 0.35)';
+        el.className = 'text-4xl sm:text-5xl font-cinzel font-black tracking-tight text-rose-400 drop-shadow-[0_4px_16px_rgba(244,63,94,0.3)] transition-all';
+      }
+    }
+
+    function renderStorm() {
+      const el = document.getElementById('storm-display');
+      el.textContent = state.storm;
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+      document.getElementById('storm-peak').textContent = state.peakStormTurn;
+    }
+
+    function renderPoison() {
+      const el = document.getElementById('poison-display');
+      const card = document.getElementById('poison-card');
+      const pill = document.getElementById('poison-lethal-pill');
+      const emblem = document.getElementById('phyrexian-emblem');
+      const orb = document.getElementById('phyrexian-orb');
+
+      el.textContent = state.poison;
+
+      if (state.poison >= 10) {
+        card.classList.add('lethal-strobe', 'border-red-500');
+        pill.classList.remove('hidden');
+        el.className = 'text-2xl sm:text-3xl font-cinzel font-black tracking-tight text-red-400 leading-none transition-colors';
+        emblem.className = 'w-5 h-5 sm:w-6 sm:h-6 text-red-500 phyrexian-lethal';
+      } else if (state.poison > 0) {
+        card.classList.remove('lethal-strobe', 'border-red-500');
+        pill.classList.add('hidden');
+        el.className = 'text-2xl sm:text-3xl font-cinzel font-black tracking-tight text-emerald-400 leading-none transition-colors';
+        emblem.className = 'w-5 h-5 sm:w-6 sm:h-6 text-emerald-400 phyrexian-glow';
+      } else {
+        card.classList.remove('lethal-strobe', 'border-red-500');
+        pill.classList.add('hidden');
+        el.className = 'text-2xl sm:text-3xl font-cinzel font-black tracking-tight text-zinc-400 leading-none transition-colors';
+        emblem.className = 'w-5 h-5 sm:w-6 sm:h-6 text-zinc-600';
+      }
+    }
+
+    function renderOppPoison() {
+      const el = document.getElementById('opp-poison-display');
+      const card = document.getElementById('opp-poison-card');
+      const pill = document.getElementById('opp-poison-lethal-pill');
+      const emblem = document.getElementById('opp-phyrexian-emblem');
+
+      el.textContent = state.oppPoison;
+
+      if (state.oppPoison >= 10) {
+        card.classList.add('lethal-strobe', 'border-red-500');
+        pill.classList.remove('hidden');
+        el.className = 'text-2xl sm:text-3xl font-cinzel font-black tracking-tight text-red-400 leading-none transition-colors';
+        emblem.className = 'w-5 h-5 sm:w-6 sm:h-6 text-red-500 phyrexian-lethal';
+      } else if (state.oppPoison > 0) {
+        card.classList.remove('lethal-strobe', 'border-red-500');
+        pill.classList.add('hidden');
+        el.className = 'text-2xl sm:text-3xl font-cinzel font-black tracking-tight text-rose-400 leading-none transition-colors';
+        emblem.className = 'w-5 h-5 sm:w-6 sm:h-6 text-rose-400 phyrexian-glow';
+      } else {
+        card.classList.remove('lethal-strobe', 'border-red-500');
+        pill.classList.add('hidden');
+        el.className = 'text-2xl sm:text-3xl font-cinzel font-black tracking-tight text-zinc-400 leading-none transition-colors';
+        emblem.className = 'w-5 h-5 sm:w-6 sm:h-6 text-zinc-600';
+      }
+    }
+
+    function renderMana() {
+      let total = 0;
+      for (const [color, qty] of Object.entries(state.mana)) {
+        const valEl = document.getElementById(`mana-${color}`);
+        const orbEl = document.getElementById(`orb-${color}`);
+        const glyphEl = document.getElementById(`glyph-${color}`);
+        const config = MANA_CONFIG[color];
+
+        if (valEl) valEl.textContent = qty;
+        total += qty;
+
+        if (qty > 0) {
+          orbEl.classList.add(config.litOrbClass);
+          glyphEl.style.color = config.glyphColor;
+          valEl.style.color = config.color;
+
+          const intensity = Math.min(qty, 10);
+          orbEl.style.boxShadow = `0 0 ${8 + intensity * 2}px ${3 + intensity}px ${config.color}55, inset 0 -3px 8px rgba(0,0,0,0.6)`;
+        } else {
+          orbEl.classList.remove(config.litOrbClass);
+          orbEl.style.boxShadow = '';
+          glyphEl.style.color = '';
+          valEl.style.color = '';
+        }
+      }
+      document.getElementById('total-floating-mana').textContent = total;
+    }
+
+    // ROUND TIMER CONTROLLERS
+    function renderTimer() {
+      const display = document.getElementById('round-timer-display');
+      const playIcon = document.getElementById('timer-play-icon');
+      const pauseIcon = document.getElementById('timer-pause-icon');
+      const freeBanner = document.getElementById('free-mode-banner');
+      const timerOuter = document.getElementById('timer-outer-container');
+      const roundContainer = document.getElementById('tournament-round-container');
+      const matchContainer = document.getElementById('tournament-match-container');
+
+      if (state.isFreeMode || !state.timer.isConfigured || state.timer.totalSeconds <= 0) {
+        if (freeBanner) freeBanner.classList.remove('hidden');
+        if (timerOuter) timerOuter.classList.add('hidden');
+        if (roundContainer) roundContainer.classList.add('hidden');
+        if (matchContainer) matchContainer.classList.add('hidden');
+        return;
+      }
+
+      if (freeBanner) freeBanner.classList.add('hidden');
+      if (timerOuter) timerOuter.classList.remove('hidden');
+      if (roundContainer) roundContainer.classList.remove('hidden');
+      if (matchContainer) matchContainer.classList.remove('hidden');
+
+      const mins = Math.floor(Math.max(0, state.timer.remainingSeconds) / 60);
+      const secs = Math.max(0, state.timer.remainingSeconds) % 60;
+      const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+      if (display) {
+        display.textContent = timeStr;
+        if (state.timer.remainingSeconds <= 0) {
+          display.classList.add('text-red-400', 'timer-alert');
+        } else if (state.timer.remainingSeconds <= 300) {
+          display.classList.remove('timer-alert');
+          display.classList.add('text-amber-400');
+        } else {
+          display.classList.remove('text-red-400', 'text-amber-400', 'timer-alert');
+        }
+      }
+
+      if (playIcon && pauseIcon) {
+        if (state.timer.isRunning) {
+          playIcon.classList.add('hidden');
+          pauseIcon.classList.remove('hidden');
+        } else {
+          playIcon.classList.remove('hidden');
+          pauseIcon.classList.add('hidden');
+        }
+      }
+    }
+
+    function tickTimer() {
+      if (!state.timer.isRunning) return;
+      if (state.timer.remainingSeconds > 0) {
+        state.timer.remainingSeconds--;
+        renderTimer();
+
+        // 5-minute and 1-minute audio/haptic telemetry warnings
+        if (state.timer.remainingSeconds === 300 || state.timer.remainingSeconds === 60) {
+          playTone(600, 'triangle', 0.2, 0.15);
+          triggerHaptic('alarm');
+        }
+
+        if (state.timer.remainingSeconds === 0) {
+          state.timer.isRunning = false;
+          if (state.timer.intervalId) {
+            clearInterval(state.timer.intervalId);
+            state.timer.intervalId = null;
+          }
+          renderTimer();
+          playTone(220, 'sawtooth', 0.6, 0.3);
+          triggerHaptic('alarm');
+          promptExtraTurnsModal();
+        }
+      }
+    }
+
+    function toggleTimer() {
+      initAudio();
+      if (!state.timer.isConfigured || state.timer.totalSeconds <= 0) return;
+
+      if (state.timer.isRunning) {
+        state.timer.isRunning = false;
+        if (state.timer.intervalId) {
+          clearInterval(state.timer.intervalId);
+          state.timer.intervalId = null;
+        }
+        playTone(380, 'sine', 0.05);
+      } else {
+        state.timer.isRunning = true;
+        if (state.timer.intervalId) clearInterval(state.timer.intervalId);
+        state.timer.intervalId = setInterval(tickTimer, 1000);
+        playTone(540, 'sine', 0.05);
+      }
+      renderTimer();
+      triggerHaptic('tap');
+    }
+
+    function addTimerMinute() {
+      initAudio();
+      if (!state.timer.isConfigured) return;
+      state.timer.remainingSeconds += 60;
+      state.timer.totalSeconds += 60;
+      renderTimer();
+      playTone(500, 'sine', 0.05);
+      triggerHaptic('tap');
+    }
+
+    // ACTIONS
+    let isGameOverPending = false;
+
+    function checkStateBasedActions() {
+      if (isGameOverPending) return;
+
+      // 1. Player life <= 0 -> Opponent wins
+      if (state.life <= 0) {
+        isGameOverPending = true;
+        setTimeout(() => {
+          recordGameResult('Opponent', 'Your life dropped to 0.');
+          isGameOverPending = false;
+        }, 350);
+        return;
+      }
+
+      // 2. Opponent life <= 0 -> You win
+      if (state.oppLife <= 0) {
+        isGameOverPending = true;
+        setTimeout(() => {
+          recordGameResult('Player', 'Opponent life dropped to 0.');
+          isGameOverPending = false;
+        }, 350);
+        return;
+      }
+
+      // 3. Player poison >= 10 -> Opponent wins
+      if (state.poison >= 10) {
+        isGameOverPending = true;
+        setTimeout(() => {
+          recordGameResult('Opponent', 'You accumulated 10 poison counters (Phyrexian lethal).');
+          isGameOverPending = false;
+        }, 350);
+        return;
+      }
+
+      // 4. Opponent poison >= 10 -> You win
+      if (state.oppPoison >= 10) {
+        isGameOverPending = true;
+        setTimeout(() => {
+          recordGameResult('Player', 'Opponent accumulated 10 poison counters (Phyrexian lethal).');
+          isGameOverPending = false;
+        }, 350);
+        return;
+      }
+    }
+
+    function adjustLife(delta) {
+      initAudio();
+      state.life += delta;
+      if (state.life < state.lowestLifeTurn) state.lowestLifeTurn = state.life;
+      if (state.life < state.lowestLifeMatch) state.lowestLifeMatch = state.life;
+
+      logAction('life', `You ${delta > 0 ? 'gained' : 'lost'} ${Math.abs(delta)} life (${state.life})`, `${delta > 0 ? '+' : ''}${delta}`);
+
+      if (state.life <= 0) {
+        playTone(180, 'sawtooth', 0.3, 0.2);
+        triggerHaptic('lethal');
+      } else {
+        playTone(delta > 0 ? 580 : 420, 'sine', 0.05);
+        triggerHaptic('tap');
+      }
+      renderLife();
+      checkStateBasedActions();
+    }
+
+    function adjustOppLife(delta) {
+      initAudio();
+      state.oppLife += delta;
+      if (state.oppLife < state.lowestOppLifeTurn) state.lowestOppLifeTurn = state.oppLife;
+      if (state.oppLife < state.lowestOppLifeMatch) state.lowestOppLifeMatch = state.oppLife;
+
+      logAction('life', `Opponent ${delta > 0 ? 'gained' : 'lost'} ${Math.abs(delta)} life (${state.oppLife})`, `${delta > 0 ? '+' : ''}${delta}`);
+
+      if (state.oppLife <= 0) {
+        playTone(660, 'triangle', 0.3, 0.2);
+        triggerHaptic('win');
+      } else {
+        playTone(delta > 0 ? 520 : 380, 'sine', 0.05);
+        triggerHaptic('tap');
+      }
+      renderOppLife();
+      checkStateBasedActions();
+    }
+
+    function adjustTurn(delta) {
+      initAudio();
+      state.turn = Math.max(1, state.turn + delta);
+      logAction('turn', `Turn changed to Turn ${state.turn}`);
+      state.storm = 0;
+      state.peakStormTurn = 0;
+      for (const c in state.mana) state.mana[c] = 0;
+      renderTurn();
+      renderStorm();
+      renderMana();
+      playTone(delta > 0 ? 520 : 380, 'triangle', 0.06);
+      triggerHaptic('tap');
+    }
+
+    function adjustStorm(delta) {
+      initAudio();
+      state.storm = Math.max(0, state.storm + delta);
+      if (delta > 0) {
+        state.totalSpellsCastMatch += delta;
+        if (state.storm > state.peakStormTurn) state.peakStormTurn = state.storm;
+        logAction('storm', `Storm count increased to ${state.storm}`, `+${delta}`);
+      } else {
+        logAction('storm', `Storm count adjusted to ${state.storm}`, `${delta}`);
+      }
+      playTone(delta > 0 ? 500 + state.storm * 20 : 340, 'triangle', 0.06);
+      triggerHaptic('tap');
+      renderStorm();
+    }
+
+    function clearStorm() {
+      initAudio();
+      state.storm = 0;
+      logAction('storm', 'Storm count reset to 0');
+      playTone(300, 'sine', 0.05);
+      triggerHaptic('tap');
+      renderStorm();
+    }
+
+    function adjustPoison(delta) {
+      initAudio();
+      state.poison = Math.max(0, state.poison + delta);
+      logAction('poison', `You received poison counter(s) (Total: ${state.poison})`, `${delta > 0 ? '+' : ''}${delta}`);
+      if (state.poison >= 10) {
+        playTone(180, 'sawtooth', 0.3, 0.2);
+        triggerHaptic('lethal');
+      } else {
+        playTone(delta > 0 ? 460 : 360, 'sine', 0.05);
+        triggerHaptic('tap');
+      }
+      renderPoison();
+      checkStateBasedActions();
+    }
+
+    function adjustOppPoison(delta) {
+      initAudio();
+      state.oppPoison = Math.max(0, state.oppPoison + delta);
+      logAction('poison', `Opponent received poison counter(s) (Total: ${state.oppPoison})`, `${delta > 0 ? '+' : ''}${delta}`);
+      if (state.oppPoison >= 10) {
+        playTone(660, 'triangle', 0.3, 0.2);
+        triggerHaptic('win');
+      } else {
+        playTone(delta > 0 ? 490 : 370, 'sine', 0.05);
+        triggerHaptic('tap');
+      }
+      renderOppPoison();
+      checkStateBasedActions();
+    }
+
+    function adjustMana(color, delta) {
+      initAudio();
+      if (!state.mana.hasOwnProperty(color)) return;
+      state.mana[color] = Math.max(0, state.mana[color] + delta);
+
+      if (delta > 0) {
+        state.manaProducedMatch[color] += delta;
+        logAction('mana', `Generated {${color.toUpperCase()}} mana (Pool: ${state.mana[color]})`, `+${delta}`);
+      } else {
+        logAction('mana', `Spent {${color.toUpperCase()}} mana (Pool: ${state.mana[color]})`, `${delta}`);
+      }
+
+      const cfg = MANA_CONFIG[color] || { freq: 500 };
+      playTone(delta > 0 ? cfg.freq : cfg.freq - 100, 'sine', 0.04);
+      triggerHaptic('tap');
+      renderMana();
+    }
+
+    function emptyAllMana() {
+      initAudio();
+      for (const c in state.mana) state.mana[c] = 0;
+      logAction('mana', 'Floating mana pool emptied');
+      playTone(260, 'sine', 0.08);
+      triggerHaptic('tap');
+      renderMana();
+    }
+
+    function passTurn() {
+      adjustTurn(1);
+      if (state.extraTurns.active) {
+        stepExtraTurn();
+      }
+    }
+
+    // MTR 2.5 EXTRA TURNS CONTROLLERS
+    function promptExtraTurnsModal() {
+      const modal = document.getElementById('time-expired-modal');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      modal.children[0].classList.remove('scale-95');
+      modal.children[0].classList.add('scale-100');
+    }
+
+    function closeExtraTurnsModal() {
+      const modal = document.getElementById('time-expired-modal');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      modal.children[0].classList.add('scale-95');
+      modal.children[0].classList.remove('scale-100');
+    }
+
+    function startMtrExtraTurns(startingPlayer) {
+      closeExtraTurnsModal();
+      state.extraTurns.active = true;
+      state.extraTurns.step = 0;
+      state.extraTurns.activeTurn0Player = startingPlayer;
+      renderExtraTurnsUI();
+      playTone(550, 'triangle', 0.2, 0.15);
+      triggerHaptic('pop');
+    }
+
+    function stepExtraTurn() {
+      if (!state.extraTurns.active) return;
+      if (state.extraTurns.step < 5) {
+        state.extraTurns.step++;
+        renderExtraTurnsUI();
+        playTone(480, 'sine', 0.08);
+        triggerHaptic('tap');
+      } else {
+        // Turn 5 finished with no winner -> MTR specifies game ends in Draw!
+        state.extraTurns.active = false;
+        renderExtraTurnsUI();
+        recordGameResult('Draw');
+      }
+    }
+
+    // SHARED BATTLEFIELD RESET HELPER
+    function resetBattlefieldCounters() {
+      isGameOverPending = false;
+      state.turn = 1;
+      state.life = 20;
+      state.lowestLifeTurn = 20;
+      state.oppLife = 20;
+      state.lowestOppLifeTurn = 20;
+      state.poison = 0;
+      state.oppPoison = 0;
+      state.storm = 0;
+      state.peakStormTurn = 0;
+      for (const c in state.mana) state.mana[c] = 0;
+
+      renderTurn();
+      renderLife();
+      renderOppLife();
+      renderPoison();
+      renderOppPoison();
+      renderStorm();
+      renderMana();
+    }
+
+    // GAME & MATCH TELEMETRY RECORDING (Bo3 Win/Loss/Draw)
+    function recordGameResult(outcome, reason = '') {
+      initAudio();
+      // outcome can be 'Player', 'Opponent', or 'Draw'
+      const gameRecord = {
+        round: state.tournament.currentRound,
+        game: state.currentGameNumber,
+        result: outcome,
+        reason: reason,
+        turns: state.turn,
+        finalLife: state.life,
+        lowestLife: state.lowestLifeTurn,
+        peakStorm: state.peakStormTurn,
+        finalPoison: state.poison,
+        wasExtraTurns: state.extraTurns.active,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      state.match.games.push(gameRecord);
+
+      if (outcome === 'Player') {
+        state.match.gameWins++;
+        playTone(660, 'triangle', 0.25, 0.15);
+        triggerHaptic('win');
+      } else if (outcome === 'Opponent') {
+        state.match.gameLosses++;
+        playTone(220, 'sawtooth', 0.25, 0.15);
+        triggerHaptic('alarm');
+      } else {
+        state.match.gameDraws++;
+        playTone(400, 'sine', 0.2, 0.1);
+        triggerHaptic('tap');
+      }
+
+      state.extraTurns.active = false;
+      renderExtraTurnsUI();
+
+      // Check if Match has Concluded:
+      // Match ends if: a player has 2 wins, or total games >= 3, or round expired in draw
+      const isMatchDecided = state.match.gameWins >= 2 || state.match.gameLosses >= 2 || (state.match.gameWins + state.match.gameLosses + state.match.gameDraws >= 3);
+
+      if (!isMatchDecided) {
+        state.currentGameNumber++;
+      }
+      renderScore();
+
+      // Reset all battlefield counters immediately for the next game
+      resetBattlefieldCounters();
+      logAction('match', `Game ${gameRecord.game} ended (${outcome === 'Player' ? 'You Won' : outcome === 'Opponent' ? 'Opponent Won' : 'Draw'}${reason ? ' — ' + reason : ''}). All counters reset.`);
+
+      const modal = document.getElementById('game-over-modal');
+      const title = document.getElementById('game-over-title');
+      const subtitle = document.getElementById('game-over-subtitle');
+      const nextBtn = document.getElementById('next-game-btn');
+
+      if (isMatchDecided) {
+        let matchResult = 'Draw';
+        if (state.match.gameWins > state.match.gameLosses) {
+          matchResult = 'Win';
+          state.tournament.matchWins++;
+        } else if (state.match.gameLosses > state.match.gameWins) {
+          matchResult = 'Loss';
+          state.tournament.matchLosses++;
+        } else {
+          matchResult = 'Draw';
+          state.tournament.matchDraws++;
+        }
+
+        // Save round history
+        state.tournament.roundsHistory.push({
+          round: state.tournament.currentRound,
+          matchResult: matchResult,
+          score: `${state.match.gameWins}-${state.match.gameLosses}-${state.match.gameDraws}`,
+          games: [...state.match.games]
+        });
+
+        renderScore();
+
+        const isTournamentComplete = state.tournament.currentRound >= state.tournament.totalRounds;
+        state.tournament.isComplete = isTournamentComplete;
+
+        title.textContent = isTournamentComplete ? "TOURNAMENT COMPLETE!" : `ROUND ${state.tournament.currentRound} CONCLUDED`;
+        subtitle.textContent = `${reason ? reason + ' ' : ''}Match Result: ${matchResult.toUpperCase()} (${state.match.gameWins}-${state.match.gameLosses}-${state.match.gameDraws}). Tournament Record: ${state.tournament.matchWins}-${state.tournament.matchLosses}-${state.tournament.matchDraws}.`;
+        
+        const midMatchBox = document.getElementById('mid-match-actions');
+        const tourneyEndBox = document.getElementById('tournament-end-actions');
+
+        if (isTournamentComplete) {
+          if (midMatchBox) midMatchBox.classList.add('hidden');
+          if (tourneyEndBox) tourneyEndBox.classList.remove('hidden');
+        } else {
+          if (midMatchBox) midMatchBox.classList.remove('hidden');
+          if (tourneyEndBox) tourneyEndBox.classList.add('hidden');
+          nextBtn.textContent = `Start Round ${state.tournament.currentRound + 1} of ${state.tournament.totalRounds}`;
+          nextBtn.setAttribute('data-action', 'next-round');
+        }
+      } else {
+        const winnerLabel = outcome === 'Player' ? 'You' : outcome === 'Opponent' ? 'Opponent' : 'Draw';
+        title.textContent = outcome === 'Draw' ? "Game Ended in Draw" : `Game ${gameRecord.game} Won by ${winnerLabel}`;
+        subtitle.textContent = `${reason ? reason + ' • ' : ''}Match Score: ${state.match.gameWins}W - ${state.match.gameLosses}L - ${state.match.gameDraws}D`;
+        
+        const midMatchBox = document.getElementById('mid-match-actions');
+        const tourneyEndBox = document.getElementById('tournament-end-actions');
+        if (midMatchBox) midMatchBox.classList.remove('hidden');
+        if (tourneyEndBox) tourneyEndBox.classList.add('hidden');
+
+        nextBtn.textContent = `Proceed to Game ${state.currentGameNumber}`;
+        nextBtn.setAttribute('data-action', 'next-game');
+      }
+
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      modal.children[0].classList.remove('scale-95');
+      modal.children[0].classList.add('scale-100');
+    }
+
+    function handleNextGameOrRound() {
+      const modal = document.getElementById('game-over-modal');
+      const nextBtn = document.getElementById('next-game-btn');
+      const action = nextBtn.getAttribute('data-action');
+
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      modal.children[0].classList.add('scale-95');
+      modal.children[0].classList.remove('scale-100');
+
+      if (action === 'finish-tournament') {
+        openResetModal();
+        return;
+      }
+
+      if (action === 'next-round') {
+        // Advance to next tournament round
+        state.tournament.currentRound++;
+        state.match.gameWins = 0;
+        state.match.gameLosses = 0;
+        state.match.gameDraws = 0;
+        state.match.games = [];
+        state.currentGameNumber = 1;
+        resetBattlefieldCounters();
+
+        // Reset Round Timer for the new round
+        if (state.timer.isConfigured) {
+          state.timer.remainingSeconds = state.timer.totalSeconds;
+          if (!state.timer.isRunning) toggleTimer();
+        }
+
+        renderScore();
+        renderTimer();
+        return;
+      }
+
+      // Default: Advance to next game in same match (counters already cleanly reset)
+      resetBattlefieldCounters();
+      renderScore();
+    }
+
+    // MATCH LOG EXPORTER (.txt Download)
+    function generateMatchLogText() {
+      const now = new Date();
+      const elapsedMins = Math.round((now - state.matchStartTime) / 60000);
+
+      let log = "========================================================\n";
+      log += "       SOCAL PAUPER - TOURNAMENT MATCH REPORT           \n";
+      log += "========================================================\n";
+      log += `Generated:         ${now.toLocaleString()}\n`;
+      log += `Total Rounds:      ${state.tournament.totalRounds} Rounds Scheduled\n`;
+      log += `Tournament Record: ${state.tournament.matchWins} Wins - ${state.tournament.matchLosses} Losses - ${state.tournament.matchDraws} Ties/Draws\n`;
+      log += `Round Time Limit:  ${state.timer.isConfigured ? (state.timer.totalSeconds / 60) + ' Minutes (MTR 2.5 Active)' : 'Untimed'}\n`;
+      log += "--------------------------------------------------------\n";
+      log += "ROUND-BY-ROUND BREAKDOWN:\n";
+
+      if (state.tournament.roundsHistory.length === 0) {
+        log += `  Round ${state.tournament.currentRound} (In Progress): Game Score ${state.match.gameWins}-${state.match.gameLosses}-${state.match.gameDraws}\n`;
+      } else {
+        state.tournament.roundsHistory.forEach(r => {
+          log += `  - Round ${r.round}: Result -> ${r.matchResult.toUpperCase()} (${r.score})\n`;
+          r.games.forEach(g => {
+            log += `      • Game ${g.game}: ${g.result.toUpperCase()} on Turn ${g.turns} | Life: ${g.finalLife} | Storm: ${g.peakStorm} | Poison: ${g.finalPoison}${g.wasExtraTurns ? ' (MTR 2.5 Turns)' : ''}\n`;
+          });
+        });
+        if (state.tournament.currentRound > state.tournament.roundsHistory.length) {
+          log += `  - Round ${state.tournament.currentRound} (Current): Game Score ${state.match.gameWins}-${state.match.gameLosses}-${state.match.gameDraws}\n`;
+        }
+      }
+
+      log += "--------------------------------------------------------\n";
+      log += "MATCH RESOURCE & TELEMETRY TOTALS:\n";
+      log += `  - Lowest Life in Match:       ${state.lowestLifeMatch}\n`;
+      log += `  - Total Spells Cast (Storms): ${state.totalSpellsCastMatch}\n`;
+      log += `  - Highest Storm Achieved:     ${state.peakStormTurn}\n`;
+      log += "  - Total Mana Produced by Color:\n";
+      log += `      {W} White:     ${state.manaProducedMatch.w}\n`;
+      log += `      {U} Blue:      ${state.manaProducedMatch.u}\n`;
+      log += `      {B} Black:     ${state.manaProducedMatch.b}\n`;
+      log += `      {R} Red:       ${state.manaProducedMatch.r}\n`;
+      log += `      {G} Green:     ${state.manaProducedMatch.g}\n`;
+      log += `      {C} Colorless: ${state.manaProducedMatch.c}\n`;
+      log += "========================================================\n";
+      log += "     Verified Tabletop Telemetry - socalpauper.com      \n";
+      log += "========================================================\n";
+
+      return log;
+    }
+
+    function downloadMatchLog() {
+      initAudio();
+      const logText = generateMatchLogText();
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `socalpauper_match_log_${dateStr}.txt`;
+
+      const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      playTone(580, 'sine', 0.1);
+      triggerHaptic('tap');
+    }
+
+    // MODAL HANDLERS
+    const resetModal = document.getElementById('reset-modal');
+    function openResetModal() {
+      resetModal.classList.remove('opacity-0', 'pointer-events-none');
+      resetModal.children[0].classList.remove('scale-95');
+      resetModal.children[0].classList.add('scale-100');
+    }
+    function closeResetModal() {
+      resetModal.classList.add('opacity-0', 'pointer-events-none');
+      resetModal.children[0].classList.add('scale-95');
+      resetModal.children[0].classList.remove('scale-100');
+    }
+
+    function resetCurrentGame() {
+      resetBattlefieldCounters();
+      logAction('match', 'Current game battlefield reset by player.');
+      closeResetModal();
+      playTone(320, 'sine', 0.08);
+      triggerHaptic('tap');
+    }
+
+    function resetFullMatch() {
+      closeResetModal();
+      document.getElementById('setup-modal').classList.remove('hidden');
+    }
+
+    // SCRYFALL CARD ART BACKDROP ENGINE
+    const artBackdropEl = document.getElementById('custom-bg-backdrop');
+    const bgOverlayEl = document.getElementById('custom-bg-overlay');
+    const artModal = document.getElementById('art-modal');
+    const artStatusEl = document.getElementById('art-search-status');
+    const currentArtNameEl = document.getElementById('current-art-name');
+
+    // Setup Modal Art Elements
+    const setupArtThumb = document.getElementById('setup-art-thumb');
+    const setupThumbEmpty = document.getElementById('setup-thumb-empty');
+    const setupArtName = document.getElementById('setup-art-name');
+    const setupArtStatus = document.getElementById('setup-art-status');
+
+    let stagedArtUrl = null;
+    let stagedArtName = null;
+    let cachedPrintings = [];
+
+    function updateArtPreview(url, name, artist = '', set = '') {
+      const label = artist ? `${name} (${set}) • ${artist}` : (name || 'Default Dark Surface');
+      if (url) {
+        if (setupArtThumb) {
+          setupArtThumb.style.backgroundImage = `url('${url}')`;
+          if (setupThumbEmpty) setupThumbEmpty.classList.add('hidden');
+        }
+        if (setupArtName) setupArtName.textContent = label;
+        if (setupArtStatus) {
+          setupArtStatus.textContent = 'Selected version active.';
+          setupArtStatus.className = 'text-[10px] text-emerald-400 truncate';
+        }
+      } else {
+        if (setupArtThumb) {
+          setupArtThumb.style.backgroundImage = 'none';
+          if (setupThumbEmpty) setupThumbEmpty.classList.remove('hidden');
+        }
+        if (setupArtName) setupArtName.textContent = 'Default Dark Surface';
+        if (setupArtStatus) {
+          setupArtStatus.textContent = 'Minimal dark background selected.';
+          setupArtStatus.className = 'text-[10px] text-zinc-500 truncate';
+        }
+      }
+    }
+
+    function applyCardArt(artUrl, cardName, artist = '', set = '') {
+      stagedArtUrl = artUrl;
+      stagedArtName = cardName;
+      updateArtPreview(artUrl, cardName, artist, set);
+
+      if (artUrl) {
+        // Preload image to avoid blank flash and handle any loading issues
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          artBackdropEl.style.backgroundImage = `url('${artUrl}')`;
+          artBackdropEl.style.opacity = '0.88';
+          if (bgOverlayEl) bgOverlayEl.style.opacity = '0.75';
+        };
+        img.onerror = () => {
+          // Fallback direct set
+          artBackdropEl.style.backgroundImage = `url('${artUrl}')`;
+          artBackdropEl.style.opacity = '0.88';
+          if (bgOverlayEl) bgOverlayEl.style.opacity = '0.75';
+        };
+        img.src = artUrl;
+
+        const displayLabel = artist ? `${cardName} [${set}]` : cardName;
+        if (currentArtNameEl) currentArtNameEl.textContent = displayLabel;
+        localStorage.setItem('socal_tracker_art_url', artUrl);
+        localStorage.setItem('socal_tracker_art_name', cardName);
+        localStorage.setItem('socal_tracker_art_artist', artist);
+        localStorage.setItem('socal_tracker_art_set', set);
+      } else {
+        artBackdropEl.style.backgroundImage = 'none';
+        artBackdropEl.style.opacity = '0';
+        if (bgOverlayEl) bgOverlayEl.style.opacity = '0';
+        if (currentArtNameEl) currentArtNameEl.textContent = 'No custom art';
+        localStorage.removeItem('socal_tracker_art_url');
+        localStorage.removeItem('socal_tracker_art_name');
+        localStorage.removeItem('socal_tracker_art_artist');
+        localStorage.removeItem('socal_tracker_art_set');
+      }
+
+      // Highlight chosen card version thumbnail across containers
+      document.querySelectorAll('.printing-card-btn').forEach(cardEl => {
+        if (cardEl.getAttribute('data-art-url') === artUrl) {
+          cardEl.classList.add('border-amber-400', 'ring-2', 'ring-amber-500/60');
+          cardEl.classList.remove('border-zinc-700', 'opacity-70');
+        } else {
+          cardEl.classList.remove('border-amber-400', 'ring-2', 'ring-amber-500/60');
+          cardEl.classList.add('border-zinc-700', 'opacity-70');
+        }
+      });
+    }
+
+    function renderPrintingsPicker(printings, isSetupModal = false) {
+      cachedPrintings = printings;
+      const container = isSetupModal ? document.getElementById('setup-versions-container') : document.getElementById('art-versions-container');
+      const grid = isSetupModal ? document.getElementById('setup-versions-grid') : document.getElementById('art-versions-grid');
+      const countEl = isSetupModal ? document.getElementById('setup-version-count') : document.getElementById('art-version-count');
+
+      if (!container || !grid) return;
+
+      if (!printings || printings.length === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.classList.remove('hidden');
+      if (countEl) countEl.textContent = `${printings.length} version${printings.length > 1 ? 's' : ''}`;
+      grid.innerHTML = '';
+
+      printings.forEach((p, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `printing-card-btn group relative flex-shrink-0 w-24 h-16 rounded-lg border bg-zinc-950 overflow-hidden text-left transition-all ${
+          p.artUrl === stagedArtUrl ? 'border-amber-400 ring-2 ring-amber-500/60' : 'border-zinc-700 opacity-70 hover:opacity-100 hover:border-zinc-400'
+        }`;
+        btn.setAttribute('data-art-url', p.artUrl);
+
+        btn.innerHTML = `
+          <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('${p.artUrl}')"></div>
+          <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
+          <div class="absolute bottom-1 left-1.5 right-1.5 flex flex-col pointer-events-none">
+            <span class="text-[9px] font-black text-amber-300 font-mono tracking-tight leading-none truncate">${p.set.toUpperCase()} • ${p.year || ''}</span>
+            <span class="text-[8px] text-zinc-300 truncate leading-tight">${p.artist || 'Unknown'}</span>
+          </div>
+        `;
+
+        btn.addEventListener('click', () => {
+          applyCardArt(p.artUrl, p.name, p.artist, p.set.toUpperCase());
+          playTone(600, 'sine', 0.05);
+          triggerHaptic('tap');
+        });
+
+        grid.appendChild(btn);
+      });
+    }
+
+    function loadSavedArt() {
+      const savedUrl = localStorage.getItem('socal_tracker_art_url');
+      const savedName = localStorage.getItem('socal_tracker_art_name');
+      const savedArtist = localStorage.getItem('socal_tracker_art_artist') || '';
+      const savedSet = localStorage.getItem('socal_tracker_art_set') || '';
+      if (savedUrl) {
+        applyCardArt(savedUrl, savedName || 'Custom Art', savedArtist, savedSet);
+      } else {
+        updateArtPreview(null, null);
+      }
+    }
+
+    async function fetchScryfallArt(query, isSetupModal = false) {
+      if (!query || query.trim().length === 0) return;
+      
+      const statusEl = isSetupModal ? setupArtStatus : artStatusEl;
+      if (statusEl) {
+        statusEl.textContent = 'Querying Scryfall printings...';
+        statusEl.className = 'text-[10px] text-amber-400 truncate animate-pulse';
+      }
+
+      try {
+        // Step 1: Resolve exact card name first
+        const nameResp = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(query.trim())}`);
+        if (!nameResp.ok) {
+          if (statusEl) {
+            statusEl.textContent = 'Card not found on Scryfall.';
+            statusEl.className = 'text-[10px] text-red-400 truncate';
+          }
+          return;
+        }
+
+        const canonicalCard = await nameResp.json();
+        const cardName = canonicalCard.name;
+
+        // Step 2: Fetch all unique printings for this exact card name
+        const printsQuery = `!"${cardName}" unique:prints`;
+        const printsResp = await fetch(`https://api.scryfall.com/cards/search?order=released&dir=desc&q=${encodeURIComponent(printsQuery)}`);
+        
+        let printingsList = [];
+        if (printsResp.ok) {
+          const printsData = await printsResp.json();
+          const items = printsData.data || [canonicalCard];
+
+          // Filter items that have art crops and deduplicate identical art
+          const seenIllustrations = new Set();
+          for (const item of items) {
+            let art = null;
+            if (item.image_uris && item.image_uris.art_crop) {
+              art = item.image_uris.art_crop;
+            } else if (item.card_faces && item.card_faces[0]?.image_uris?.art_crop) {
+              art = item.card_faces[0].image_uris.art_crop;
+            }
+
+            if (art) {
+              const illId = item.illustration_id || art;
+              if (!seenIllustrations.has(illId)) {
+                seenIllustrations.add(illId);
+                const year = item.released_at ? item.released_at.slice(0, 4) : '';
+                printingsList.push({
+                  name: item.name,
+                  artUrl: art,
+                  artist: item.artist,
+                  set: item.set,
+                  setName: item.set_name,
+                  year: year
+                });
+              }
+            }
+          }
+        }
+
+        if (printingsList.length === 0) {
+          // Fallback to canonical art crop if search had no list
+          let fallbackArt = canonicalCard.image_uris?.art_crop || canonicalCard.card_faces?.[0]?.image_uris?.art_crop;
+          if (fallbackArt) {
+            printingsList.push({
+              name: canonicalCard.name,
+              artUrl: fallbackArt,
+              artist: canonicalCard.artist,
+              set: canonicalCard.set,
+              setName: canonicalCard.set_name,
+              year: canonicalCard.released_at?.slice(0, 4) || ''
+            });
+          }
+        }
+
+        if (printingsList.length > 0) {
+          renderPrintingsPicker(printingsList, isSetupModal);
+          const first = printingsList[0];
+          applyCardArt(first.artUrl, first.name, first.artist, first.set.toUpperCase());
+          playTone(620, 'sine', 0.1);
+          triggerHaptic('pop');
+        } else {
+          if (statusEl) {
+            statusEl.textContent = 'No art crops found for this card.';
+            statusEl.className = 'text-[10px] text-red-400 truncate';
+          }
+        }
+      } catch (e) {
+        if (statusEl) {
+          statusEl.textContent = 'Failed to connect to Scryfall.';
+          statusEl.className = 'text-[10px] text-red-400 truncate';
+        }
+      }
+    }
+
+    function openArtModal() {
+      artModal.classList.remove('opacity-0', 'pointer-events-none');
+      artModal.children[0].classList.remove('scale-95');
+      artModal.children[0].classList.add('scale-100');
+      document.getElementById('art-search-input').focus();
+    }
+
+    function closeArtModal() {
+      artModal.classList.add('opacity-0', 'pointer-events-none');
+      artModal.children[0].classList.add('scale-95');
+      artModal.children[0].classList.remove('scale-100');
+      artStatusEl.textContent = '';
+    }
+
+    // SCREEN WAKE LOCK
+    async function toggleWakeLock() {
+      initAudio();
+      const icon = document.getElementById('wake-icon');
+      if (!('wakeLock' in navigator)) return;
+
+      if (state.wakeLockSentinel) {
+        await state.wakeLockSentinel.release();
+        state.wakeLockSentinel = null;
+        icon.classList.remove('text-amber-400');
+        icon.classList.add('text-zinc-400');
+      } else {
+        try {
+          state.wakeLockSentinel = await navigator.wakeLock.request('screen');
+          icon.classList.remove('text-zinc-400');
+          icon.classList.add('text-amber-400');
+          state.wakeLockSentinel.addEventListener('release', () => {
+            state.wakeLockSentinel = null;
+            icon.classList.remove('text-amber-400');
+            icon.classList.add('text-zinc-400');
+          });
+        } catch (e) {}
+      }
+    }
+
+    // PORTRAIT / LANDSCAPE LISTENER
+    const portraitGate = document.getElementById('portrait-gate');
+    let userBypassedPortrait = false;
+    function checkOrientation() {
+      const isPortrait = window.innerHeight > window.innerWidth;
+      if (isPortrait && !userBypassedPortrait) {
+        portraitGate.classList.remove('hidden');
+      } else {
+        portraitGate.classList.add('hidden');
+      }
+    }
+
+    // INITIALIZATION & EVENT ATTACHMENTS
+    window.addEventListener('DOMContentLoaded', () => {
+      // 1. Setup Modal Preset Clicks
+      let selectedMinutes = 50;
+      let selectedRounds = 4;
+      const presets = document.querySelectorAll('.setup-timer-preset');
+      const roundPresets = document.querySelectorAll('.setup-round-preset');
+      const customMinInput = document.getElementById('setup-custom-minutes');
+      const customRoundInput = document.getElementById('setup-custom-rounds');
+
+      function setTimerPreset(mins) {
+        selectedMinutes = mins;
+        if (customMinInput) customMinInput.value = '';
+        presets.forEach(p => {
+          const m = parseInt(p.getAttribute('data-minutes'), 10);
+          if (m === mins) {
+            p.className = 'setup-timer-preset px-2.5 py-1.5 rounded-lg border border-amber-500/80 bg-amber-500/20 text-amber-300 font-bold text-xs text-left transition shadow';
+          } else {
+            p.className = 'setup-timer-preset px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 hover:border-zinc-500 text-zinc-300 font-bold text-xs text-left transition';
+          }
+        });
+      }
+
+      function setRoundPreset(rounds) {
+        selectedRounds = rounds;
+        if (customRoundInput) customRoundInput.value = '';
+        roundPresets.forEach(p => {
+          const r = parseInt(p.getAttribute('data-rounds'), 10);
+          if (r === rounds) {
+            p.className = 'setup-round-preset px-2 py-1.5 rounded-lg border border-amber-500/80 bg-amber-500/20 text-amber-300 font-bold text-xs text-center transition shadow';
+          } else {
+            p.className = 'setup-round-preset px-2 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 hover:border-zinc-500 text-zinc-300 font-bold text-xs text-center transition';
+          }
+        });
+      }
+
+      presets.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const mins = parseInt(btn.getAttribute('data-minutes'), 10);
+          setTimerPreset(mins);
+        });
+      });
+
+      roundPresets.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const r = parseInt(btn.getAttribute('data-rounds'), 10);
+          setRoundPreset(r);
+        });
+      });
+
+      if (customRoundInput) {
+        customRoundInput.addEventListener('input', (e) => {
+          const val = parseInt(e.target.value, 10);
+          if (!isNaN(val) && val > 0) {
+            selectedRounds = val;
+            roundPresets.forEach(p => {
+              p.className = 'setup-round-preset px-2 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 hover:border-zinc-500 text-zinc-400 font-bold text-xs text-center transition';
+            });
+          }
+        });
+      }
+
+      if (customMinInput) {
+        customMinInput.addEventListener('input', (e) => {
+          const val = parseInt(e.target.value, 10);
+          if (!isNaN(val) && val > 0) {
+            selectedMinutes = val;
+            presets.forEach(p => {
+              p.className = 'setup-timer-preset px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900/90 hover:border-zinc-500 text-zinc-400 font-bold text-xs text-left transition';
+            });
+          }
+        });
+      }
+
+      function finalizeSetup(mins, rounds) {
+        initAudio();
+
+        // Determine if Free Mode / Untimed Casual
+        state.isFreeMode = (mins <= 0);
+
+        state.tournament.totalRounds = rounds || 4;
+        state.tournament.currentRound = 1;
+        state.tournament.matchWins = 0;
+        state.tournament.matchLosses = 0;
+        state.tournament.matchDraws = 0;
+        state.tournament.roundsHistory = [];
+        state.tournament.isComplete = false;
+
+        state.match.gameWins = 0;
+        state.match.gameLosses = 0;
+        state.match.gameDraws = 0;
+        state.match.games = [];
+
+        // Clear action log
+        state.actionLog = [];
+
+        if (mins > 0) {
+          state.timer.totalSeconds = mins * 60;
+          state.timer.remainingSeconds = mins * 60;
+          state.timer.isConfigured = true;
+          toggleTimer(); // auto start
+        } else {
+          state.timer.isConfigured = false;
+          state.timer.remainingSeconds = 0;
+          state.timer.isRunning = false;
+          if (state.timer.intervalId) {
+            clearInterval(state.timer.intervalId);
+            state.timer.intervalId = null;
+          }
+        }
+        renderTimer();
+
+        // Fresh Match State
+        state.turn = 1;
+        state.currentGameNumber = 1;
+        state.life = 20;
+        state.startingLife = 20;
+        state.lowestLifeTurn = 20;
+        state.lowestLifeMatch = 20;
+        state.storm = 0;
+        state.peakStormTurn = 0;
+        state.poison = 0;
+        state.extraTurns.active = false;
+        state.matchStartTime = new Date();
+        state.totalSpellsCastMatch = 0;
+        for (const c in state.mana) {
+          state.mana[c] = 0;
+          state.manaProducedMatch[c] = 0;
+        }
+
+        renderTurn();
+        renderScore();
+        renderExtraTurnsUI();
+        renderLife();
+        renderStorm();
+        renderPoison();
+        renderMana();
+
+        document.getElementById('setup-modal').classList.add('hidden');
+      }
+
+      document.getElementById('start-round-btn').addEventListener('click', () => {
+        let finalMins = selectedMinutes;
+        if (customMinInput && customMinInput.value.trim() !== '') {
+          const parsed = parseInt(customMinInput.value.trim(), 10);
+          if (!isNaN(parsed) && parsed >= 0) finalMins = parsed;
+        }
+
+        let finalRounds = selectedRounds;
+        if (customRoundInput && customRoundInput.value.trim() !== '') {
+          const parsedR = parseInt(customRoundInput.value.trim(), 10);
+          if (!isNaN(parsedR) && parsedR > 0) finalRounds = parsedR;
+        }
+
+        finalizeSetup(finalMins, finalRounds);
+      });
+
+      document.getElementById('setup-casual-btn').addEventListener('click', () => finalizeSetup(0, 1));
+
+      // 2. Turn Controller
+      document.getElementById('turn-plus').addEventListener('click', () => adjustTurn(1));
+      document.getElementById('turn-minus').addEventListener('click', () => adjustTurn(-1));
+      document.getElementById('pass-turn-btn').addEventListener('click', passTurn);
+
+      // 3. Life Controls
+      document.getElementById('life-plus-1').addEventListener('click', () => adjustLife(1));
+      document.getElementById('life-plus-5').addEventListener('click', () => adjustLife(5));
+      document.getElementById('life-minus-1').addEventListener('click', () => adjustLife(-1));
+      document.getElementById('life-minus-5').addEventListener('click', () => adjustLife(-5));
+      
+      const lifeIncZone = document.querySelector('[data-action="life-inc"]');
+      const lifeDecZone = document.querySelector('[data-action="life-dec"]');
+      if (lifeIncZone) lifeIncZone.addEventListener('click', () => adjustLife(1));
+      if (lifeDecZone) lifeDecZone.addEventListener('click', () => adjustLife(-1));
+
+      // 4. Score, Win/Loss/Draw & Bo3 Controls
+      document.getElementById('win-game-btn').addEventListener('click', () => recordGameResult('Player'));
+      document.getElementById('lose-game-btn').addEventListener('click', () => recordGameResult('Opponent'));
+      document.getElementById('draw-game-btn').addEventListener('click', () => recordGameResult('Draw'));
+      document.getElementById('next-game-btn').addEventListener('click', handleNextGameOrRound);
+      document.getElementById('close-game-over-btn').addEventListener('click', () => {
+        document.getElementById('game-over-modal').classList.add('opacity-0', 'pointer-events-none');
+      });
+
+      // MTR 2.5 Extra Turns Controls
+      let activeTurn0Selection = 'Player';
+      const turnMeBtn = document.getElementById('turns-active-player-me');
+      const turnOppBtn = document.getElementById('turns-active-player-opp');
+
+      if (turnMeBtn && turnOppBtn) {
+        turnMeBtn.addEventListener('click', () => {
+          activeTurn0Selection = 'Player';
+          turnMeBtn.classList.add('border-amber-500/60', 'bg-amber-500/20', 'text-amber-300');
+          turnOppBtn.classList.remove('border-amber-500/60', 'bg-amber-500/20', 'text-amber-300');
+        });
+        turnOppBtn.addEventListener('click', () => {
+          activeTurn0Selection = 'Opponent';
+          turnOppBtn.classList.add('border-amber-500/60', 'bg-amber-500/20', 'text-amber-300');
+          turnMeBtn.classList.remove('border-amber-500/60', 'bg-amber-500/20', 'text-amber-300');
+        });
+      }
+
+      document.getElementById('start-extra-turns-btn').addEventListener('click', () => {
+        startMtrExtraTurns(activeTurn0Selection);
+      });
+      document.getElementById('record-immediate-draw-btn').addEventListener('click', () => {
+        closeExtraTurnsModal();
+        recordGameResult('Draw');
+      });
+      document.getElementById('step-extra-turn-btn').addEventListener('click', stepExtraTurn);
+      document.getElementById('cancel-extra-turns-btn').addEventListener('click', () => {
+        state.extraTurns.active = false;
+        renderExtraTurnsUI();
+      });
+      document.getElementById('extra-turns-pill-btn').addEventListener('click', stepExtraTurn);
+
+      // 5. Storm Controls
+      document.getElementById('storm-plus-1-btn').addEventListener('click', () => adjustStorm(1));
+      document.getElementById('storm-plus-5-btn').addEventListener('click', () => adjustStorm(5));
+      document.getElementById('storm-minus-btn').addEventListener('click', () => adjustStorm(-1));
+      document.getElementById('storm-tap-area').addEventListener('click', () => adjustStorm(1));
+      document.getElementById('storm-clear-btn').addEventListener('click', clearStorm);
+
+      // 6. Poison Controls
+      document.getElementById('poison-plus-btn').addEventListener('click', () => adjustPoison(1));
+      document.getElementById('poison-minus-btn').addEventListener('click', () => adjustPoison(-1));
+      document.getElementById('poison-tap-area').addEventListener('click', () => adjustPoison(1));
+      document.getElementById('poison-clear-btn').addEventListener('click', () => {
+        initAudio();
+        state.poison = 0;
+        renderPoison();
+      });
+
+      // 7. Mana Controls (Top / Bottom Split Touch Zones)
+      document.querySelectorAll('.mana-orb-tower').forEach(tower => {
+        const color = tower.getAttribute('data-color');
+        const incZone = tower.querySelector('[data-action="inc"]');
+        const decZone = tower.querySelector('[data-action="dec"]');
+
+        if (incZone) incZone.addEventListener('click', () => adjustMana(color, 1));
+        if (decZone) decZone.addEventListener('click', () => adjustMana(color, -1));
+      });
+      document.getElementById('empty-mana-btn').addEventListener('click', emptyAllMana);
+
+      // 8. Timer Controls
+      document.getElementById('timer-toggle-btn').addEventListener('click', toggleTimer);
+      document.getElementById('timer-add-min-btn').addEventListener('click', addTimerMinute);
+
+      // 9. Scryfall Card Art Backdrop Controls
+      document.getElementById('open-art-btn').addEventListener('click', openArtModal);
+      document.getElementById('close-art-modal-btn').addEventListener('click', closeArtModal);
+      document.getElementById('clear-art-btn').addEventListener('click', () => {
+        applyCardArt(null);
+        closeArtModal();
+      });
+
+      const artSearchInput = document.getElementById('art-search-input');
+      const artSearchSubmit = document.getElementById('art-search-submit');
+      artSearchSubmit.addEventListener('click', () => fetchScryfallArt(artSearchInput.value));
+      artSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') fetchScryfallArt(artSearchInput.value);
+      });
+
+      document.querySelectorAll('.art-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const card = btn.getAttribute('data-card');
+          artSearchInput.value = card;
+          fetchScryfallArt(card);
+        });
+      });
+
+      // 10. Match Log Download
+      const dlBtn = document.getElementById('download-log-btn');
+      if (dlBtn) dlBtn.addEventListener('click', downloadMatchLog);
+      document.getElementById('download-from-modal-btn').addEventListener('click', downloadMatchLog);
+
+      // 11. Reset Modal Handlers
+      document.getElementById('open-reset-btn').addEventListener('click', openResetModal);
+      document.getElementById('cancel-reset-btn').addEventListener('click', closeResetModal);
+      document.getElementById('reset-current-game-btn').addEventListener('click', resetCurrentGame);
+      document.getElementById('reset-full-match-btn').addEventListener('click', resetFullMatch);
+
+      // 12. Sound & Utility Toggles
+      document.getElementById('sound-btn').addEventListener('click', () => {
+        state.soundEnabled = !state.soundEnabled;
+        document.getElementById('sound-icon-on').classList.toggle('hidden', !state.soundEnabled);
+        document.getElementById('sound-icon-off').classList.toggle('hidden', state.soundEnabled);
+        if (state.soundEnabled) playTone(520, 'sine', 0.05);
+      });
+      document.getElementById('wake-lock-btn').addEventListener('click', toggleWakeLock);
+
+      // 13. Orientation Bypass
+      document.getElementById('dismiss-portrait-btn').addEventListener('click', () => {
+        userBypassedPortrait = true;
+        portraitGate.classList.add('hidden');
+      });
+
+      window.addEventListener('resize', checkOrientation);
+      window.addEventListener('orientationchange', checkOrientation);
+      checkOrientation();
+
+      // Load saved Scryfall backdrop art from localStorage
+      loadSavedArt();
+
+      // Setup Modal Art Controls
+      const setupArtInput = document.getElementById('setup-art-input');
+      const setupArtSearchBtn = document.getElementById('setup-art-search-btn');
+      if (setupArtSearchBtn && setupArtInput) {
+        setupArtSearchBtn.addEventListener('click', () => fetchScryfallArt(setupArtInput.value, true));
+        setupArtInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') fetchScryfallArt(setupArtInput.value, true);
+        });
+      }
+
+      document.querySelectorAll('.setup-art-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const card = chip.getAttribute('data-card');
+          if (setupArtInput) setupArtInput.value = card;
+          fetchScryfallArt(card, true);
+        });
+      });
+
+      const setupClearArtBtn = document.getElementById('setup-clear-art-btn');
+      if (setupClearArtBtn) {
+        setupClearArtBtn.addEventListener('click', () => {
+          applyCardArt(null);
+        });
+      }
+
+      // Initial Renders
+      renderTurn();
+      renderScore();
+      renderLife();
+      renderOppLife();
+      renderStorm();
+      renderPoison();
+      renderOppPoison();
+      renderMana();
+      renderTimer();
+
+      // OPPONENT LISTENERS
+      document.getElementById('opp-life-plus-1').addEventListener('click', () => adjustOppLife(1));
+      document.getElementById('opp-life-plus-5').addEventListener('click', () => adjustOppLife(5));
+      document.getElementById('opp-life-minus-1').addEventListener('click', () => adjustOppLife(-1));
+      document.getElementById('opp-life-minus-5').addEventListener('click', () => adjustOppLife(-5));
+
+      const oppLifeInc = document.querySelector('[data-action="opp-life-inc"]');
+      const oppLifeDec = document.querySelector('[data-action="opp-life-dec"]');
+      if (oppLifeInc) oppLifeInc.addEventListener('click', () => adjustOppLife(1));
+      if (oppLifeDec) oppLifeDec.addEventListener('click', () => adjustOppLife(-1));
+
+      document.getElementById('opp-poison-plus-btn').addEventListener('click', () => adjustOppPoison(1));
+      document.getElementById('opp-poison-minus-btn').addEventListener('click', () => adjustOppPoison(-1));
+      document.getElementById('opp-poison-tap-area').addEventListener('click', () => adjustOppPoison(1));
+      document.getElementById('opp-poison-clear-btn').addEventListener('click', () => {
+        initAudio();
+        state.oppPoison = 0;
+        logAction('poison', 'Opponent poison reset to 0');
+        renderOppPoison();
+      });
+
+      // TOURNAMENT END 4-ACTION HANDLERS
+      const endViewResultsBtn = document.getElementById('end-view-results-btn');
+      if (endViewResultsBtn) {
+        endViewResultsBtn.addEventListener('click', () => {
+          document.getElementById('game-over-modal').classList.add('opacity-0', 'pointer-events-none');
+          openRoundsHistoryModal();
+        });
+      }
+
+      const endNewTourneyBtn = document.getElementById('end-new-tourney-btn');
+      if (endNewTourneyBtn) {
+        endNewTourneyBtn.addEventListener('click', () => {
+          document.getElementById('game-over-modal').classList.add('opacity-0', 'pointer-events-none');
+          document.getElementById('setup-modal').classList.remove('hidden');
+        });
+      }
+
+      const endSaveResultsBtn = document.getElementById('end-save-results-btn');
+      if (endSaveResultsBtn) {
+        endSaveResultsBtn.addEventListener('click', downloadMatchLog);
+      }
+
+      // LIVE LOG MODAL CONTROLS
+      const liveLogModal = document.getElementById('live-log-modal');
+      const openLiveLogBtn = document.getElementById('open-live-log-btn');
+      const closeLiveLogBtn = document.getElementById('close-live-log-btn');
+      const closeLiveLogFooterBtn = document.getElementById('close-live-log-footer-btn');
+
+      function openLiveLog() {
+        initAudio();
+        state.selectedLogRound = state.tournament.currentRound;
+        renderLiveLogList();
+        liveLogModal.classList.remove('opacity-0', 'pointer-events-none');
+        liveLogModal.children[0].classList.remove('scale-95');
+        liveLogModal.children[0].classList.add('scale-100');
+        playTone(560, 'sine', 0.05);
+      }
+
+      function closeLiveLog() {
+        liveLogModal.classList.add('opacity-0', 'pointer-events-none');
+        liveLogModal.children[0].classList.add('scale-95');
+        liveLogModal.children[0].classList.remove('scale-100');
+
+        // If tournament is complete and viewing log from rounds history, return to rounds history
+        if (state.tournament.isComplete) {
+          openRoundsHistoryModal();
+        }
+      }
+
+      if (openLiveLogBtn) openLiveLogBtn.addEventListener('click', openLiveLog);
+      if (closeLiveLogBtn) closeLiveLogBtn.addEventListener('click', closeLiveLog);
+      if (closeLiveLogFooterBtn) closeLiveLogFooterBtn.addEventListener('click', closeLiveLog);
+
+      // PREVIOUS ROUNDS HISTORY MODAL HOOKS
+      const openPrevRoundsBtn = document.getElementById('open-previous-rounds-btn');
+      const closePrevRoundsBtn = document.getElementById('close-rounds-history-btn');
+      const closePrevRoundsFooterBtn = document.getElementById('close-rounds-history-footer-btn');
+
+      if (openPrevRoundsBtn) openPrevRoundsBtn.addEventListener('click', openRoundsHistoryModal);
+      if (closePrevRoundsBtn) closePrevRoundsBtn.addEventListener('click', closeRoundsHistoryModal);
+      if (closePrevRoundsFooterBtn) closePrevRoundsFooterBtn.addEventListener('click', closeRoundsHistoryModal);
+
+      document.querySelectorAll('.log-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.log-filter-btn').forEach(b => {
+            b.classList.remove('bg-amber-500/20', 'border-amber-500/60', 'text-amber-300', 'font-bold');
+            b.classList.add('bg-zinc-900', 'border-zinc-800', 'text-zinc-400');
+          });
+          btn.classList.add('bg-amber-500/20', 'border-amber-500/60', 'text-amber-300', 'font-bold');
+          btn.classList.remove('bg-zinc-900', 'border-zinc-800', 'text-zinc-400');
+          state.currentLogFilter = btn.getAttribute('data-filter');
+          renderLiveLogList();
+        });
+      });
+
+      const downloadLogFromReviewBtn = document.getElementById('download-log-from-review-btn');
+      if (downloadLogFromReviewBtn) {
+        downloadLogFromReviewBtn.addEventListener('click', downloadMatchLog);
+      }
+    });
+  </script>
+</body>
+</html>

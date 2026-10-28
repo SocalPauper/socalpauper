@@ -24,6 +24,14 @@
         <span>Endstep.cc</span>
         <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
       </button>
+
+      <!-- Tournament & Storm Tracker Link -->
+      <a href="/tracker.html" 
+         class="inline-flex items-center gap-1.5 bg-amber-950/40 hover:bg-amber-900/40 border border-amber-600/40 hover:border-amber-500 text-amber-300 text-xs font-medium px-2.5 py-1.5 rounded-lg transition"
+         title="Launch Landscape Tournament Tracker">
+        <svg class="w-3.5 h-3.5 fill-current text-amber-400" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <span>Tracker</span>
+      </a>
       
       <button type="button" onclick="handleResourceClick('LIFECOUNTER')" 
               class="inline-flex items-center gap-1.5 bg-amber-950/40 hover:bg-amber-900/40 border border-amber-600/40 hover:border-amber-500 text-amber-300 text-xs font-medium px-2.5 py-1.5 rounded-lg transition cursor-pointer">
@@ -81,6 +89,16 @@
       <span>📍</span>
       <span>Partner Stores & Maps</span>
     </a>
+
+    <!-- Mobile Drawer: Tournament Tracker Link -->
+    <a href="/tracker.html" onclick="toggleMobileNav()" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-amber-300 bg-amber-950/30 hover:bg-amber-950/60 border border-amber-600/30 transition text-left">
+      <span class="flex items-center gap-2.5">
+        <span>⚡</span>
+        <span>Tournament & Combo Tracker</span>
+      </span>
+      <span class="text-[10px] font-mono uppercase bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">Tool</span>
+    </a>
+
     <button type="button" onclick="handleResourceClick('LIFECOUNTER'); toggleMobileNav();" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-amber-300 bg-amber-950/30 hover:bg-amber-950/60 border border-amber-600/30 transition text-left cursor-pointer">
       <span>❤️</span>
       <span>Life Counter App</span>

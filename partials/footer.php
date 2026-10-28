@@ -16,6 +16,11 @@
     
     <!-- Footer Quick Links -->
     <div class="order-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 sm:gap-4 text-xs">
+      <!-- Tournament Tracker Footer Link -->
+      <a href="/tracker.html" class="text-amber-400 hover:text-amber-300 font-semibold transition">
+        Tournament Tracker
+      </a>
+      <span class="text-zinc-700">•</span>
       <a href="/BigMeatyPawzMods" class="text-amber-400 hover:text-amber-300 font-semibold transition">
         Console Mods
       </a>

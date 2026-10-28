@@ -27,10 +27,20 @@
     </p>
 
     <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+      <!-- Tournament & Combo Tracker Launch Button -->
+      <a href="/tracker.html" 
+         class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-zinc-950 font-bold px-6 py-3.5 rounded-xl shadow-lg transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+        <span>Tournament Tracker</span>
+      </a>
+
+      <!-- Discord Link -->
       <a href="https://discord.gg/eQdgz5u5NE" target="_blank" rel="noopener noreferrer" 
          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold px-6 py-3.5 rounded-xl shadow-lg transition">
         Enter Community Discord
       </a>
+
+      <!-- Schedule Link -->
       <a href="#events" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 rounded-xl text-zinc-300 bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-700/80 text-sm font-semibold transition">
         Browse Tournament Schedule
       </a>
