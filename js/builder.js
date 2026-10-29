@@ -481,17 +481,19 @@ window.Builder = {
     this.render();
   },
 
-  // Dynamic Type Determiner (ensures no card is ever swallowed/hidden)
+  // Dynamic Type Determiner (Uses front-face to prevent Adventure/MDFC split duplication)
   getCardCategory(card) {
-    const tl = card.type_line || '';
-    if (tl.includes('Planeswalker')) return 'Planeswalkers';
-    if (tl.includes('Creature')) return 'Creatures';
-    if (tl.includes('Instant')) return 'Instants';
-    if (tl.includes('Sorcery')) return 'Sorceries';
-    if (tl.includes('Artifact')) return 'Artifacts';
-    if (tl.includes('Enchantment')) return 'Enchantments';
-    if (tl.includes('Battle')) return 'Battles';
-    if (tl.includes('Land')) return 'Lands';
+    const rawType = card.type_line || '';
+    const primaryFaceType = rawType.split('//')[0].trim();
+
+    if (primaryFaceType.includes('Planeswalker')) return 'Planeswalkers';
+    if (primaryFaceType.includes('Creature')) return 'Creatures';
+    if (primaryFaceType.includes('Instant')) return 'Instants';
+    if (primaryFaceType.includes('Sorcery')) return 'Sorceries';
+    if (primaryFaceType.includes('Artifact')) return 'Artifacts';
+    if (primaryFaceType.includes('Enchantment')) return 'Enchantments';
+    if (primaryFaceType.includes('Battle')) return 'Battles';
+    if (primaryFaceType.includes('Land')) return 'Lands';
     return 'Other';
   },
 
@@ -517,7 +519,6 @@ window.Builder = {
       return;
     }
 
-    // Dynamic categorizer covering all Magic types & edge cases
     const categoryOrder = [
       'Creatures',
       'Planeswalkers',
@@ -653,6 +654,7 @@ window.Builder = {
     if (mainCountEl) mainCountEl.textContent = mainTotal;
     if (sideCountEl) sideCountEl.textContent = sideTotal;
 
+    // Price Calculations
     let totalUsd = 0;
     let totalEur = 0;
     [...mainList, ...sideList].forEach(c => {
@@ -665,6 +667,7 @@ window.Builder = {
     if (usdEl) usdEl.textContent = `$${totalUsd.toFixed(2)}`;
     if (eurEl) eurEl.textContent = `€${totalEur.toFixed(2)}`;
 
+    // Mana Curve
     const curve = [0, 0, 0, 0, 0, 0, 0];
     mainList.filter(c => !c.type_line.includes('Land')).forEach(c => {
       const cmc = Math.min(c.cmc, 6);
@@ -680,6 +683,7 @@ window.Builder = {
       }
     });
 
+    // Colored Pip Breakdown
     const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
     mainList.forEach(c => {
       const cost = c.mana_cost || '';
@@ -715,16 +719,32 @@ window.Builder = {
       `;
     }
 
+    // Type Breakdowns (Main vs Sideboard)
     this.renderTypeBreakdown(mainList, 'main-type-counts-list');
     this.renderTypeBreakdown(sideList, 'side-type-counts-list');
+
+    // Hypergeometric Opening Hand Odds
     this.calculateHandProbabilities(mainList, mainTotal);
   },
 
   renderTypeBreakdown(cardsList, containerId) {
     const types = {};
     cardsList.forEach(c => {
-      const primary = c.type_line.split('—')[0].trim();
-      types[primary] = (types[primary] || 0) + c.qty;
+      const rawType = c.type_line || '';
+      const frontFace = rawType.split('//')[0].trim();
+      const mainTypeSection = frontFace.split('—')[0].trim();
+      
+      let label = 'Other';
+      if (mainTypeSection.includes('Creature')) label = 'Creatures';
+      else if (mainTypeSection.includes('Instant')) label = 'Instants';
+      else if (mainTypeSection.includes('Sorcery')) label = 'Sorceries';
+      else if (mainTypeSection.includes('Artifact')) label = 'Artifacts';
+      else if (mainTypeSection.includes('Enchantment')) label = 'Enchantments';
+      else if (mainTypeSection.includes('Battle')) label = 'Battles';
+      else if (mainTypeSection.includes('Planeswalker')) label = 'Planeswalkers';
+      else if (mainTypeSection.includes('Land')) label = 'Lands';
+
+      types[label] = (types[label] || 0) + c.qty;
     });
 
     const container = document.getElementById(containerId);

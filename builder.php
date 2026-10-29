@@ -8,7 +8,7 @@ session_start();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SoCal Pauper — Deck Architect</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/builder.css?v=5">
+  <link rel="stylesheet" href="css/builder.css?v=7">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="builder-root">
@@ -339,6 +339,6 @@ session_start();
     </div>
   </div>
 
-  <script src="js/builder.js?v=5"></script>
+  <script src="js/builder.js?v=7"></script>
 </body>
 </html>
