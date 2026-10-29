@@ -3,7 +3,9 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-$isLoggedIn = !empty($_SESSION['user_id']);$username = $_SESSION['username'] ?? '';$isAdmin = !empty($_SESSION['role']) &&$_SESSION['role'] === 'admin';
+$isLoggedIn = !empty($_SESSION['user_id']);
+$username = $_SESSION['username'] ?? '';
+$isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
 ?>
 <header class="sticky top-0 z-40 bg-[#0c0e12]/95 backdrop-blur border-b border-[#2a3040]">
   <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
@@ -20,7 +22,7 @@ $isLoggedIn = !empty($_SESSION['user_id']);$username = $_SESSION['username'] ?? 
     </a>
 
     <!-- Desktop Navigation Links -->
-    <nav class="hidden xl:flex items-center gap-1.5 text-xs font-semibold">
+    <nav class="hidden lg:flex items-center gap-1.5 text-xs font-semibold">
       <a href="tracker.html" class="px-3 py-1.5 rounded-lg text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm">
         <i class="fa-solid fa-bolt text-amber-400 text-xs"></i>
         <span>Tracker</span>
@@ -29,16 +31,6 @@ $isLoggedIn = !empty($_SESSION['user_id']);$username = $_SESSION['username'] ?? 
       <a href="life.html" class="px-3 py-1.5 rounded-lg text-rose-300 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 transition flex items-center gap-1.5 shadow-sm">
         <i class="fa-solid fa-heart-pulse text-rose-400 text-xs"></i>
         <span>Life Counter</span>
-      </a>
-
-      <a href="metagame.html" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-chart-pie text-zinc-400 text-xs"></i>
-        <span>Metagame</span>
-      </a>
-
-      <a href="stats.html" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-chart-simple text-zinc-400 text-xs"></i>
-        <span>Stats</span>
       </a>
 
       <a href="news.html" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
@@ -69,8 +61,13 @@ $isLoggedIn = !empty($_SESSION['user_id']);$username = $_SESSION['username'] ?? 
         <span>Deck Hub</span>
       </a>
 
-      <!-- Admin Broadcast Center -->
+      <!-- Admin Tools (Only Visible to Admin Accounts) -->
       <?php if ($isAdmin): ?>
+        <a href="stats.html" class="px-3 py-1.5 rounded-lg text-purple-300 hover:text-purple-200 bg-purple-950/50 hover:bg-purple-900/60 border border-purple-800/60 transition flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-chart-simple text-purple-400 text-xs"></i>
+          <span>Stats</span>
+        </a>
+
         <a href="admin_broadcast.php" class="px-3 py-1.5 rounded-lg text-purple-300 hover:text-purple-200 bg-purple-950/50 hover:bg-purple-900/60 border border-purple-800/60 transition flex items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-bullhorn text-purple-400 text-xs"></i>
           <span>Broadcast</span>
@@ -102,7 +99,7 @@ $isLoggedIn = !empty($_SESSION['user_id']);$username = $_SESSION['username'] ?? 
     </nav>
 
     <!-- Mobile Navigation Toggle -->
-    <div class="flex items-center gap-2 xl:hidden">
+    <div class="flex items-center gap-2 lg:hidden">
       <a href="decks.php" class="px-2.5 py-1.5 rounded-lg text-sky-400 bg-sky-950/60 border border-sky-800/80 text-xs font-bold flex items-center gap-1">
         <i class="fa-solid fa-layer-group text-[11px]"></i> Hub
       </a>
@@ -114,7 +111,7 @@ $isLoggedIn = !empty($_SESSION['user_id']);$username = $_SESSION['username'] ?? 
   </div>
 
   <!-- Mobile Collapsible Menu Drawer -->
-  <div id="mobile-menu-drawer" class="hidden xl:hidden border-t border-[#2a3040] bg-[#0c0e12]/98 px-4 py-4 space-y-3">
+  <div id="mobile-menu-drawer" class="hidden lg:hidden border-t border-[#2a3040] bg-[#0c0e12]/98 px-4 py-4 space-y-3">
     
     <!-- User Status Banner for Mobile -->
     <div class="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between">
@@ -130,18 +127,13 @@ $isLoggedIn = !empty($_SESSION['user_id']);$username = $_SESSION['username'] ?? 
       <?php endif; ?>
     </div>
 
+    <!-- Public Grid (Metagame removed, Stats moved to Admin) -->
     <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
       <a href="tracker.html" class="p-2.5 rounded-lg text-amber-300 bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
         <i class="fa-solid fa-bolt text-amber-400"></i> Tracker
       </a>
       <a href="life.html" class="p-2.5 rounded-lg text-rose-300 bg-rose-950/40 border border-rose-800/60 flex items-center gap-2">
         <i class="fa-solid fa-heart-pulse text-rose-400"></i> Life Counter
-      </a>
-      <a href="metagame.html" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
-        <i class="fa-solid fa-chart-pie text-zinc-400"></i> Metagame
-      </a>
-      <a href="stats.html" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
-        <i class="fa-solid fa-chart-simple text-zinc-400"></i> Stats
       </a>
       <a href="news.html" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
         <i class="fa-solid fa-newspaper text-zinc-400"></i> News
@@ -163,7 +155,13 @@ $isLoggedIn = !empty($_SESSION['user_id']);$username = $_SESSION['username'] ?? 
         <i class="fa-solid fa-arrow-right text-[10px] text-sky-400"></i>
       </a>
 
+      <!-- Admin Drawer Links -->
       <?php if ($isAdmin): ?>
+        <a href="stats.html" class="w-full p-2.5 rounded-lg text-purple-300 bg-purple-950/40 border border-purple-800/60 flex items-center justify-between">
+          <span class="flex items-center gap-2"><i class="fa-solid fa-chart-simple text-purple-400"></i> Analytics & Stats</span>
+          <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-purple-900/80 text-purple-200">Admin</span>
+        </a>
+
         <a href="admin_broadcast.php" class="w-full p-2.5 rounded-lg text-purple-300 bg-purple-950/40 border border-purple-800/60 flex items-center justify-between">
           <span class="flex items-center gap-2"><i class="fa-solid fa-bullhorn text-purple-400"></i> Dispatch Broadcast</span>
           <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-purple-900/80 text-purple-200">Admin</span>
