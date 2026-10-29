@@ -21,12 +21,15 @@ session_start();
       </a>
       <input type="text" id="deck-title-input" value="Untitled Pauper Brew" 
              class="bg-slate-900 border border-slate-700 text-white font-bold px-3 py-1.5 rounded-lg text-lg focus:outline-none focus:border-sky-500 w-64 md:w-80">
-      <span class="text-xs uppercase px-2 py-1 bg-sky-950 text-sky-400 font-bold border border-sky-800 rounded">Pauper Legal</span>
+      
+      <!-- Dynamic Pauper Legality Badge -->
+      <span id="pauper-badge" class="text-xs uppercase px-2.5 py-1 bg-rose-950 text-rose-400 font-bold border border-rose-800 rounded transition cursor-default">
+        Not Legal
+      </span>
     </div>
 
     <!-- Target Board Toggle & Global Actions -->
     <div class="flex items-center gap-3">
-      <!-- Target Board Switcher -->
       <div class="flex bg-slate-900 border border-slate-700 rounded-lg p-0.5">
         <button id="target-main-btn" class="px-3 py-1 text-xs font-bold rounded-md bg-sky-600 text-white transition">Mainboard</button>
         <button id="target-side-btn" class="px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition">Sideboard</button>
@@ -48,7 +51,7 @@ session_start();
     <!-- Left Analytics Column -->
     <aside class="stats-drawer">
       
-      <!-- Total Counts & Cost -->
+      <!-- Counts -->
       <div class="grid grid-cols-2 gap-3">
         <div class="stat-card">
           <div class="stat-label">Mainboard</div>
@@ -62,11 +65,14 @@ session_start();
         </div>
       </div>
 
+      <!-- Real-time Legality Diagnostic Box -->
+      <div id="legality-reasons"></div>
+
       <!-- Estimated Deck Cost -->
       <div class="stat-card">
         <div class="stat-label flex justify-between">
           <span>Estimated Deck Cost</span>
-          <span class="text-sky-400 font-mono text-xs">(TCGPlayer / Cardmarket)</span>
+          <span class="text-sky-400 font-mono text-xs">(TCG / Cardmarket)</span>
         </div>
         <div class="flex items-baseline gap-2">
           <div id="stat-price-usd" class="text-2xl font-black text-emerald-400">$0.00</div>
@@ -109,12 +115,10 @@ session_start();
         </div>
       </div>
 
-      <!-- Type Breakdown -->
+      <!-- Type Composition -->
       <div class="stat-card">
         <div class="stat-label">Type Composition</div>
-        <div class="text-xs space-y-1 text-slate-300 font-medium" id="type-counts-list">
-          <!-- Populated by JS -->
-        </div>
+        <div class="text-xs space-y-1 text-slate-300 font-medium" id="type-counts-list"></div>
       </div>
 
     </aside>
@@ -122,11 +126,11 @@ session_start();
     <!-- Visual Deck Surface -->
     <main class="workspace-content">
       
-      <!-- Instant Card Search -->
+      <!-- Search Input Container -->
       <div class="search-bar-wrap">
         <div class="relative">
-          <input type="text" id="card-search-input" placeholder="Type a card name to add to deck (e.g. Counterspell, Kuldotha Rebirth)..." 
-                 class="w-full bg-slate-900 border border-slate-700 text-white placeholder-slate-500 px-4 py-2.5 rounded-lg text-sm focus:outline-none focus:border-sky-500">
+          <input type="text" id="card-search-input" placeholder="Search a card name (e.g. Counterspell, Kuldotha Rebirth, Lightning Bolt)..." 
+                 class="w-full bg-slate-900 border border-slate-700 text-white placeholder-slate-500 px-4 py-2.5 rounded-lg text-sm focus:outline-none focus:border-sky-500" autocomplete="off">
           <div id="search-spinner" class="hidden absolute right-3 top-3 text-sky-400 text-xs">
             <i class="fa-solid fa-circle-notch fa-spin"></i>
           </div>
@@ -140,9 +144,7 @@ session_start();
           <h2 class="text-sm font-extrabold tracking-wider uppercase text-slate-300">Mainboard</h2>
           <span id="main-group-count" class="text-xs text-sky-400 font-mono font-bold">0 Cards</span>
         </div>
-        <div id="main-stacks" class="stacks-lane">
-          <!-- Populated dynamically with Creature, Instant, Sorcery, etc. stacks -->
-        </div>
+        <div id="main-stacks" class="stacks-lane"></div>
       </div>
 
       <!-- Sideboard Visual Stacks -->
@@ -151,49 +153,42 @@ session_start();
           <h2 class="text-sm font-extrabold tracking-wider uppercase text-slate-300">Sideboard</h2>
           <span id="side-group-count" class="text-xs text-emerald-400 font-mono font-bold">0 Cards</span>
         </div>
-        <div id="side-stacks" class="stacks-lane">
-          <!-- Populated dynamically -->
-        </div>
+        <div id="side-stacks" class="stacks-lane"></div>
       </div>
 
     </main>
 
   </div>
 
-  <!-- Art Selector Modal -->
+  <!-- Alternate Art Picker Modal -->
   <div id="art-modal" class="deck-modal-backdrop hidden">
     <div class="deck-modal-window">
       <div class="p-4 border-b border-slate-800 flex justify-between items-center">
         <h3 id="art-modal-title" class="font-bold text-white text-base">Select Printing Art</h3>
         <button onclick="closeArtModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div id="art-prints-grid" class="p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        <!-- Rendered printings -->
-      </div>
+      <div id="art-prints-grid" class="p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></div>
     </div>
   </div>
 
-  <!-- Sample Hand Modal -->
+  <!-- Mulligan / Opening Hand Modal -->
   <div id="hand-modal" class="deck-modal-backdrop hidden">
     <div class="deck-modal-window !max-w-4xl">
       <div class="p-4 border-b border-slate-800 flex justify-between items-center">
         <div>
           <h3 class="font-bold text-white text-base">Mulligan Simulator (Opening 7)</h3>
-          <span class="text-xs text-slate-400">Simulate Pauper keeps and mulligans</span>
+          <span class="text-xs text-slate-400">Simulate Pauper opening draws</span>
         </div>
         <div class="flex items-center gap-3">
-          <button id="draw-one-btn" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded text-white font-bold">Draw 1</button>
           <button id="mulligan-btn" class="text-xs bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded text-white font-bold">New 7 Hand</button>
           <button onclick="closeHandModal()" class="text-slate-400 hover:text-white text-lg ml-2"><i class="fa-solid fa-xmark"></i></button>
         </div>
       </div>
-      <div id="sample-hand-lane" class="p-6 overflow-x-auto flex gap-4 min-h-[300px] items-center justify-center">
-        <!-- 7 Cards -->
-      </div>
+      <div id="sample-hand-lane" class="p-6 overflow-x-auto flex gap-4 min-h-[300px] items-center justify-center"></div>
     </div>
   </div>
 
-  <!-- Scripts -->
+  <!-- Core Scripts -->
   <script src="js/auth.js"></script>
   <script src="js/builder.js"></script>
 </body>

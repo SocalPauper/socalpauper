@@ -1,8 +1,8 @@
-/* --- Workspace Layout --- */
+/* css/builder.css */
 .builder-root {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 64px);
+  min-height: 100vh;
   background: #090d16;
   color: #f1f5f9;
 }
@@ -31,7 +31,7 @@
   }
 }
 
-/* --- Left Stats & Analytics Drawer --- */
+/* Stats Drawer */
 .stats-drawer {
   background: #0b1120;
   border-right: 1px solid #1e293b;
@@ -58,7 +58,7 @@
   margin-bottom: 0.5rem;
 }
 
-/* Pip Distribution Bar */
+/* Pip Bars */
 .pip-bar-container {
   display: flex;
   height: 12px;
@@ -89,7 +89,7 @@
   border-radius: 50%;
 }
 
-/* Mana Curve Histogram */
+/* Mana Curve */
 .curve-chart {
   display: flex;
   align-items: flex-end;
@@ -122,7 +122,7 @@
   margin-top: 4px;
 }
 
-/* --- Search & Card Workspace --- */
+/* Search Dropdown */
 .workspace-content {
   display: flex;
   flex-direction: column;
@@ -147,7 +147,7 @@
   max-height: 320px;
   overflow-y: auto;
   z-index: 100;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
 }
 
 .suggestion-row {
@@ -164,7 +164,7 @@
   background: #1e293b;
 }
 
-/* --- Visual Stacks Cascades (Endstep style) --- */
+/* Visual Stacks */
 .stacks-lane {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
@@ -193,7 +193,6 @@
 .card-cascade-container {
   position: relative;
   width: 100%;
-  /* Height grows dynamically in JS based on card count */
 }
 
 .visual-card-wrapper {

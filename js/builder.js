@@ -1,9 +1,20 @@
 // js/builder.js
-const Builder = {
+const BASIC_LANDS = new Set([
+  'Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes',
+  'Snow-Covered Plains', 'Snow-Covered Island', 'Snow-Covered Swamp',
+  'Snow-Covered Mountain', 'Snow-Covered Forest', 'Snow-Covered Wastes'
+]);
+
+// Cards that bypass the standard 4-copy rule
+const UNLIMITED_COPIES = new Set([
+  'Relentless Rats', 'Shadowborn Apostle', 'Persistent Petitioners',
+  'Dragon\'s Approach', 'Slime Against Humanity', 'Templar Knight'
+]);
+
+window.Builder = {
   deck: {
     id: null,
     title: "Untitled Pauper Brew",
-    format: "pauper",
     main: [],
     side: []
   },
@@ -17,61 +28,78 @@ const Builder = {
   },
 
   bindEvents() {
-    // Target board selector
+    // Board Switcher (Mainboard vs Sideboard)
     const mainBtn = document.getElementById('target-main-btn');
     const sideBtn = document.getElementById('target-side-btn');
 
-    mainBtn.addEventListener('click', () => {
-      this.activeTarget = 'main';
-      mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md bg-sky-600 text-white transition';
-      sideBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
-    });
+    if (mainBtn && sideBtn) {
+      mainBtn.addEventListener('click', () => {
+        this.activeTarget = 'main';
+        mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md bg-sky-600 text-white transition';
+        sideBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
+      });
 
-    sideBtn.addEventListener('click', () => {
-      this.activeTarget = 'side';
-      sideBtn.className = 'px-3 py-1 text-xs font-bold rounded-md bg-emerald-600 text-white transition';
-      mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
-    });
+      sideBtn.addEventListener('click', () => {
+        this.activeTarget = 'side';
+        sideBtn.className = 'px-3 py-1 text-xs font-bold rounded-md bg-emerald-600 text-white transition';
+        mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
+      });
+    }
 
-    // Title input change
+    // Deck Title Input
     const titleInput = document.getElementById('deck-title-input');
-    titleInput.addEventListener('input', (e) => {
-      this.deck.title = e.target.value;
-    });
+    if (titleInput) {
+      titleInput.addEventListener('input', (e) => {
+        this.deck.title = e.target.value;
+      });
+    }
 
-    // Autocomplete input
+    // Scryfall Card Autocomplete Search
     const searchInput = document.getElementById('card-search-input');
     const suggestionsBox = document.getElementById('search-suggestions');
 
-    searchInput.addEventListener('input', (e) => {
-      clearTimeout(this.searchDebounce);
-      const val = e.target.value.trim();
-      if (val.length < 2) {
-        suggestionsBox.classList.add('hidden');
-        return;
-      }
-
-      document.getElementById('search-spinner').classList.remove('hidden');
-
-      this.searchDebounce = setTimeout(async () => {
-        try {
-          const res = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(val)}`);
-          const data = await res.json();
-          this.renderSuggestions(data.data || []);
-        } catch (err) {
-          console.error(err);
-        } finally {
-          document.getElementById('search-spinner').classList.add('hidden');
+    if (searchInput && suggestionsBox) {
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(this.searchDebounce);
+        const val = e.target.value.trim();
+        if (val.length < 2) {
+          suggestionsBox.classList.add('hidden');
+          return;
         }
-      }, 150);
-    });
 
-    // Save button
-    document.getElementById('save-deck-btn').addEventListener('click', () => this.saveDeck());
+        const spinner = document.getElementById('search-spinner');
+        if (spinner) spinner.classList.remove('hidden');
 
-    // Sample Hand
-    document.getElementById('sample-hand-btn').addEventListener('click', () => this.openSampleHand());
-    document.getElementById('mulligan-btn').addEventListener('click', () => this.openSampleHand());
+        this.searchDebounce = setTimeout(async () => {
+          try {
+            const res = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(val)}`);
+            const data = await res.json();
+            this.renderSuggestions(data.data || []);
+          } catch (err) {
+            console.error("Autocomplete error:", err);
+          } finally {
+            if (spinner) spinner.classList.add('hidden');
+          }
+        }, 150);
+      });
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+          suggestionsBox.classList.add('hidden');
+        }
+      });
+    }
+
+    // Action buttons
+    const saveBtn = document.getElementById('save-deck-btn');
+    if (saveBtn) saveBtn.addEventListener('click', () => this.saveDeck());
+
+    const handBtn = document.getElementById('sample-hand-btn');
+    if (handBtn) handBtn.addEventListener('click', () => this.openSampleHand());
+
+    const mulliBtn = document.getElementById('mulligan-btn');
+    if (mulliBtn) mulliBtn.addEventListener('click', () => this.openSampleHand());
   },
 
   renderSuggestions(names) {
@@ -81,34 +109,54 @@ const Builder = {
       return;
     }
 
-    box.innerHTML = names.map(name => `
-      <div class="suggestion-row" onclick="Builder.addCardByName('${name.replace(/'/g, "\\'")}')">
-        <span class="text-sm font-semibold text-white">${name}</span>
-        <span class="text-xs text-sky-400 font-bold">+ Add to ${this.activeTarget.toUpperCase()}</span>
-      </div>
-    `).join('');
+    box.innerHTML = names.map(name => {
+      const cleanName = name.replace(/"/g, '&quot;');
+      return `
+        <div class="suggestion-row" data-card="${cleanName}">
+          <span class="text-sm font-semibold text-white">${name}</span>
+          <span class="text-xs text-sky-400 font-bold">+ Add to ${this.activeTarget.toUpperCase()}</span>
+        </div>
+      `;
+    }).join('');
+
+    // Attach event listeners directly to avoid inline escaping bugs
+    box.querySelectorAll('.suggestion-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const targetCard = row.getAttribute('data-card');
+        this.addCardByName(targetCard);
+      });
+    });
+
     box.classList.remove('hidden');
   },
 
   async addCardByName(cardName) {
-    document.getElementById('search-suggestions').classList.add('hidden');
-    document.getElementById('card-search-input').value = '';
+    const box = document.getElementById('search-suggestions');
+    const input = document.getElementById('card-search-input');
+    if (box) box.classList.add('hidden');
+    if (input) input.value = '';
+
+    const spinner = document.getElementById('search-spinner');
+    if (spinner) spinner.classList.remove('hidden');
 
     try {
       const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}`);
-      if (!res.ok) return;
+      if (!res.ok) throw new Error("Card lookup failed");
       const data = await res.json();
 
-      const image = data.image_uris ? data.image_uris.normal : (data.card_faces ? data.card_faces[0].image_uris.normal : '');
+      const image = data.image_uris 
+        ? data.image_uris.normal 
+        : (data.card_faces && data.card_faces[0].image_uris ? data.card_faces[0].image_uris.normal : '');
       const prices = data.prices || {};
 
       const card = {
         id: data.id,
         oracle_id: data.oracle_id,
         name: data.name,
-        mana_cost: data.mana_cost || '',
+        mana_cost: data.mana_cost || (data.card_faces ? data.card_faces[0].mana_cost : ''),
         cmc: Math.floor(data.cmc || 0),
         type_line: data.type_line || '',
+        pauper_legal: data.legalities ? data.legalities.pauper === 'legal' : false,
         image: image,
         price_usd: parseFloat(prices.usd || 0),
         price_eur: parseFloat(prices.eur || 0),
@@ -127,6 +175,9 @@ const Builder = {
       this.render();
     } catch (err) {
       console.error(err);
+      alert(`Could not fetch data for "${cardName}". Please try again.`);
+    } finally {
+      if (spinner) spinner.classList.add('hidden');
     }
   },
 
@@ -170,7 +221,6 @@ const Builder = {
     this.render();
   },
 
-  // Open alternate art selector modal
   async openArtModal(cardName) {
     const card = [...this.deck.main, ...this.deck.side].find(c => c.name === cardName);
     if (!card) return;
@@ -188,7 +238,10 @@ const Builder = {
       const prints = data.data || [];
 
       grid.innerHTML = prints.map(p => {
-        const img = p.image_uris ? p.image_uris.normal : (p.card_faces ? p.card_faces[0].image_uris.normal : '');
+        const img = p.image_uris 
+          ? p.image_uris.normal 
+          : (p.card_faces && p.card_faces[0].image_uris ? p.card_faces[0].image_uris.normal : '');
+        if (!img) return '';
         return `
           <div class="cursor-pointer group flex flex-col items-center" onclick="Builder.selectArt('${p.id}', '${img}')">
             <img src="${img}" class="rounded-lg border-2 border-transparent group-hover:border-sky-500 transition shadow-lg">
@@ -202,21 +255,20 @@ const Builder = {
   },
 
   selectArt(newId, newImg) {
-    // Update instances in both boards
     const all = [...this.deck.main, ...this.deck.side].filter(c => c.name === this.selectedCardForPrints.name);
     all.forEach(c => {
       c.id = newId;
       c.image = newImg;
     });
-    closeArtModal();
+    window.closeArtModal();
     this.render();
   },
 
-  // Render Visual Stacks
   render() {
     this.renderBoardLane('main', 'main-stacks', 'main-group-count');
     this.renderBoardLane('side', 'side-stacks', 'side-group-count');
     this.calculateStats();
+    this.checkPauperLegality();
   },
 
   renderBoardLane(target, containerId, countId) {
@@ -231,7 +283,6 @@ const Builder = {
       return;
     }
 
-    // Category sorting
     const categories = {
       'Creatures': list.filter(c => c.type_line.includes('Creature')),
       'Instants': list.filter(c => c.type_line.includes('Instant')),
@@ -269,10 +320,10 @@ const Builder = {
           <img src="${card.image}" class="visual-card-img" alt="${card.name}">
           <span class="card-badge-qty">${card.qty}</span>
           <div class="card-quick-actions">
-            <button class="quick-btn" title="Add Copy" onclick="Builder.changeCardQty('${card.name}', '${target}', 1)">+</button>
-            <button class="quick-btn" title="Remove Copy" onclick="Builder.changeCardQty('${card.name}', '${target}', -1)">-</button>
-            <button class="quick-btn" title="Switch Board" onclick="Builder.moveCardBoard('${card.name}', '${target}')">⇄</button>
-            <button class="quick-btn" title="Change Art" onclick="Builder.openArtModal('${card.name}')">🎨</button>
+            <button class="quick-btn" title="Add Copy" onclick="Builder.changeCardQty('${card.name.replace(/'/g, "\\'")}', '${target}', 1)">+</button>
+            <button class="quick-btn" title="Remove Copy" onclick="Builder.changeCardQty('${card.name.replace(/'/g, "\\'")}', '${target}', -1)">-</button>
+            <button class="quick-btn" title="Switch Board" onclick="Builder.moveCardBoard('${card.name.replace(/'/g, "\\'")}', '${target}')">⇄</button>
+            <button class="quick-btn" title="Change Art" onclick="Builder.openArtModal('${card.name.replace(/'/g, "\\'")}')">🎨</button>
           </div>
         `;
         cascade.appendChild(wrap);
@@ -283,6 +334,69 @@ const Builder = {
     }
   },
 
+  checkPauperLegality() {
+    const badge = document.getElementById('pauper-badge');
+    const reasonsContainer = document.getElementById('legality-reasons');
+    if (!badge) return;
+
+    const reasons = [];
+    const mainCount = this.deck.main.reduce((s, c) => s + c.qty, 0);
+    const sideCount = this.deck.side.reduce((s, c) => s + c.qty, 0);
+
+    // Rule 1: Minimum 60 cards in mainboard
+    if (mainCount < 60) {
+      reasons.push(`Mainboard requires at least 60 cards (${mainCount}/60).`);
+    }
+
+    // Rule 2: Maximum 15 cards in sideboard
+    if (sideCount > 15) {
+      reasons.push(`Sideboard exceeds maximum of 15 cards (${sideCount}/15).`);
+    }
+
+    // Rule 3: 4-Copy Limit & Format Legality
+    const combinedCounts = {};
+    const legalityFlags = {};
+
+    [...this.deck.main, ...this.deck.side].forEach(c => {
+      combinedCounts[c.name] = (combinedCounts[c.name] || 0) + c.qty;
+      legalityFlags[c.name] = c.pauper_legal;
+    });
+
+    for (const [name, qty] of Object.entries(combinedCounts)) {
+      if (legalityFlags[name] === false) {
+        reasons.push(`"${name}" is banned or not legal in Pauper.`);
+      }
+
+      if (!BASIC_LANDS.has(name) && !UNLIMITED_COPIES.has(name)) {
+        const limit = (name === 'Seven Dwarves') ? 7 : 4;
+        if (qty > limit) {
+          reasons.push(`"${name}" exceeds the ${limit}-copy limit (${qty} copies present).`);
+        }
+      }
+    }
+
+    // Update UI Badge & Diagnostics Panel
+    if (reasons.length === 0 && mainCount >= 60) {
+      badge.textContent = 'Pauper Legal';
+      badge.className = 'text-xs uppercase px-2.5 py-1 bg-emerald-950 text-emerald-400 font-bold border border-emerald-700 rounded transition cursor-default';
+      badge.title = 'Deck meets all tournament requirements!';
+      if (reasonsContainer) reasonsContainer.innerHTML = '';
+    } else {
+      badge.textContent = 'Not Legal';
+      badge.className = 'text-xs uppercase px-2.5 py-1 bg-rose-950 text-rose-400 font-bold border border-rose-800 rounded transition cursor-pointer';
+      badge.title = reasons.join('\n');
+      
+      if (reasonsContainer) {
+        reasonsContainer.innerHTML = `
+          <div class="text-[11px] text-rose-300 bg-rose-950/60 border border-rose-900 rounded p-2.5 space-y-1">
+            <div class="font-bold uppercase tracking-wider text-rose-400">Legality Requirements:</div>
+            ${reasons.map(r => `<div>• ${r}</div>`).join('')}
+          </div>
+        `;
+      }
+    }
+  },
+
   calculateStats() {
     const mainList = this.deck.main;
     const sideList = this.deck.side;
@@ -290,8 +404,10 @@ const Builder = {
     const mainTotal = mainList.reduce((s, c) => s + c.qty, 0);
     const sideTotal = sideList.reduce((s, c) => s + c.qty, 0);
 
-    document.getElementById('stat-main-count').textContent = mainTotal;
-    document.getElementById('stat-side-count').textContent = sideTotal;
+    const mainCountEl = document.getElementById('stat-main-count');
+    const sideCountEl = document.getElementById('stat-side-count');
+    if (mainCountEl) mainCountEl.textContent = mainTotal;
+    if (sideCountEl) sideCountEl.textContent = sideTotal;
 
     // Price Calculations (Main + Side)
     let totalUsd = 0;
@@ -301,8 +417,10 @@ const Builder = {
       totalEur += (c.price_eur || 0) * c.qty;
     });
 
-    document.getElementById('stat-price-usd').textContent = `$${totalUsd.toFixed(2)}`;
-    document.getElementById('stat-price-eur').textContent = `€${totalEur.toFixed(2)}`;
+    const usdEl = document.getElementById('stat-price-usd');
+    const eurEl = document.getElementById('stat-price-eur');
+    if (usdEl) usdEl.textContent = `$${totalUsd.toFixed(2)}`;
+    if (eurEl) eurEl.textContent = `€${totalEur.toFixed(2)}`;
 
     // Mana Curve (Non-lands in mainboard)
     const curve = [0, 0, 0, 0, 0, 0, 0];
@@ -313,11 +431,14 @@ const Builder = {
 
     const maxCurve = Math.max(...curve, 1);
     curve.forEach((val, i) => {
-      const pct = (val / maxCurve) * 100;
-      document.getElementById(`curve-bar-${i}`).style.height = `${Math.max(pct, 4)}%`;
+      const bar = document.getElementById(`curve-bar-${i}`);
+      if (bar) {
+        const pct = (val / maxCurve) * 100;
+        bar.style.height = `${Math.max(pct, 4)}%`;
+      }
     });
 
-    // Colored Pip Breakdown
+    // Colored Mana Pip Distribution
     const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
     mainList.forEach(c => {
       const cost = c.mana_cost || '';
@@ -329,22 +450,31 @@ const Builder = {
     });
 
     const totalPips = Object.values(pips).reduce((a, b) => a + b, 0) || 1;
-    document.getElementById('pip-val-w').textContent = pips.W;
-    document.getElementById('pip-val-u').textContent = pips.U;
-    document.getElementById('pip-val-b').textContent = pips.B;
-    document.getElementById('pip-val-r').textContent = pips.R;
-    document.getElementById('pip-val-g').textContent = pips.G;
-    document.getElementById('pip-val-c').textContent = pips.C;
+    const wEl = document.getElementById('pip-val-w');
+    const uEl = document.getElementById('pip-val-u');
+    const bEl = document.getElementById('pip-val-b');
+    const rEl = document.getElementById('pip-val-r');
+    const gEl = document.getElementById('pip-val-g');
+    const cEl = document.getElementById('pip-val-c');
+
+    if (wEl) wEl.textContent = pips.W;
+    if (uEl) uEl.textContent = pips.U;
+    if (bEl) bEl.textContent = pips.B;
+    if (rEl) rEl.textContent = pips.R;
+    if (gEl) gEl.textContent = pips.G;
+    if (cEl) cEl.textContent = pips.C;
 
     const bar = document.getElementById('pip-progress-bar');
-    bar.innerHTML = `
-      <div class="pip-segment-w" style="width: ${(pips.W / totalPips) * 100}%"></div>
-      <div class="pip-segment-u" style="width: ${(pips.U / totalPips) * 100}%"></div>
-      <div class="pip-segment-b" style="width: ${(pips.B / totalPips) * 100}%"></div>
-      <div class="pip-segment-r" style="width: ${(pips.R / totalPips) * 100}%"></div>
-      <div class="pip-segment-g" style="width: ${(pips.G / totalPips) * 100}%"></div>
-      <div class="pip-segment-c" style="width: ${(pips.C / totalPips) * 100}%"></div>
-    `;
+    if (bar) {
+      bar.innerHTML = `
+        <div class="pip-segment-w" style="width: ${(pips.W / totalPips) * 100}%"></div>
+        <div class="pip-segment-u" style="width: ${(pips.U / totalPips) * 100}%"></div>
+        <div class="pip-segment-b" style="width: ${(pips.B / totalPips) * 100}%"></div>
+        <div class="pip-segment-r" style="width: ${(pips.R / totalPips) * 100}%"></div>
+        <div class="pip-segment-g" style="width: ${(pips.G / totalPips) * 100}%"></div>
+        <div class="pip-segment-c" style="width: ${(pips.C / totalPips) * 100}%"></div>
+      `;
+    }
 
     // Type Breakdown
     const types = {};
@@ -354,21 +484,20 @@ const Builder = {
     });
 
     const typeListContainer = document.getElementById('type-counts-list');
-    typeListContainer.innerHTML = Object.entries(types).map(([k, v]) => `
-      <div class="flex justify-between">
-        <span class="text-slate-400">${k}</span>
-        <span class="text-white font-bold">${v}</span>
-      </div>
-    `).join('');
+    if (typeListContainer) {
+      typeListContainer.innerHTML = Object.entries(types).map(([k, v]) => `
+        <div class="flex justify-between">
+          <span class="text-slate-400">${k}</span>
+          <span class="text-white font-bold">${v}</span>
+        </div>
+      `).join('');
+    }
   },
 
-  // Opening 7 Hand Mulligan Simulation
   openSampleHand() {
     const flatDeck = [];
     this.deck.main.forEach(c => {
-      for (let i = 0; i < c.qty; i++) {
-        flatDeck.push(c);
-      }
+      for (let i = 0; i < c.qty; i++) flatDeck.push(c);
     });
 
     if (flatDeck.length < 7) {
@@ -384,16 +513,19 @@ const Builder = {
 
     const hand = flatDeck.slice(0, 7);
     const lane = document.getElementById('sample-hand-lane');
-    lane.innerHTML = hand.map(c => `
-      <img src="${c.image}" class="w-32 rounded-lg shadow-xl hover:-translate-y-2 transition-transform">
-    `).join('');
+    if (lane) {
+      lane.innerHTML = hand.map(c => `
+        <img src="${c.image}" class="w-32 rounded-lg shadow-xl hover:-translate-y-2 transition-transform">
+      `).join('');
+    }
 
-    document.getElementById('hand-modal').classList.remove('hidden');
+    const modal = document.getElementById('hand-modal');
+    if (modal) modal.classList.remove('hidden');
   },
 
   async saveDeck() {
     const btn = document.getElementById('save-deck-btn');
-    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...`;
+    if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...`;
 
     try {
       const res = await fetch('/api_decks.php?action=save', {
@@ -413,25 +545,27 @@ const Builder = {
       if (!res.ok) throw new Error(data.error || 'Failed to save');
 
       this.deck.id = data.deck_id;
-      btn.innerHTML = `<i class="fa-solid fa-check"></i> Saved!`;
+      if (btn) btn.innerHTML = `<i class="fa-solid fa-check"></i> Saved!`;
       setTimeout(() => {
-        btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Deck`;
+        if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Deck`;
       }, 2000);
     } catch (err) {
       alert(err.message);
-      btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Deck`;
+      if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Deck`;
     }
   }
 };
 
-function closeArtModal() {
-  document.getElementById('art-modal').classList.add('hidden');
-}
+window.closeArtModal = function() {
+  const modal = document.getElementById('art-modal');
+  if (modal) modal.classList.add('hidden');
+};
 
-function closeHandModal() {
-  document.getElementById('hand-modal').classList.add('hidden');
-}
+window.closeHandModal = function() {
+  const modal = document.getElementById('hand-modal');
+  if (modal) modal.classList.add('hidden');
+};
 
 document.addEventListener('DOMContentLoaded', () => {
-  Builder.init();
+  window.Builder.init();
 });
