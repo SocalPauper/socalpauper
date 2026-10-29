@@ -21,7 +21,7 @@ if (!$userId || $role !== 'admin') {
 $pdo = getDBConnection();
 $feedback = null;
 
-// Auto-create broadcasts table if missing
+// Ensure broadcasts table exists
 $pdo->exec("
     CREATE TABLE IF NOT EXISTS `broadcasts` (
       `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -89,12 +89,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($recipients)) {
             $sentCount = 0;
             $failedCount = 0;
+            $mailDiagnostics = [];
+
+            // Configure From Address matching host domain
+            $senderEmail = 'noreply@' . ($_SERVER['SERVER_NAME'] ?? 'socalpauper.com');
+            $senderEmail = preg_replace('/^www\./i', '', $senderEmail);
 
             $headers  = "MIME-Version: 1.0\r\n";
             $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-            $headers .= "From: SoCal Pauper <updates@socalpauper.com>\r\n";
-            $headers .= "Reply-To: updates@socalpauper.com\r\n";
-            $headers .= "X-Mailer: PHP/" . phpversion();
+            $headers .= "From: SoCal Pauper <{$senderEmail}>\r\n";
+            $headers .= "Reply-To: {$senderEmail}\r\n";
+            $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+            $headers .= "X-Priority: 3\r\n";
+
+            $envelopeParam = "-f" . $senderEmail;
 
             foreach ($recipients as $recipient) {
                 $email = filter_var($recipient['email'], FILTER_VALIDATE_EMAIL);
@@ -106,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $cleanUser = htmlspecialchars($recipient['username'], ENT_QUOTES, 'UTF-8');
                 $formattedContent = nl2br(htmlspecialchars($messageBody, ENT_QUOTES, 'UTF-8'));
 
-                // MTG / SoCal Pauper Responsive HTML Template
+                // MTG-Themed Responsive HTML Template
                 $htmlBody = "
                 <!DOCTYPE html>
                 <html>
@@ -144,30 +152,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </body>
                 </html>";
 
-                if (@mail($email, $subject, $htmlBody, $headers)) {
+                // Attempt mail() with envelope sender parameter
+                $sent = @mail($email, $subject, $htmlBody, $headers, $envelopeParam);
+                if (!$sent) {
+                    // Fallback without envelope parameter if server blocks -f flag
+                    $sent = @mail($email, $subject, $htmlBody, $headers);
+                }
+
+                if ($sent) {
                     $sentCount++;
                 } else {
                     $failedCount++;
+                    $mailDiagnostics[] = "Failed handing off to mail agent for {$email}.";
                 }
             }
 
-            // Save active announcement popup to database if live blast and checkbox enabled
-            if (!$isTestOnly && $enablePopup) {
+            // ALWAYS create the popup when enabled (even in Safe Mode, so you can test it)
+            if ($enablePopup) {
+                // Delete previous test popups with the exact same subject to keep the DB clean
+                $delOld = $pdo->prepare("DELETE FROM broadcasts WHERE subject = ?");
+                $delOld->execute([$subject]);
+
                 $ins = $pdo->prepare("
                     INSERT INTO broadcasts (subject, message, audience, show_popup, expires_at)
                     VALUES (?, ?, ?, 1, DATE_ADD(NOW(), INTERVAL ? DAY))
                 ");
                 $ins->execute([$subject, $messageBody, $audience, $popupDays]);
+                $createdPopupId = (int)$pdo->lastInsertId();
+            }
+
+            $diagHtml = '';
+            if (!empty($mailDiagnostics)) {
+                $diagHtml = '<div class="mt-2 text-[11px] text-amber-300 font-mono">' . implode('<br>', $mailDiagnostics) . '</div>';
             }
 
             $feedback = [
-                'type' => 'success',
+                'type' => ($sentCount > 0) ? 'success' : 'error',
                 'msg' => $isTestOnly 
-                    ? "Safe Mode: Test broadcast successfully sent to <strong>" . htmlspecialchars($recipients[0]['email']) . "</strong>."
-                    : "Broadcast finished: <strong>{$sentCount}</strong> emails dispatched, <strong>{$failedCount}</strong> skipped/failed." . ($enablePopup ? " <strong>Homepage announcement popup set active for {$popupDays} days.</strong>" : "")
+                    ? "<strong>Safe Mode Test Dispatched:</strong> Sent test to <strong>" . htmlspecialchars($recipients[0]['email']) . "</strong>." . 
+                      ($enablePopup ? " <strong>Homepage announcement popup is now LIVE for {$popupDays} days!</strong> (<a href='index.php?preview_popup=1' target='_blank' class='underline text-amber-300 font-bold'>Click here to open index.php and test popup</a>)" : "") . $diagHtml
+                    : "<strong>Live Broadcast Complete:</strong> <strong>{$sentCount}</strong> dispatched, <strong>{$failedCount}</strong> failed." .
+                      ($enablePopup ? " <strong>Homepage announcement popup is now LIVE for {$popupDays} days!</strong>" : "") . $diagHtml
             ];
         } elseif (!$feedback) {
-            $feedback = ['type' => 'error', 'msg' => 'No subscribed players found with verified emails for the selected audience.'];
+            $feedback = ['type' => 'error', 'msg' => 'No subscribed players found for the selected audience.'];
         }
     }
 }
@@ -250,9 +278,9 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
       <div class="bg-[#161922] border border-amber-500/40 rounded-xl p-5 space-y-3 shadow-lg">
         <div class="flex items-center justify-between">
           <h2 class="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
-            <i class="fa-solid fa-bullhorn"></i> Active Main Page Popups
+            <i class="fa-solid fa-bullhorn"></i> Currently Active Main Page Popup(s)
           </h2>
-          <span class="text-[10px] text-zinc-400">Currently live on socalpauper.com</span>
+          <span class="text-[10px] text-zinc-400 font-mono"><?= count($activePopups) ?> active on socalpauper.com</span>
         </div>
         <div class="divide-y divide-[#2a3040]">
           <?php foreach ($activePopups as $p): ?>
@@ -261,9 +289,14 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
                 <span class="font-bold text-white"><?= htmlspecialchars($p['subject']) ?></span>
                 <span class="text-[10px] text-zinc-400 ml-2 font-mono">Expires: <?= date('M j, Y g:ia', strtotime($p['expires_at'])) ?></span>
               </div>
-              <a href="admin_broadcast.php?delete_popup=<?= (int)$p['id'] ?>" onclick="return confirm('Immediately remove this announcement popup from the main page?')" class="shrink-0 text-rose-400 hover:text-rose-300 font-bold text-[11px] px-2.5 py-1 rounded bg-rose-950/60 border border-rose-900 transition">
-                <i class="fa-solid fa-trash-can mr-1"></i> End Popup
-              </a>
+              <div class="flex items-center gap-2 shrink-0">
+                <a href="index.php?preview_popup=<?= (int)$p['id'] ?>" target="_blank" class="text-amber-400 hover:text-white font-bold text-[11px] px-2.5 py-1 rounded bg-amber-950/60 border border-amber-800 transition">
+                  <i class="fa-solid fa-eye mr-1"></i> Preview on Site
+                </a>
+                <a href="admin_broadcast.php?delete_popup=<?= (int)$p['id'] ?>" onclick="return confirm('Immediately remove this announcement popup from the main page?')" class="text-rose-400 hover:text-rose-300 font-bold text-[11px] px-2.5 py-1 rounded bg-rose-950/60 border border-rose-900 transition">
+                  <i class="fa-solid fa-trash-can mr-1"></i> End Popup
+                </a>
+              </div>
             </div>
           <?php endforeach; ?>
         </div>
@@ -313,7 +346,7 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
 
       <!-- Subject Line -->
       <div>
-        <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-1">2. Subject Line</label>
+        <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-1">2. Subject Line / Popup Title</label>
         <input type="text" name="subject" required placeholder="e.g. Next SoCal Pauper Monthly: Burbank Date & Details" 
                class="w-full bg-[#0c0e12] border border-[#2a3040] rounded-lg px-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500">
       </div>
@@ -329,7 +362,7 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
       <div class="p-4 bg-[#0c0e12]/70 rounded-xl border border-[#2a3040] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <label class="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" id="show_popup" name="show_popup" value="1" checked class="rounded bg-zinc-900 border-zinc-700 text-amber-600 focus:ring-0">
-          <span class="text-xs font-bold text-amber-400">Also display as an announcement popup on the main page</span>
+          <span class="text-xs font-bold text-amber-400">Display as announcement popup on homepage</span>
         </label>
         <div class="flex items-center gap-2 text-xs text-zinc-400 pl-6 sm:pl-0">
           <span>Active for:</span>
@@ -350,16 +383,16 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
           <input type="checkbox" id="test-only-checkbox" name="test_only" value="1" checked class="rounded bg-zinc-900 border-zinc-700 text-purple-600 focus:ring-0">
           <span class="text-xs font-bold text-purple-300">Safe Mode: Send a single test email preview first</span>
         </label>
-        <input type="email" name="test_email" placeholder="Your test recipient email (e.g. personal@gmail.com)" 
+        <input type="email" name="test_email" required placeholder="Enter your email to test (e.g. yourname@gmail.com)" 
                value="<?= htmlspecialchars($_SESSION['email'] ?? '') ?>"
                class="w-full bg-[#0c0e12] border border-purple-800/50 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-400">
       </div>
 
       <!-- Actions -->
       <div class="flex items-center justify-between pt-2">
-        <span class="text-[11px] text-zinc-500">Unsubscribe notice & SoCal Pauper branding are included automatically.</span>
+        <span class="text-[11px] text-zinc-500">Branding & unsubscribe notice are included automatically.</span>
         <button type="submit" onclick="return confirmSend()" class="px-6 py-2.5 bg-gradient-to-r from-purple-700 to-amber-600 hover:from-purple-600 hover:to-amber-500 text-white font-bold text-xs rounded-xl transition shadow-lg flex items-center gap-2">
-          <i class="fa-solid fa-paper-plane"></i> Dispatch Email
+          <i class="fa-solid fa-paper-plane"></i> Dispatch Blast
         </button>
       </div>
 
@@ -371,7 +404,7 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
     function confirmSend() {
       const isTest = document.getElementById('test-only-checkbox').checked;
       if (isTest) return true;
-      return confirm("WARNING: You are in LIVE mode. This will send an email blast to all opted-in players. Proceed?");
+      return confirm("WARNING: You are in LIVE mode. This will send an email blast to all selected players. Proceed?");
     }
   </script>
 </body>

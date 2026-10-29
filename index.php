@@ -1,3 +1,29 @@
+<?php
+session_start();
+require_once __DIR__ . '/db.php';
+
+// Check for any active broadcast to display as a popup
+$activeBroadcast = null;
+try {
+    $pdo = getDBConnection();
+    
+    // Check if an explicit preview was requested by admin via ?preview_popup=ID
+    if (!empty($_GET['preview_popup'])) {
+        $pId = (int)$_GET['preview_popup'];
+        $bStmt = $pdo->prepare("SELECT id, subject, message, created_at FROM broadcasts WHERE id = ?");
+        $bStmt->execute([$pId]);
+        $activeBroadcast = $bStmt->fetch(PDO::FETCH_ASSOC);
+    }
+    
+    // Default: grab newest active broadcast that has not expired
+    if (!$activeBroadcast) {
+        $bStmt = $pdo->query("SELECT id, subject, message, created_at FROM broadcasts WHERE expires_at > NOW() AND show_popup = 1 ORDER BY created_at DESC LIMIT 1");
+        $activeBroadcast = $bStmt->fetch(PDO::FETCH_ASSOC);
+    }
+} catch (Throwable $e) {
+    $activeBroadcast = null;
+}
+?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -76,12 +102,67 @@
   <?php include __DIR__ . '/partials/footer.php'; ?>
   <?php include __DIR__ . '/partials/modals.php'; ?>
 
+  <!-- Broadcast Announcement Modal -->
+  <?php if ($activeBroadcast): ?>
+    <div id="broadcast-popup" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+      <div class="card-frame max-w-lg w-full p-6 space-y-4 rounded-2xl shadow-2xl relative border border-amber-500/40">
+        
+        <div class="flex items-start justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-base font-bold border border-amber-500/30">
+              <i class="fa-solid fa-bullhorn"></i>
+            </div>
+            <div>
+              <span class="text-[10px] uppercase font-black text-amber-400 tracking-wider">Announcement</span>
+              <h3 class="text-base font-bold text-white"><?= htmlspecialchars($activeBroadcast['subject']) ?></h3>
+            </div>
+          </div>
+          <button onclick="dismissBroadcast(<?= (int)$activeBroadcast['id'] ?>)" class="text-zinc-400 hover:text-white text-lg">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="text-xs text-zinc-300 leading-relaxed bg-[#0c0e12]/80 p-4 rounded-xl border border-mtg-border max-h-60 overflow-y-auto whitespace-pre-wrap">
+          <?= htmlspecialchars($activeBroadcast['message']) ?>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+          <span class="text-[10px] text-zinc-500">Posted on <?= date('M j, Y', strtotime($activeBroadcast['created_at'])) ?></span>
+          <button onclick="dismissBroadcast(<?= (int)$activeBroadcast['id'] ?>)" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg transition shadow-md">
+            Got it
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        const broadcastId = <?= (int)$activeBroadcast['id'] ?>;
+        const isPreview = window.location.search.includes('preview_popup');
+        const dismissed = localStorage.getItem('socal_dismissed_broadcast_' + broadcastId);
+
+        // Render popup if not dismissed, or if admin explicitly requests ?preview_popup
+        if (!dismissed || isPreview) {
+          const popup = document.getElementById('broadcast-popup');
+          if (popup) popup.classList.remove('hidden');
+        }
+      })();
+
+      function dismissBroadcast(id) {
+        localStorage.setItem('socal_dismissed_broadcast_' + id, 'true');
+        const popup = document.getElementById('broadcast-popup');
+        if (popup) popup.classList.add('hidden');
+      }
+    </script>
+  <?php endif; ?>
+
   <!-- Modular Client-Side JavaScript -->
-<script src="/js/config.js?v=99"></script>
-<script src="/js/calendar.js?v=99"></script>
-<script src="/js/stores.js?v=99"></script>
-<script src="/js/cards.js?v=99"></script>
-<script src="/js/admin.js?v=99"></script>
+  <script src="/js/config.js?v=99"></script>
+  <script src="/js/calendar.js?v=99"></script>
+  <script src="/js/stores.js?v=99"></script>
+  <script src="/js/cards.js?v=99"></script>
+  <script src="/js/admin.js?v=99"></script>
 
 </body>
 </html>
