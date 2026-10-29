@@ -1,37 +1,35 @@
 name: Deploy to Spaceship Hosting
 
 on:
-push:
-branches:
-- main
-workflow_dispatch:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-web-deploy:
-name: Deploy Files via FTPS
-runs-on: ubuntu-latest
-steps:
-- name: Checkout Code
-uses: actions/checkout@v4
-with:
-fetch-depth: 2
+  web-deploy:
+    name: Deploy Files via FTPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
-  - name: Sync Files to Spaceship
-    uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-    with:
-      server: ${{ secrets.FTP_SERVER }}
-      username: ${{ secrets.FTP_USERNAME }}
-      password: ${{ secrets.FTP_PASSWORD }}
-      protocol: ftps
-      port: 21
-      # When using an FTP user jailed to the website directory, root is ./
-      server-dir: ./
-      # Exclude development files, documentation, and git metadata
-      exclude: |
-        **/.git*
-        **/.git*/**
-        **/.github/**
-        **/scripts/**
-        **/__pycache__/**
-        README.md
-        LICENSE
+      - name: Sync Files to Spaceship
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          server-dir: ./
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/scripts/**
+            **/__pycache__/**
+            README.md
+            LICENSE
