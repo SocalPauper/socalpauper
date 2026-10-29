@@ -40,7 +40,16 @@ window.Builder = {
   init() {
     this.checkAuth();
     this.bindEvents();
-    this.render();
+
+    // Check if deck ID is specified in URL (e.g. builder.php?id=15)
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetDeckId = urlParams.get('id');
+
+    if (targetDeckId) {
+      this.loadDeck(parseInt(targetDeckId, 10));
+    } else {
+      this.render();
+    }
   },
 
   async checkAuth() {
