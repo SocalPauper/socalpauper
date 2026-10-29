@@ -49,7 +49,6 @@ window.Builder = {
     if (targetDeckId) {
       await this.loadDeck(parseInt(targetDeckId, 10));
     } else {
-      // Non-logged-in user attempting to create a new deck directly
       if (!this.user) {
         this.openAuthModal('login');
       }
@@ -82,20 +81,16 @@ window.Builder = {
         else adminBtn.classList.add('hidden');
       }
 
-      slot.innerHTML = `
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-sky-400 font-bold uppercase tracking-wider">👤 ${this.escapeHtml(this.user.username)}</span>
-          <button type="button" onclick="Builder.logout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 transition">Log Out</button>
-        </div>
-      `;
+      slot.innerHTML = '<div class="flex items-center gap-2">' +
+        '<span class="text-xs text-sky-400 font-bold uppercase tracking-wider">👤 ' + this.escapeHtml(this.user.username) + '</span>' +
+        '<button type="button" onclick="Builder.logout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 transition">Log Out</button>' +
+        '</div>';
     } else {
       if (myDecksBtn) myDecksBtn.classList.add('hidden');
       if (adminBtn) adminBtn.classList.add('hidden');
 
-      slot.innerHTML = `
-        <button type="button" onclick="Builder.openAuthModal('login')" class="text-xs text-slate-300 hover:text-white px-2 py-1 transition font-medium">Log In</button>
-        <button type="button" onclick="Builder.openAuthModal('register')" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-2.5 py-1 rounded transition shadow-sm">Sign Up</button>
-      `;
+      slot.innerHTML = '<button type="button" onclick="Builder.openAuthModal(\'login\')" class="text-xs text-slate-300 hover:text-white px-2 py-1 transition font-medium">Log In</button>' +
+        '<button type="button" onclick="Builder.openAuthModal(\'register\')" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-2.5 py-1 rounded transition shadow-sm">Sign Up</button>';
     }
   },
 
@@ -192,7 +187,7 @@ window.Builder = {
 
         this.searchDebounce = setTimeout(async () => {
           try {
-            const endpoint = `https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(val)}`;
+            const endpoint = 'https://api.scryfall.com/cards/autocomplete?q=' + encodeURIComponent(val);
             const res = await fetch(endpoint);
             if (!res.ok) return;
             const data = await res.json();
@@ -243,7 +238,7 @@ window.Builder = {
     if (!box) return;
 
     if (!names.length) {
-      box.innerHTML = `<div class="p-3 text-xs text-slate-400 italic">No matching cards found.</div>`;
+      box.innerHTML = '<div class="p-3 text-xs text-slate-400 italic">No matching cards found.</div>';
       box.classList.add('is-open');
       box.style.display = 'block';
       return;
@@ -251,12 +246,10 @@ window.Builder = {
 
     box.innerHTML = names.map(name => {
       const cleanName = name.replace(/"/g, '&quot;');
-      return `
-        <div class="suggestion-row" data-card="${cleanName}">
-          <span class="text-sm font-semibold text-white pointer-events-none">${name}</span>
-          <span class="text-xs text-sky-400 font-bold pointer-events-none">+ Add to ${this.activeTarget.toUpperCase()}</span>
-        </div>
-      `;
+      return '<div class="suggestion-row" data-card="' + cleanName + '">' +
+        '<span class="text-sm font-semibold text-white pointer-events-none">' + name + '</span>' +
+        '<span class="text-xs text-sky-400 font-bold pointer-events-none">+ Add to ' + this.activeTarget.toUpperCase() + '</span>' +
+        '</div>';
     }).join('');
 
     box.querySelectorAll('.suggestion-row').forEach(row => {
@@ -290,14 +283,14 @@ window.Builder = {
     if (spinner) spinner.style.display = 'block';
 
     try {
-      const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}`);
-      if (!res.ok) throw new Error(`Lookup failed (${res.status})`);
+      const res = await fetch('https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(cardName));
+      if (!res.ok) throw new Error('Lookup failed (' + res.status + ')');
       const data = await res.json();
       this.insertCardIntoDeck(data, this.activeTarget, 1);
       this.render();
     } catch (err) {
       console.error(err);
-      alert(`Could not fetch data for "${cardName}".`);
+      alert('Could not fetch data for "' + cardName + '".');
     } finally {
       if (spinner) spinner.style.display = 'none';
     }
@@ -349,7 +342,7 @@ window.Builder = {
 
     const replaceCurrent = document.getElementById('import-replace-checkbox').checked;
     const submitBtn = document.getElementById('import-submit-btn');
-    submitBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Parsing cards...`;
+    submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Parsing cards...';
     submitBtn.disabled = true;
 
     try {
@@ -405,7 +398,7 @@ window.Builder = {
       if (notFoundNames.length) {
         for (const missingName of notFoundNames) {
           try {
-            const fallbackRes = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(missingName)}`);
+            const fallbackRes = await fetch('https://api.scryfall.com/cards/named?fuzzy=' + encodeURIComponent(missingName));
             if (fallbackRes.ok) {
               const fallbackCard = await fallbackRes.json();
               const fullName = fallbackCard.name.toLowerCase();
@@ -416,7 +409,7 @@ window.Builder = {
               cardLookupMap.set(missingName.toLowerCase(), fallbackCard);
             }
           } catch (e) {
-            console.warn(`Could not resolve missing card "${missingName}" via fallback:`, e);
+            console.warn('Could not resolve missing card via fallback:', missingName);
           }
         }
       }
@@ -441,9 +434,9 @@ window.Builder = {
       this.render();
     } catch (err) {
       console.error(err);
-      alert(`Import failed: ${err.message}`);
+      alert('Import failed: ' + err.message);
     } finally {
-      submitBtn.innerHTML = `<i class="fa-solid fa-file-arrow-down"></i> Import & Parse`;
+      submitBtn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Import & Parse';
       submitBtn.disabled = false;
     }
   },
@@ -511,7 +504,7 @@ window.Builder = {
       }
       this.render();
     } else {
-      const wrapperId = `card-${target}-${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const wrapperId = 'card-' + target + '-' + name.replace(/[^a-zA-Z0-9]/g, '_');
       const wrapEl = document.getElementById(wrapperId);
       if (wrapEl) {
         const badge = wrapEl.querySelector('.card-badge-qty');
@@ -560,7 +553,7 @@ window.Builder = {
 
     let moveQty = 1;
     if (card.qty > 1) {
-      const input = prompt(`Move how many copies of "${card.name}" to ${toTarget}? (1 - ${card.qty})`, card.qty);
+      const input = prompt('Move how many copies of "' + card.name + '" to ' + toTarget + '? (1 - ' + card.qty + ')', card.qty);
       if (input === null) return;
       moveQty = parseInt(input, 10);
       if (isNaN(moveQty) || moveQty <= 0) return;
@@ -599,27 +592,25 @@ window.Builder = {
 
     const modal = document.getElementById('art-modal');
     const grid = document.getElementById('art-prints-grid');
-    document.getElementById('art-modal-title').textContent = `Alternate Art: ${card.name}`;
-    grid.innerHTML = `<div class="col-span-full text-center text-sky-400 py-8"><i class="fa-solid fa-circle-notch fa-spin text-2xl"></i></div>`;
+    document.getElementById('art-modal-title').textContent = 'Alternate Art: ' + card.name;
+    grid.innerHTML = '<div class="col-span-full text-center text-sky-400 py-8"><i class="fa-solid fa-circle-notch fa-spin text-2xl"></i></div>';
     modal.style.display = 'flex';
 
     try {
-      const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(card.name)}"&unique=prints`);
+      const res = await fetch('https://api.scryfall.com/cards/search?q=!"' + encodeURIComponent(card.name) + '"&unique=prints');
       const data = await res.json();
       const prints = data.data || [];
 
       grid.innerHTML = prints.map(p => {
         const img = p.image_uris?.normal || p.card_faces?.[0]?.image_uris?.normal || '';
         if (!img) return '';
-        return `
-          <div class="cursor-pointer group flex flex-col items-center" onclick="Builder.selectArt('${p.id}', '${img}')">
-            <img src="${img}" class="rounded-lg border-2 border-transparent group-hover:border-sky-500 transition shadow-lg">
-            <span class="text-[10px] text-slate-400 font-bold uppercase mt-1.5">${p.set_name} (${p.set.toUpperCase()})</span>
-          </div>
-        `;
+        return '<div class="cursor-pointer group flex flex-col items-center" onclick="Builder.selectArt(\'' + p.id + '\', \'' + img + '\')">' +
+          '<img src="' + img + '" class="rounded-lg border-2 border-transparent group-hover:border-sky-500 transition shadow-lg">' +
+          '<span class="text-[10px] text-slate-400 font-bold uppercase mt-1.5">' + p.set_name + ' (' + p.set.toUpperCase() + ')</span>' +
+          '</div>';
       }).join('');
     } catch (err) {
-      grid.innerHTML = `<div class="col-span-full text-red-400 text-center py-4">Failed to fetch printings.</div>`;
+      grid.innerHTML = '<div class="col-span-full text-red-400 text-center py-4">Failed to fetch printings.</div>';
     }
   },
 
@@ -634,7 +625,7 @@ window.Builder = {
 
     const safeName = cardName.replace(/[^a-zA-Z0-9]/g, '_');
     ['main', 'side'].forEach(target => {
-      const wrapEl = document.getElementById(`card-${target}-${safeName}`);
+      const wrapEl = document.getElementById('card-' + target + '-' + safeName);
       if (wrapEl) {
         const imgEl = wrapEl.querySelector('.visual-card-img');
         if (imgEl) imgEl.src = newImg;
@@ -699,11 +690,11 @@ window.Builder = {
     const list = target === 'main' ? this.deck.main : this.deck.side;
     const totalCount = list.reduce((sum, c) => sum + c.qty, 0);
     const countEl = document.getElementById(countId);
-    if (countEl) countEl.textContent = `${totalCount} Cards`;
+    if (countEl) countEl.textContent = totalCount + ' Cards';
 
     container.innerHTML = '';
     if (!list.length) {
-      container.innerHTML = `<div class="text-xs text-slate-500 italic py-6 col-span-full">No cards in ${target}.</div>`;
+      container.innerHTML = '<div class="text-xs text-slate-500 italic py-6 col-span-full">No cards in ' + target + '.</div>';
       return;
     }
 
@@ -736,40 +727,38 @@ window.Builder = {
       const col = document.createElement('div');
       col.className = 'stack-column';
 
-      col.innerHTML = `
-        <div class="stack-column-header">
-          <span>${title}</span>
-          <span>${groupQty}</span>
-        </div>
-      `;
+      col.innerHTML = '<div class="stack-column-header">' +
+        '<span>' + title + '</span>' +
+        '<span>' + groupQty + '</span>' +
+        '</div>';
 
       const cascade = document.createElement('div');
       cascade.className = 'card-cascade-container';
-      cascade.style.height = `${240 + (cards.length - 1) * 36}px`;
+      cascade.style.height = (240 + (cards.length - 1) * 36) + 'px';
 
       cards.forEach((card, idx) => {
         const wrap = document.createElement('div');
         const safeName = card.name.replace(/[^a-zA-Z0-9]/g, '_');
-        wrap.id = `card-${target}-${safeName}`;
+        wrap.id = 'card-' + target + '-' + safeName;
         wrap.className = 'visual-card-wrapper';
-        wrap.style.top = `${idx * 34}px`;
+        wrap.style.top = (idx * 34) + 'px';
         wrap.style.zIndex = idx + 1;
 
-        // In Read-Only mode, quick action buttons (+, -, switch, art) are omitted
-        const actionsHtml = this.isReadOnly ? '' : `
-          <div class="card-quick-actions">
-            <button class="quick-btn" title="Add Copy" onclick="Builder.changeCardQty('${card.name.replace(/'/g, "\\'")}', '${target}', 1)">+</button>
-            <button class="quick-btn" title="Remove Copy" onclick="Builder.changeCardQty('${card.name.replace(/'/g, "\\'")}', '${target}', -1)">-</button>
-            <button class="quick-btn" title="Switch Board" onclick="Builder.moveCardBoard('${card.name.replace(/'/g, "\\'")}', '${target}')">⇄</button>
-            <button class="quick-btn" title="Change Art" onclick="Builder.openArtModal('${card.name.replace(/'/g, "\\'")}')">🎨</button>
-          </div>
-        `;
+        let actionsHtml = '';
+        if (!this.isReadOnly) {
+          const escName = card.name.replace(/'/g, "\\'");
+          actionsHtml = '<div class="card-quick-actions">' +
+            '<button class="quick-btn" title="Add Copy" onclick="Builder.changeCardQty(\'' + escName + '\', \'' + target + '\', 1)">+</button>' +
+            '<button class="quick-btn" title="Remove Copy" onclick="Builder.changeCardQty(\'' + escName + '\', \'' + target + '\', -1)">-</button>' +
+            '<button class="quick-btn" title="Switch Board" onclick="Builder.moveCardBoard(\'' + escName + '\', \'' + target + '\')">⇄</button>' +
+            '<button class="quick-btn" title="Change Art" onclick="Builder.openArtModal(\'' + escName + '\')">🎨</button>' +
+            '</div>';
+        }
 
-        wrap.innerHTML = `
-          <img src="${card.image}" class="visual-card-img" alt="${card.name}">
-          <span class="card-badge-qty">${card.qty}</span>
-          ${actionsHtml}
-        `;
+        wrap.innerHTML = '<img src="' + card.image + '" class="visual-card-img" alt="' + card.name + '">' +
+          '<span class="card-badge-qty">' + card.qty + '</span>' +
+          actionsHtml;
+
         cascade.appendChild(wrap);
       });
 
@@ -788,11 +777,11 @@ window.Builder = {
     const sideCount = this.deck.side.reduce((s, c) => s + c.qty, 0);
 
     if (mainCount < 60) {
-      reasons.push(`Mainboard requires at least 60 cards (${mainCount}/60).`);
+      reasons.push('Mainboard requires at least 60 cards (' + mainCount + '/60).');
     }
 
     if (sideCount > 15) {
-      reasons.push(`Sideboard exceeds maximum of 15 cards (${sideCount}/15).`);
+      reasons.push('Sideboard exceeds maximum of 15 cards (' + sideCount + '/15).');
     }
 
     const combinedCounts = {};
@@ -805,13 +794,13 @@ window.Builder = {
 
     for (const [name, qty] of Object.entries(combinedCounts)) {
       if (legalityFlags[name] === false) {
-        reasons.push(`"${name}" is banned or not legal in Pauper.`);
+        reasons.push('"' + name + '" is banned or not legal in Pauper.');
       }
 
       if (!BASIC_LANDS.has(name) && !UNLIMITED_COPIES.has(name)) {
         const limit = (name === 'Seven Dwarves') ? 7 : 4;
         if (qty > limit) {
-          reasons.push(`"${name}" exceeds the ${limit}-copy limit (${qty} copies present).`);
+          reasons.push('"' + name + '" exceeds the ' + limit + '-copy limit (' + qty + ' copies present).');
         }
       }
     }
@@ -827,12 +816,10 @@ window.Builder = {
       badge.title = reasons.join('\n');
       
       if (reasonsContainer) {
-        reasonsContainer.innerHTML = `
-          <div class="text-[11px] text-rose-300 bg-rose-950/60 border border-rose-900 rounded p-2.5 space-y-1">
-            <div class="font-bold uppercase tracking-wider text-rose-400">Legality Requirements:</div>
-            ${reasons.map(r => `<div>• ${r}</div>`).join('')}
-          </div>
-        `;
+        reasonsContainer.innerHTML = '<div class="text-[11px] text-rose-300 bg-rose-950/60 border border-rose-900 rounded p-2.5 space-y-1">' +
+          '<div class="font-bold uppercase tracking-wider text-rose-400">Legality Requirements:</div>' +
+          reasons.map(r => '<div>• ' + r + '</div>').join('') +
+          '</div>';
       }
     }
   },
@@ -858,8 +845,8 @@ window.Builder = {
 
     const usdEl = document.getElementById('stat-price-usd');
     const eurEl = document.getElementById('stat-price-eur');
-    if (usdEl) usdEl.textContent = `$${totalUsd.toFixed(2)}`;
-    if (eurEl) eurEl.textContent = `€${totalEur.toFixed(2)}`;
+    if (usdEl) usdEl.textContent = '$' + totalUsd.toFixed(2);
+    if (eurEl) eurEl.textContent = '€' + totalEur.toFixed(2);
 
     const curve = [0, 0, 0, 0, 0, 0, 0];
     mainList.filter(c => !c.type_line.includes('Land')).forEach(c => {
@@ -869,10 +856,10 @@ window.Builder = {
 
     const maxCurve = Math.max(...curve, 1);
     curve.forEach((val, i) => {
-      const bar = document.getElementById(`curve-bar-${i}`);
+      const bar = document.getElementById('curve-bar-' + i);
       if (bar) {
         const pct = (val / maxCurve) * 100;
-        bar.style.height = `${Math.max(pct, 4)}%`;
+        bar.style.height = Math.max(pct, 4) + '%';
       }
     });
 
@@ -901,14 +888,12 @@ window.Builder = {
 
     const bar = document.getElementById('pip-progress-bar');
     if (bar) {
-      bar.innerHTML = `
-        <div class="pip-segment-w" style="width: ${(pips.W / totalPips) * 100}%"></div>
-        <div class="pip-segment-u" style="width: ${(pips.U / totalPips) * 100}%"></div>
-        <div class="pip-segment-b" style="width: ${(pips.B / totalPips) * 100}%"></div>
-        <div class="pip-segment-r" style="width: ${(pips.R / totalPips) * 100}%"></div>
-        <div class="pip-segment-g" style="width: ${(pips.G / totalPips) * 100}%"></div>
-        <div class="pip-segment-c" style="width: ${(pips.C / totalPips) * 100}%"></div>
-      `;
+      bar.innerHTML = '<div class="pip-segment-w" style="width: ' + ((pips.W / totalPips) * 100) + '%"></div>' +
+        '<div class="pip-segment-u" style="width: ' + ((pips.U / totalPips) * 100) + '%"></div>' +
+        '<div class="pip-segment-b" style="width: ' + ((pips.B / totalPips) * 100) + '%"></div>' +
+        '<div class="pip-segment-r" style="width: ' + ((pips.R / totalPips) * 100) + '%"></div>' +
+        '<div class="pip-segment-g" style="width: ' + ((pips.G / totalPips) * 100) + '%"></div>' +
+        '<div class="pip-segment-c" style="width: ' + ((pips.C / totalPips) * 100) + '%"></div>';
     }
 
     this.renderTypeBreakdown(mainList, 'main-type-counts-list');
@@ -940,16 +925,16 @@ window.Builder = {
     if (!container) return;
 
     if (!cardsList.length) {
-      container.innerHTML = `<span class="text-slate-500 italic">No cards added</span>`;
+      container.innerHTML = '<span class="text-slate-500 italic">No cards added</span>';
       return;
     }
 
-    container.innerHTML = Object.entries(types).map(([k, v]) => `
-      <div class="flex justify-between py-0.5 border-b border-slate-800/60 last:border-0">
-        <span class="text-slate-400">${k}</span>
-        <span class="text-white font-bold">${v}</span>
-      </div>
-    `).join('');
+    container.innerHTML = Object.entries(types).map(([k, v]) => {
+      return '<div class="flex justify-between py-0.5 border-b border-slate-800/60 last:border-0">' +
+        '<span class="text-slate-400">' + k + '</span>' +
+        '<span class="text-white font-bold">' + v + '</span>' +
+        '</div>';
+    }).join('');
   },
 
   calculateHandProbabilities(mainList, mainTotal) {
@@ -995,14 +980,14 @@ window.Builder = {
     const pctAggro = Math.min(100, Math.max(0, probAggro * 100));
     const pctOne = Math.min(100, Math.max(0, probOneDrop * 100));
 
-    if (probStdEl) probStdEl.textContent = `${pctStd.toFixed(1)}%`;
-    if (barStdEl) barStdEl.style.width = `${pctStd}%`;
+    if (probStdEl) probStdEl.textContent = pctStd.toFixed(1) + '%';
+    if (barStdEl) barStdEl.style.width = pctStd + '%';
 
-    if (probAggroEl) probAggroEl.textContent = `${pctAggro.toFixed(1)}%`;
-    if (barAggroEl) barAggroEl.style.width = `${pctAggro}%`;
+    if (probAggroEl) probAggroEl.textContent = pctAggro.toFixed(1) + '%';
+    if (barAggroEl) barAggroEl.style.width = pctAggro + '%';
 
-    if (probOneEl) probOneEl.textContent = `${pctOne.toFixed(1)}%`;
-    if (barOneEl) barOneEl.style.width = `${pctOne}%`;
+    if (probOneEl) probOneEl.textContent = pctOne.toFixed(1) + '%';
+    if (barOneEl) barOneEl.style.width = pctOne + '%';
   },
 
   openSampleHand() {
@@ -1024,9 +1009,9 @@ window.Builder = {
     const hand = flatDeck.slice(0, 7);
     const lane = document.getElementById('sample-hand-lane');
     if (lane) {
-      lane.innerHTML = hand.map(c => `
-        <img src="${c.image}" class="w-32 rounded-lg shadow-xl hover:-translate-y-2 transition-transform">
-      `).join('');
+      lane.innerHTML = hand.map(c => {
+        return '<img src="' + c.image + '" class="w-32 rounded-lg shadow-xl hover:-translate-y-2 transition-transform">';
+      }).join('');
     }
 
     const modal = document.getElementById('hand-modal');
@@ -1041,7 +1026,7 @@ window.Builder = {
     }
 
     const btn = document.getElementById('save-deck-btn');
-    if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...`;
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...';
 
     try {
       const res = await fetch('/api_decks.php?action=save', {
@@ -1061,13 +1046,13 @@ window.Builder = {
       if (!res.ok) throw new Error(data.error || 'Failed to save');
 
       this.deck.id = data.deck_id;
-      if (btn) btn.innerHTML = `<i class="fa-solid fa-check"></i> Saved!`;
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i> Saved!';
       setTimeout(() => {
-        if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save`;
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save';
       }, 2000);
     } catch (err) {
       alert(err.message);
-      if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save`;
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save';
     }
   },
 
@@ -1086,8 +1071,7 @@ window.Builder = {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to clone');
 
-      // Redirect directly to the newly cloned deck in full editable mode
-      window.location.href = `builder.php?id=${data.new_deck_id}`;
+      window.location.href = 'builder.php?id=' + data.new_deck_id;
     } catch (err) {
       alert(err.message);
     }
@@ -1152,7 +1136,6 @@ window.Builder = {
       this.updateAuthUI();
       window.closeAuthModal();
 
-      // Re-evaluate read-only state now that user is signed in
       if (this.deck.id) {
         await this.loadDeck(this.deck.id);
       } else {
@@ -1176,7 +1159,7 @@ window.Builder = {
   async openMyDecksModal() {
     const modal = document.getElementById('my-decks-modal');
     const list = document.getElementById('my-decks-list');
-    list.innerHTML = `<div class="text-center py-6 text-sky-400"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading decks...</div>`;
+    list.innerHTML = '<div class="text-center py-6 text-sky-400"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading decks...</div>';
     modal.style.display = 'flex';
 
     try {
@@ -1186,29 +1169,29 @@ window.Builder = {
 
       const decks = data.decks || [];
       if (!decks.length) {
-        list.innerHTML = `<div class="text-slate-400 text-xs italic py-4 text-center">You haven't saved any decks yet.</div>`;
+        list.innerHTML = '<div class="text-slate-400 text-xs italic py-4 text-center">You haven\'t saved any decks yet.</div>';
         return;
       }
 
-      list.innerHTML = decks.map(d => `
-        <div class="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-slate-700 transition">
-          <div>
-            <div class="font-bold text-white text-sm">${this.escapeHtml(d.title)}</div>
-            <div class="text-[10px] text-slate-400">Updated: ${new Date(d.updated_at).toLocaleDateString()}</div>
-          </div>
-          <button type="button" onclick="Builder.loadDeck(${d.id})" class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded transition">
-            Load
-          </button>
-        </div>
-      `).join('');
+      list.innerHTML = decks.map(d => {
+        return '<div class="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-slate-700 transition">' +
+          '<div>' +
+          '<div class="font-bold text-white text-sm">' + this.escapeHtml(d.title) + '</div>' +
+          '<div class="text-[10px] text-slate-400">Updated: ' + new Date(d.updated_at).toLocaleDateString() + '</div>' +
+          '</div>' +
+          '<button type="button" onclick="Builder.loadDeck(' + d.id + ')" class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded transition">' +
+          'Load' +
+          '</button>' +
+          '</div>';
+      }).join('');
     } catch (err) {
-      list.innerHTML = `<div class="text-rose-400 text-xs py-4 text-center">${err.message}</div>`;
+      list.innerHTML = '<div class="text-rose-400 text-xs py-4 text-center">' + err.message + '</div>';
     }
   },
 
   async loadDeck(deckId) {
     try {
-      const res = await fetch(`/api_decks.php?action=get&id=${deckId}`);
+      const res = await fetch('/api_decks.php?action=get&id=' + deckId);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load deck');
 
@@ -1219,7 +1202,6 @@ window.Builder = {
       this.deck.main = d.cards_data.main || [];
       this.deck.side = d.cards_data.side || [];
 
-      // Determine Read-Only state: active if user is logged out, or user doesn't own deck and isn't admin
       const isOwner = this.user && (this.user.id == d.user_id);
       const isAdmin = this.user && (this.user.role === 'admin');
       this.isReadOnly = !isOwner && !isAdmin;
@@ -1236,7 +1218,7 @@ window.Builder = {
   async openAdminModal() {
     const modal = document.getElementById('admin-modal');
     const container = document.getElementById('admin-decks-table-container');
-    container.innerHTML = `<div class="text-center py-8 text-purple-400"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching site-wide decks...</div>`;
+    container.innerHTML = '<div class="text-center py-8 text-purple-400"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching site-wide decks...</div>';
     modal.style.display = 'flex';
 
     try {
@@ -1246,40 +1228,38 @@ window.Builder = {
 
       const decks = data.decks || [];
       if (!decks.length) {
-        container.innerHTML = `<div class="text-slate-400 text-xs italic text-center py-4">No decks found in database.</div>`;
+        container.innerHTML = '<div class="text-slate-400 text-xs italic text-center py-4">No decks found in database.</div>';
         return;
       }
 
-      container.innerHTML = `
-        <table class="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr class="border-b border-slate-700 text-slate-400 font-bold uppercase text-[10px]">
-              <th class="pb-2">Deck Title</th>
-              <th class="pb-2">Author</th>
-              <th class="pb-2">Email</th>
-              <th class="pb-2">Updated</th>
-              <th class="pb-2 text-right">Inspect</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-800">
-            ${decks.map(d => `
-              <tr class="hover:bg-slate-900/60">
-                <td class="py-2.5 font-bold text-white">${this.escapeHtml(d.title)}</td>
-                <td class="py-2.5 text-sky-400 font-mono">${this.escapeHtml(d.username)}</td>
-                <td class="py-2.5 text-slate-400">${d.email ? this.escapeHtml(d.email) : '<span class="italic text-slate-600">none</span>'}</td>
-                <td class="py-2.5 text-slate-400">${new Date(d.updated_at).toLocaleDateString()}</td>
-                <td class="py-2.5 text-right">
-                  <button type="button" onclick="Builder.loadDeck(${d.id})" class="px-2.5 py-1 bg-purple-900/80 hover:bg-purple-800 border border-purple-700 text-purple-200 font-bold rounded text-[11px] transition">
-                    View
-                  </button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
+      container.innerHTML = '<table class="w-full text-left text-xs border-collapse">' +
+        '<thead>' +
+        '<tr class="border-b border-slate-700 text-slate-400 font-bold uppercase text-[10px]">' +
+        '<th class="pb-2">Deck Title</th>' +
+        '<th class="pb-2">Author</th>' +
+        '<th class="pb-2">Email</th>' +
+        '<th class="pb-2">Updated</th>' +
+        '<th class="pb-2 text-right">Inspect</th>' +
+        '</tr>' +
+        '</thead>' +
+        '<tbody class="divide-y divide-slate-800">' +
+        decks.map(d => {
+          return '<tr class="hover:bg-slate-900/60">' +
+            '<td class="py-2.5 font-bold text-white">' + this.escapeHtml(d.title) + '</td>' +
+            '<td class="py-2.5 text-sky-400 font-mono">' + this.escapeHtml(d.username) + '</td>' +
+            '<td class="py-2.5 text-slate-400">' + (d.email ? this.escapeHtml(d.email) : '<span class="italic text-slate-600">none</span>') + '</td>' +
+            '<td class="py-2.5 text-slate-400">' + new Date(d.updated_at).toLocaleDateString() + '</td>' +
+            '<td class="py-2.5 text-right">' +
+            '<button type="button" onclick="Builder.loadDeck(' + d.id + ')" class="px-2.5 py-1 bg-purple-900/80 hover:bg-purple-800 border border-purple-700 text-purple-200 font-bold rounded text-[11px] transition">' +
+            'View' +
+            '</button>' +
+            '</td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody>' +
+        '</table>';
     } catch (err) {
-      container.innerHTML = `<div class="text-rose-400 text-xs py-4 text-center">${err.message}</div>`;
+      container.innerHTML = '<div class="text-rose-400 text-xs py-4 text-center">' + err.message + '</div>';
     }
   },
 

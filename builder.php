@@ -8,7 +8,7 @@ session_start();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SoCal Pauper — Deck Architect</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/builder.css?v=10">
+  <link rel="stylesheet" href="css/builder.css?v=11">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="builder-root">
@@ -16,7 +16,6 @@ session_start();
   <!-- Top Action Bar -->
   <header class="builder-header">
     <div class="flex items-center gap-4">
-      <!-- Hub button pointing to decks.php -->
       <a href="decks.php" class="text-sky-400 font-bold hover:text-white transition text-sm flex items-center gap-1.5">
         <i class="fa-solid fa-arrow-left"></i> Hub
       </a>
@@ -28,7 +27,7 @@ session_start();
         Not Legal
       </span>
 
-      <!-- Read Only Pill Indicator -->
+      <!-- Read Only Badge -->
       <span id="read-only-badge" class="hidden text-xs uppercase px-2.5 py-1 bg-amber-950 text-amber-300 font-bold border border-amber-800 rounded">
         <i class="fa-solid fa-eye mr-1"></i> Read Only View
       </span>
@@ -53,12 +52,12 @@ session_start();
         <i class="fa-solid fa-floppy-disk"></i> Save
       </button>
 
-      <!-- Clone foreign deck button for read-only view -->
+      <!-- Clone action for read-only decks -->
       <button id="clone-deck-btn" type="button" class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5">
         <i class="fa-solid fa-copy"></i> Clone to My Decks
       </button>
 
-      <!-- User Deck List Button -->
+      <!-- User Decks Drawer Trigger -->
       <button id="my-decks-btn" type="button" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg border border-slate-700 transition hidden">
         <i class="fa-solid fa-folder"></i> My Decks
       </button>
@@ -68,7 +67,6 @@ session_start();
         <i class="fa-solid fa-shield-halved"></i> Admin
       </button>
 
-      <!-- Auth State Slot -->
       <div id="nav-auth-slot" class="ml-2"></div>
     </div>
   </header>
@@ -180,7 +178,7 @@ session_start();
         </div>
       </div>
 
-      <!-- Separated Type Composition (Main vs Side) -->
+      <!-- Type Breakdowns -->
       <div class="stat-card">
         <div class="stat-label">Mainboard Composition</div>
         <div class="text-xs space-y-1 text-slate-300 font-medium" id="main-type-counts-list"></div>
@@ -196,7 +194,7 @@ session_start();
     <!-- Visual Deck Surface -->
     <main class="workspace-content">
       
-      <!-- Search Bar Wrap (Hidden in Read-Only Mode) -->
+      <!-- Search Input Container -->
       <div id="search-section" class="search-bar-wrap">
         <div class="relative">
           <input type="text" id="card-search-input" placeholder="Search card name (e.g. Counterspell, Kuldotha Rebirth, Lightning Bolt)..." 
@@ -208,7 +206,7 @@ session_start();
         <div id="search-suggestions" class="suggestions-dropdown"></div>
       </div>
 
-      <!-- Mainboard Visual Stacks -->
+      <!-- Mainboard Visual Stacks (Empty container populated strictly via JS) -->
       <div class="space-y-2">
         <div class="flex items-center justify-between border-b border-slate-800 pb-2">
           <h2 class="text-sm font-extrabold tracking-wider uppercase text-slate-300">Mainboard</h2>
@@ -217,7 +215,7 @@ session_start();
         <div id="main-stacks" class="stacks-lane"></div>
       </div>
 
-      <!-- Sideboard Visual Stacks -->
+      <!-- Sideboard Visual Stacks (Empty container populated strictly via JS) -->
       <div class="space-y-2 mt-8">
         <div class="flex items-center justify-between border-b border-slate-800 pb-2">
           <h2 class="text-sm font-extrabold tracking-wider uppercase text-slate-300">Sideboard</h2>
@@ -236,7 +234,7 @@ session_start();
       <div class="p-4 border-b border-slate-800 flex justify-between items-center">
         <div>
           <h3 class="font-bold text-white text-base">Import Deck List</h3>
-          <span class="text-xs text-slate-400">Supports text exports from Moxfield, MTGGoldfish, MTGO, MTG Arena & Archidekt</span>
+          <span class="text-xs text-slate-400">Supports exports from Moxfield, MTGGoldfish, MTGO, MTG Arena & Archidekt</span>
         </div>
         <button type="button" onclick="window.closeImportModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
       </div>
@@ -283,7 +281,7 @@ session_start();
     </div>
   </div>
 
-  <!-- User Account (Login / Register) Modal -->
+  <!-- User Account Modal -->
   <div id="auth-modal" class="deck-modal-backdrop" style="display: none;">
     <div class="deck-modal-window !max-w-md">
       <div class="p-4 border-b border-slate-800 flex justify-between items-center">
@@ -336,7 +334,7 @@ session_start();
     </div>
   </div>
 
-  <!-- Admin All Decks Inspector Modal -->
+  <!-- Admin Decks Modal -->
   <div id="admin-modal" class="deck-modal-backdrop" style="display: none;">
     <div class="deck-modal-window !max-w-3xl">
       <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-purple-950/40">
@@ -350,6 +348,6 @@ session_start();
     </div>
   </div>
 
-  <script src="js/builder.js?v=10"></script>
+  <script src="js/builder.js?v=11"></script>
 </body>
 </html>
