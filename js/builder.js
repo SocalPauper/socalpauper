@@ -10,7 +10,6 @@ const UNLIMITED_COPIES = new Set([
   'Dragon\'s Approach', 'Slime Against Humanity', 'Templar Knight'
 ]);
 
-// Hypergeometric combination helper: nCr = n! / (r! * (n - r)!)
 function combinations(n, r) {
   if (r < 0 || r > n) return 0;
   if (r === 0 || r === n) return 1;
@@ -21,7 +20,6 @@ function combinations(n, r) {
   return c;
 }
 
-// Hypergeometric probability: P(X = k)
 function hypergeomPdf(k, N, K, n) {
   return (combinations(K, k) * combinations(N - K, n - k)) / combinations(N, n);
 }
@@ -406,37 +404,92 @@ window.Builder = {
     return { main, side };
   },
 
+  // Focus-preserving change quantity
   changeCardQty(name, target, delta) {
     const list = target === 'main' ? this.deck.main : this.deck.side;
     const card = list.find(c => c.name === name);
     if (!card) return;
 
     card.qty += delta;
+
     if (card.qty <= 0) {
-      if (target === 'main') this.deck.main = this.deck.main.filter(c => c.name !== name);
-      else this.deck.side = this.deck.side.filter(c => c.name !== name);
+      // Card is completely removed: full structural re-render required
+      if (target === 'main') {
+        this.deck.main = this.deck.main.filter(c => c.name !== name);
+      } else {
+        this.deck.side = this.deck.side.filter(c => c.name !== name);
+      }
+      this.render();
+    } else {
+      // In-place DOM update so the card element is NEVER destroyed, retaining full cursor focus
+      const wrapperId = `card-${target}-${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const wrapEl = document.getElementById(wrapperId);
+      if (wrapEl) {
+        const badge = wrapEl.querySelector('.card-badge-qty');
+        if (badge) badge.textContent = card.qty;
+      }
+      this.calculateStats();
+      this.checkPauperLegality();
+
+      // Update column header count
+      const category = this.getCardCategory(card);
+      this.updateColumnHeaderCount(target, category);
     }
-    this.render();
   },
 
+  updateColumnHeaderCount(target, category) {
+    const containerId = target === 'main' ? 'main-stacks' : 'side-stacks';
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const list = target === 'main' ? this.deck.main : this.deck.side;
+    const catCards = list.filter(c => this.getCardCategory(c) === category);
+    const catTotal = catCards.reduce((sum, c) => sum + c.qty, 0);
+
+    const headers = container.querySelectorAll('.stack-column');
+    headers.forEach(col => {
+      const titleSpan = col.querySelector('.stack-column-header span:first-child');
+      const countSpan = col.querySelector('.stack-column-header span:last-child');
+      if (titleSpan && titleSpan.textContent === category && countSpan) {
+        countSpan.textContent = catTotal;
+      }
+    });
+  },
+
+  // Interactive quantity prompt for moving boards
   moveCardBoard(name, fromTarget) {
     const sourceList = fromTarget === 'main' ? this.deck.main : this.deck.side;
     const destList = fromTarget === 'main' ? this.deck.side : this.deck.main;
+    const toTarget = fromTarget === 'main' ? 'Sideboard' : 'Mainboard';
 
-    const idx = sourceList.findIndex(c => c.name === name);
-    if (idx === -1) return;
+    const card = sourceList.find(c => c.name === name);
+    if (!card) return;
 
-    const card = sourceList[idx];
-    const existing = destList.find(c => c.name === name);
-
-    if (existing) {
-      existing.qty += 1;
-    } else {
-      destList.push({ ...card, qty: 1 });
+    let moveQty = 1;
+    if (card.qty > 1) {
+      const input = prompt(`Move how many copies of "${card.name}" to ${toTarget}? (1 - ${card.qty})`, card.qty);
+      if (input === null) return; // User cancelled
+      moveQty = parseInt(input, 10);
+      if (isNaN(moveQty) || moveQty <= 0) return;
+      if (moveQty > card.qty) moveQty = card.qty;
     }
 
-    card.qty -= 1;
-    if (card.qty <= 0) sourceList.splice(idx, 1);
+    const existingInDest = destList.find(c => c.name === name);
+    if (existingInDest) {
+      existingInDest.qty += moveQty;
+    } else {
+      destList.push({ ...card, qty: moveQty });
+    }
+
+    card.qty -= moveQty;
+    if (card.qty <= 0) {
+      if (fromTarget === 'main') {
+        this.deck.main = this.deck.main.filter(c => c.name !== name);
+      } else {
+        this.deck.side = this.deck.side.filter(c => c.name !== name);
+      }
+    }
+
     this.render();
   },
 
@@ -472,16 +525,26 @@ window.Builder = {
   },
 
   selectArt(newId, newImg) {
-    const all = [...this.deck.main, ...this.deck.side].filter(c => c.name === this.selectedCardForPrints.name);
+    const cardName = this.selectedCardForPrints.name;
+    const all = [...this.deck.main, ...this.deck.side].filter(c => c.name === cardName);
     all.forEach(c => {
       c.id = newId;
       c.image = newImg;
     });
+
+    // In-place image element update so card does not unmount/remount
+    const safeName = cardName.replace(/[^a-zA-Z0-9]/g, '_');
+    ['main', 'side'].forEach(target => {
+      const wrapEl = document.getElementById(`card-${target}-${safeName}`);
+      if (wrapEl) {
+        const imgEl = wrapEl.querySelector('.visual-card-img');
+        if (imgEl) imgEl.src = newImg;
+      }
+    });
+
     window.closeArtModal();
-    this.render();
   },
 
-  // Dynamic Type Determiner (Uses front-face to prevent Adventure/MDFC split duplication)
   getCardCategory(card) {
     const rawType = card.type_line || '';
     const primaryFaceType = rawType.split('//')[0].trim();
@@ -561,6 +624,8 @@ window.Builder = {
 
       cards.forEach((card, idx) => {
         const wrap = document.createElement('div');
+        const safeName = card.name.replace(/[^a-zA-Z0-9]/g, '_');
+        wrap.id = `card-${target}-${safeName}`;
         wrap.className = 'visual-card-wrapper';
         wrap.style.top = `${idx * 34}px`;
         wrap.style.zIndex = idx + 1;
@@ -654,7 +719,6 @@ window.Builder = {
     if (mainCountEl) mainCountEl.textContent = mainTotal;
     if (sideCountEl) sideCountEl.textContent = sideTotal;
 
-    // Price Calculations
     let totalUsd = 0;
     let totalEur = 0;
     [...mainList, ...sideList].forEach(c => {
@@ -667,7 +731,6 @@ window.Builder = {
     if (usdEl) usdEl.textContent = `$${totalUsd.toFixed(2)}`;
     if (eurEl) eurEl.textContent = `€${totalEur.toFixed(2)}`;
 
-    // Mana Curve
     const curve = [0, 0, 0, 0, 0, 0, 0];
     mainList.filter(c => !c.type_line.includes('Land')).forEach(c => {
       const cmc = Math.min(c.cmc, 6);
@@ -683,7 +746,6 @@ window.Builder = {
       }
     });
 
-    // Colored Pip Breakdown
     const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
     mainList.forEach(c => {
       const cost = c.mana_cost || '';
@@ -719,11 +781,8 @@ window.Builder = {
       `;
     }
 
-    // Type Breakdowns (Main vs Sideboard)
     this.renderTypeBreakdown(mainList, 'main-type-counts-list');
     this.renderTypeBreakdown(sideList, 'side-type-counts-list');
-
-    // Hypergeometric Opening Hand Odds
     this.calculateHandProbabilities(mainList, mainTotal);
   },
 
