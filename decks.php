@@ -79,7 +79,7 @@ session_start();
       </div>
     </aside>
 
-    <!-- Right Content: Decks Grid (Empty container populated strictly via JS) -->
+    <!-- Right Content: Decks Grid -->
     <main class="md:col-span-3 space-y-4">
       <div class="flex items-center justify-between">
         <h1 id="view-title" class="text-xl font-black text-white">All Decks</h1>
@@ -92,7 +92,7 @@ session_start();
 
   <!-- Rename Deck Modal -->
   <div id="rename-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-2">
         <h3 class="font-bold text-white text-base">Rename Deck</h3>
         <button onclick="closeRenameModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
@@ -107,7 +107,7 @@ session_start();
 
   <!-- Create Folder Modal -->
   <div id="folder-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-2">
         <h3 class="font-bold text-white text-base">Create Folder</h3>
         <button onclick="closeFolderModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
@@ -122,7 +122,7 @@ session_start();
 
   <!-- Move to Folder Modal -->
   <div id="move-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-2">
         <h3 class="font-bold text-white text-base">Move Deck to Folder</h3>
         <button onclick="closeMoveModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
@@ -137,28 +137,55 @@ session_start();
     </div>
   </div>
 
-  <!-- Auth Modal -->
+  <!-- Auth Modal (Sign In & Register) -->
   <div id="auth-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-2">
         <h3 id="auth-modal-title" class="font-bold text-white text-base">Sign In</h3>
         <button onclick="closeAuthModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
       </div>
+
       <form id="auth-form" class="space-y-4">
-        <div id="auth-error-msg" class="text-xs text-rose-400 bg-rose-950/60 border border-rose-900 rounded p-2 hidden"></div>
+        <div id="auth-error-msg" class="text-xs text-rose-400 bg-rose-950/60 border border-rose-900 rounded p-2.5 hidden"></div>
+
         <div>
           <label class="block text-xs font-bold text-slate-300 uppercase mb-1">Username</label>
-          <input type="text" id="auth-username" required class="w-full bg-slate-950 border border-slate-700 text-white rounded p-2 text-sm focus:border-sky-500 focus:outline-none">
+          <input type="text" id="auth-username" required autocomplete="username" class="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-sm focus:border-sky-500 focus:outline-none">
         </div>
+
         <div>
           <label class="block text-xs font-bold text-slate-300 uppercase mb-1">Password</label>
-          <input type="password" id="auth-password" required minlength="8" class="w-full bg-slate-950 border border-slate-700 text-white rounded p-2 text-sm focus:border-sky-500 focus:outline-none">
+          <input type="password" id="auth-password" required minlength="8" autocomplete="current-password" class="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-sm focus:border-sky-500 focus:outline-none">
         </div>
-        <button type="submit" id="auth-submit-btn" class="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg transition text-sm">Sign In</button>
+
+        <!-- Registration extra fields -->
+        <div id="auth-register-extra" class="space-y-3 hidden">
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase mb-1">Email <span class="text-slate-500 font-normal lowercase">(optional)</span></label>
+            <input type="email" id="auth-email" autocomplete="email" class="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-sm focus:border-sky-500 focus:outline-none">
+          </div>
+          <div class="space-y-1.5 pt-1">
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+              <input type="checkbox" id="auth-notify-events" checked class="rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-0">
+              <span>Notify me of upcoming SoCal tournaments</span>
+            </label>
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+              <input type="checkbox" id="auth-notify-promos" checked class="rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-0">
+              <span>Receive local LGS promos</span>
+            </label>
+          </div>
+        </div>
+
+        <button type="submit" id="auth-submit-btn" class="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg transition text-sm shadow">Sign In</button>
+
+        <div class="text-center text-xs text-slate-400 pt-2 border-t border-slate-800">
+          <span id="auth-toggle-prompt">Don't have an account?</span>
+          <button type="button" id="auth-toggle-mode-btn" onclick="Hub.toggleAuthMode()" class="text-sky-400 font-bold hover:underline ml-1">Create Account</button>
+        </div>
       </form>
     </div>
   </div>
 
-  <script src="js/decks_hub.js?v=4"></script>
+  <script src="js/decks_hub.js?v=5"></script>
 </body>
 </html>

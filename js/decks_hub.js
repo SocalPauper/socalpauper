@@ -1,6 +1,7 @@
 // js/decks_hub.js
 window.Hub = {
   user: null,
+  authMode: 'login',
   activeTab: 'my_decks',
   activeFolderId: null,
   decks: [],
@@ -36,6 +37,31 @@ window.Hub = {
         '</div>';
     } else {
       slot.innerHTML = '<button onclick="openAuthModal()" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-3 py-1.5 rounded-lg transition shadow-sm">Sign In</button>';
+    }
+  },
+
+  toggleAuthMode() {
+    this.authMode = this.authMode === 'login' ? 'register' : 'login';
+    const title = document.getElementById('auth-modal-title');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const prompt = document.getElementById('auth-toggle-prompt');
+    const toggleBtn = document.getElementById('auth-toggle-mode-btn');
+    const extraFields = document.getElementById('auth-register-extra');
+    const errEl = document.getElementById('auth-error-msg');
+    if (errEl) errEl.classList.add('hidden');
+
+    if (this.authMode === 'register') {
+      if (title) title.textContent = 'Create Account';
+      if (submitBtn) submitBtn.textContent = 'Sign Up';
+      if (prompt) prompt.textContent = 'Already have an account?';
+      if (toggleBtn) toggleBtn.textContent = 'Sign In';
+      if (extraFields) extraFields.classList.remove('hidden');
+    } else {
+      if (title) title.textContent = 'Sign In';
+      if (submitBtn) submitBtn.textContent = 'Sign In';
+      if (prompt) prompt.textContent = "Don't have an account?";
+      if (toggleBtn) toggleBtn.textContent = 'Create Account';
+      if (extraFields) extraFields.classList.add('hidden');
     }
   },
 
@@ -93,14 +119,25 @@ window.Hub = {
         const password = document.getElementById('auth-password').value;
         const errEl = document.getElementById('auth-error-msg');
 
+        const endpoint = this.authMode === 'register'
+          ? '/api_auth.php?action=register'
+          : '/api_auth.php?action=login';
+
+        const payload = { username, password };
+        if (this.authMode === 'register') {
+          payload.email = document.getElementById('auth-email').value.trim();
+          payload.notify_events = document.getElementById('auth-notify-events').checked;
+          payload.notify_promotions = document.getElementById('auth-notify-promos').checked;
+        }
+
         try {
-          const res = await fetch('/api_auth.php?action=login', {
+          const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify(payload)
           });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Login failed');
+          if (!res.ok) throw new Error(data.error || 'Authentication failed');
           this.user = data.user;
           this.updateAuthUI();
           closeAuthModal();

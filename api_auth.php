@@ -23,7 +23,7 @@ $action = $_GET['action'] ?? '';
 $payload = json_decode(file_get_contents('php://input'), true) ?? [];
 
 switch ($action) {
-    // Check current session state
+    // 1. Check if user is currently logged in via Session
     case 'check':
         if (!empty($_SESSION['user_id'])) {
             $stmt = $pdo->prepare("SELECT id, username, email, role FROM users WHERE id = ?");
@@ -48,7 +48,7 @@ switch ($action) {
         echo json_encode(['authenticated' => false, 'user' => null]);
         break;
 
-    // Log in
+    // 2. Query MySQL and verify credentials
     case 'login':
         $username = trim($payload['username'] ?? '');
         $password = $payload['password'] ?? '';
@@ -59,10 +59,12 @@ switch ($action) {
             exit;
         }
 
+        // Fetch user from DB by username or email
         $stmt = $pdo->prepare("SELECT id, username, password_hash, email, role FROM users WHERE username = ? OR email = ?");
         $stmt->execute([$username, $username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
+        // Verify password against DB hash
         if (!$user || !password_verify($password, $user['password_hash'])) {
             http_response_code(401);
             echo json_encode(['error' => 'Invalid username or password.']);
@@ -84,7 +86,7 @@ switch ($action) {
         ]);
         break;
 
-    // Register account
+    // 3. Insert new user into MySQL
     case 'register':
         $username = trim($payload['username'] ?? '');
         $password = $payload['password'] ?? '';
@@ -104,7 +106,7 @@ switch ($action) {
             exit;
         }
 
-        // Check if username already exists
+        // Check if username taken
         $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ?");
         $stmt->execute([$username]);
         if ($stmt->fetch()) {
@@ -113,7 +115,7 @@ switch ($action) {
             exit;
         }
 
-        // Check if email already exists (if provided)
+        // Check if email taken
         if ($email !== '') {
             $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
             $stmt->execute([$email]);
@@ -139,7 +141,7 @@ switch ($action) {
                 $notifyPromos
             ]);
         } catch (Exception $e) {
-            // Fallback insert if notify columns do not exist in users table
+            // Fallback if notify columns are omitted
             $stmt = $pdo->prepare("
                 INSERT INTO users (username, password_hash, email, role) 
                 VALUES (?, ?, ?, 'user')
@@ -168,7 +170,7 @@ switch ($action) {
         ]);
         break;
 
-    // Log out
+    // 4. Destroy session
     case 'logout':
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
