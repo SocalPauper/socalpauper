@@ -324,6 +324,7 @@ window.Builder = {
       }
 
       const cardLookupMap = new Map();
+      const notFoundNames = [];
 
       for (const batch of batches) {
         const identifiers = batch.map(name => ({ name: name }));
@@ -337,17 +338,52 @@ window.Builder = {
         const data = await res.json();
 
         (data.data || []).forEach(card => {
-          cardLookupMap.set(card.name.toLowerCase(), card);
+          const fullName = card.name.toLowerCase();
+          const frontName = fullName.split('//')[0].trim();
+
+          cardLookupMap.set(fullName, card);
+          cardLookupMap.set(frontName, card);
         });
+
+        if (data.not_found && data.not_found.length) {
+          data.not_found.forEach(nf => {
+            if (nf.name) notFoundNames.push(nf.name);
+          });
+        }
       }
 
+      if (notFoundNames.length) {
+        for (const missingName of notFoundNames) {
+          try {
+            const fallbackRes = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(missingName)}`);
+            if (fallbackRes.ok) {
+              const fallbackCard = await fallbackRes.json();
+              const fullName = fallbackCard.name.toLowerCase();
+              const frontName = fullName.split('//')[0].trim();
+
+              cardLookupMap.set(fullName, fallbackCard);
+              cardLookupMap.set(frontName, fallbackCard);
+              cardLookupMap.set(missingName.toLowerCase(), fallbackCard);
+            }
+          } catch (e) {
+            console.warn(`Could not resolve missing card "${missingName}" via fallback:`, e);
+          }
+        }
+      }
+
+      const getCard = (rawName) => {
+        const clean = rawName.toLowerCase();
+        const front = clean.split('//')[0].trim();
+        return cardLookupMap.get(clean) || cardLookupMap.get(front) || null;
+      };
+
       parsedEntries.main.forEach(entry => {
-        const scryfallCard = cardLookupMap.get(entry.name.toLowerCase());
+        const scryfallCard = getCard(entry.name);
         if (scryfallCard) this.insertCardIntoDeck(scryfallCard, 'main', entry.qty);
       });
 
       parsedEntries.side.forEach(entry => {
-        const scryfallCard = cardLookupMap.get(entry.name.toLowerCase());
+        const scryfallCard = getCard(entry.name);
         if (scryfallCard) this.insertCardIntoDeck(scryfallCard, 'side', entry.qty);
       });
 
@@ -404,7 +440,6 @@ window.Builder = {
     return { main, side };
   },
 
-  // Focus-preserving change quantity
   changeCardQty(name, target, delta) {
     const list = target === 'main' ? this.deck.main : this.deck.side;
     const card = list.find(c => c.name === name);
@@ -413,7 +448,6 @@ window.Builder = {
     card.qty += delta;
 
     if (card.qty <= 0) {
-      // Card is completely removed: full structural re-render required
       if (target === 'main') {
         this.deck.main = this.deck.main.filter(c => c.name !== name);
       } else {
@@ -421,7 +455,6 @@ window.Builder = {
       }
       this.render();
     } else {
-      // In-place DOM update so the card element is NEVER destroyed, retaining full cursor focus
       const wrapperId = `card-${target}-${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const wrapEl = document.getElementById(wrapperId);
       if (wrapEl) {
@@ -431,7 +464,6 @@ window.Builder = {
       this.calculateStats();
       this.checkPauperLegality();
 
-      // Update column header count
       const category = this.getCardCategory(card);
       this.updateColumnHeaderCount(target, category);
     }
@@ -456,7 +488,6 @@ window.Builder = {
     });
   },
 
-  // Interactive quantity prompt for moving boards
   moveCardBoard(name, fromTarget) {
     const sourceList = fromTarget === 'main' ? this.deck.main : this.deck.side;
     const destList = fromTarget === 'main' ? this.deck.side : this.deck.main;
@@ -468,7 +499,7 @@ window.Builder = {
     let moveQty = 1;
     if (card.qty > 1) {
       const input = prompt(`Move how many copies of "${card.name}" to ${toTarget}? (1 - ${card.qty})`, card.qty);
-      if (input === null) return; // User cancelled
+      if (input === null) return;
       moveQty = parseInt(input, 10);
       if (isNaN(moveQty) || moveQty <= 0) return;
       if (moveQty > card.qty) moveQty = card.qty;
@@ -532,7 +563,6 @@ window.Builder = {
       c.image = newImg;
     });
 
-    // In-place image element update so card does not unmount/remount
     const safeName = cardName.replace(/[^a-zA-Z0-9]/g, '_');
     ['main', 'side'].forEach(target => {
       const wrapEl = document.getElementById(`card-${target}-${safeName}`);
