@@ -2,10 +2,11 @@
 window.Hub = {
   user: null,
   authMode: 'login',
-  activeTab: 'my_decks',
+  activeTab: 'my_decks', // 'my_decks', 'community', or 'admin'
   activeFolderId: null,
   decks: [],
   folders: [],
+  adminUsers: [],
   activeDeckActionId: null,
 
   async init() {
@@ -28,15 +29,25 @@ window.Hub = {
 
   updateAuthUI() {
     const slot = document.getElementById('nav-auth-slot');
-    if (!slot) return;
+    const adminTab = document.getElementById('tab-admin');
 
     if (this.user) {
-      slot.innerHTML = '<div class="flex items-center gap-2">' +
-        '<span class="text-xs text-sky-400 font-bold uppercase tracking-wider">👤 ' + this.escapeHtml(this.user.username) + '</span>' +
-        '<button onclick="Hub.logout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 transition">Log Out</button>' +
-        '</div>';
+      if (adminTab) {
+        if (this.user.role === 'admin') adminTab.classList.remove('hidden');
+        else adminTab.classList.add('hidden');
+      }
+
+      if (slot) {
+        slot.innerHTML = '<div class="flex items-center gap-2">' +
+          '<span class="text-xs text-sky-400 font-bold uppercase tracking-wider">👤 ' + this.escapeHtml(this.user.username) + '</span>' +
+          '<button onclick="Hub.logout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 transition">Log Out</button>' +
+          '</div>';
+      }
     } else {
-      slot.innerHTML = '<button onclick="openAuthModal()" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-3 py-1.5 rounded-lg transition shadow-sm">Sign In</button>';
+      if (adminTab) adminTab.classList.add('hidden');
+      if (slot) {
+        slot.innerHTML = '<button onclick="openAuthModal()" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-3 py-1.5 rounded-lg transition shadow-sm">Sign In</button>';
+      }
     }
   },
 
@@ -76,30 +87,58 @@ window.Hub = {
   bindEvents() {
     const myDecksTab = document.getElementById('tab-my-decks');
     const commTab = document.getElementById('tab-community');
+    const adminTab = document.getElementById('tab-admin');
 
-    if (myDecksTab && commTab) {
+    const resetTabs = () => {
+      [myDecksTab, commTab, adminTab].forEach(t => {
+        if (t) t.className = 'px-4 py-1.5 rounded-md text-slate-400 hover:text-white transition';
+      });
+      document.getElementById('folders-panel')?.classList.remove('hidden');
+      document.getElementById('decks-grid')?.classList.remove('hidden');
+      document.getElementById('admin-users-tree')?.classList.add('hidden');
+      document.getElementById('filter-label').textContent = 'Search Decks';
+    };
+
+    if (myDecksTab) {
       myDecksTab.onclick = () => {
+        resetTabs();
         this.activeTab = 'my_decks';
         myDecksTab.className = 'px-4 py-1.5 rounded-md bg-sky-600 text-white transition';
-        commTab.className = 'px-4 py-1.5 rounded-md text-slate-400 hover:text-white transition';
-        const titleEl = document.getElementById('view-title');
-        if (titleEl) titleEl.textContent = "My Decks";
+        document.getElementById('view-title').textContent = "My Decks";
         this.loadDecks();
       };
+    }
 
+    if (commTab) {
       commTab.onclick = () => {
+        resetTabs();
         this.activeTab = 'community';
         commTab.className = 'px-4 py-1.5 rounded-md bg-sky-600 text-white transition';
-        myDecksTab.className = 'px-4 py-1.5 rounded-md text-slate-400 hover:text-white transition';
-        const titleEl = document.getElementById('view-title');
-        if (titleEl) titleEl.textContent = "Community Brews";
+        document.getElementById('view-title').textContent = "Community Brews";
         this.loadDecks();
+      };
+    }
+
+    if (adminTab) {
+      adminTab.onclick = () => {
+        resetTabs();
+        this.activeTab = 'admin';
+        adminTab.className = 'px-4 py-1.5 rounded-md bg-purple-700 text-white transition';
+        document.getElementById('view-title').textContent = "Admin Explorer: All Users & Decks";
+        document.getElementById('folders-panel')?.classList.add('hidden');
+        document.getElementById('decks-grid')?.classList.add('hidden');
+        document.getElementById('admin-users-tree')?.classList.remove('hidden');
+        document.getElementById('filter-label').textContent = 'Filter Users / Decks';
+        this.loadAdminTree();
       };
     }
 
     const filterInput = document.getElementById('deck-filter-input');
     if (filterInput) {
-      filterInput.addEventListener('input', () => this.renderDecks());
+      filterInput.addEventListener('input', () => {
+        if (this.activeTab === 'admin') this.renderAdminTree();
+        else this.renderDecks();
+      });
     }
 
     const folderSubmitBtn = document.getElementById('folder-submit-btn');
@@ -177,11 +216,11 @@ window.Hub = {
       let data;
       try {
         data = await res.json();
-      } catch (parseErr) {
-        throw new Error('Server returned HTTP ' + res.status + ' without JSON output');
+      } catch (e) {
+        throw new Error('Invalid JSON received from server.');
       }
 
-      if (!res.ok) throw new Error(data.error || ('Server error (' + res.status + ')'));
+      if (!res.ok) throw new Error(data.error || ('Server error: ' + res.status));
 
       this.decks = data.decks || [];
       this.folders = data.folders || [];
@@ -191,8 +230,124 @@ window.Hub = {
     } catch (err) {
       grid.innerHTML = '<div class="col-span-full text-center text-rose-400 py-8 bg-rose-950/20 border border-rose-900/60 rounded-xl p-4">' +
         '<div class="font-bold text-sm">Failed to load decks</div>' +
-        '<div class="text-xs text-rose-300 mt-1">' + err.message + '</div>' +
+        '<div class="text-xs text-rose-300 mt-1">' + this.escapeHtml(err.message) + '</div>' +
         '</div>';
+    }
+  },
+
+  async loadAdminTree() {
+    const container = document.getElementById('admin-users-tree');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-center py-12 text-purple-400"><i class="fa-solid fa-circle-notch fa-spin text-3xl"></i><div class="mt-2 text-xs font-bold uppercase tracking-wider">Loading user directories...</div></div>';
+
+    try {
+      const res = await fetch('/api_decks.php?action=admin_users_and_decks');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch admin explorer.');
+
+      this.adminUsers = data.users || [];
+      this.renderAdminTree();
+    } catch (err) {
+      container.innerHTML = '<div class="text-center text-rose-400 py-8 bg-rose-950/20 border border-rose-900/60 rounded-xl p-4">' +
+        '<div class="font-bold text-sm">Admin Access Error</div>' +
+        '<div class="text-xs text-rose-300 mt-1">' + this.escapeHtml(err.message) + '</div>' +
+        '</div>';
+    }
+  },
+
+  renderAdminTree() {
+    const container = document.getElementById('admin-users-tree');
+    if (!container) return;
+
+    const term = (document.getElementById('deck-filter-input')?.value || '').toLowerCase().trim();
+    let users = this.adminUsers;
+
+    if (term) {
+      users = users.filter(u => {
+        const matchUser = u.username.toLowerCase().includes(term) || (u.email && u.email.toLowerCase().includes(term));
+        const matchDeck = u.decks && u.decks.some(d => d.title.toLowerCase().includes(term));
+        return matchUser || matchDeck;
+      });
+    }
+
+    const countEl = document.getElementById('filtered-deck-count');
+    const totalDecks = users.reduce((acc, u) => acc + (u.deck_count || 0), 0);
+    if (countEl) countEl.textContent = users.length + ' users (' + totalDecks + ' total decks)';
+
+    if (!users.length) {
+      container.innerHTML = '<div class="text-center py-12 text-slate-500 italic">No users found matching your search.</div>';
+      return;
+    }
+
+    container.innerHTML = users.map(u => {
+      const isAutoOpen = term !== '';
+      const emailText = u.email ? this.escapeHtml(u.email) : 'No email attached';
+
+      const decksHtml = (!u.decks || !u.decks.length)
+        ? '<div class="p-3 text-xs text-slate-500 italic">No decks created by this user yet.</div>'
+        : '<div class="divide-y divide-slate-800/80">' +
+          u.decks.map(d => {
+            const isPub = parseInt(d.is_public || 0, 10) === 1;
+            const badge = isPub
+              ? '<span class="text-[9px] uppercase px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">Public</span>'
+              : '<span class="text-[9px] uppercase px-1.5 py-0.5 rounded bg-slate-900 text-amber-400 border border-slate-700 font-bold">Private</span>';
+
+            return '<div class="p-3 flex items-center justify-between hover:bg-slate-950/40 transition">' +
+              '<div class="flex items-center gap-3">' +
+              '<span class="font-bold text-white text-xs">' + this.escapeHtml(d.title) + '</span>' +
+              badge +
+              '<span class="text-[11px] text-slate-400 font-mono">' + (d.card_count || 0) + ' Cards</span>' +
+              '</div>' +
+              '<div class="flex items-center gap-2">' +
+              '<span class="text-[10px] text-slate-500">Updated: ' + new Date(d.updated_at).toLocaleDateString() + '</span>' +
+              '<button onclick="Hub.editDeck(' + d.id + ')" class="px-2.5 py-1 bg-purple-900/60 hover:bg-purple-800 border border-purple-700 text-purple-200 text-xs font-bold rounded transition">' +
+              'Inspect' +
+              '</button>' +
+              '</div>' +
+              '</div>';
+          }).join('') +
+          '</div>';
+
+      return '<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">' +
+        '<button onclick="Hub.toggleUserFolder(' + u.id + ')" class="w-full p-4 flex items-center justify-between text-left bg-slate-900 hover:bg-slate-800/60 transition">' +
+        '<div class="flex items-center gap-3">' +
+        '<i id="user-folder-icon-' + u.id + '" class="fa-solid ' + (isAutoOpen ? 'fa-folder-open' : 'fa-folder') + ' text-purple-400 text-lg"></i>' +
+        '<div>' +
+        '<div class="font-bold text-white text-sm flex items-center gap-2">' +
+        this.escapeHtml(u.username) +
+        (u.role === 'admin' ? '<span class="text-[9px] uppercase bg-purple-950 border border-purple-700 text-purple-300 font-extrabold px-1.5 rounded">Admin</span>' : '') +
+        '</div>' +
+        '<div class="text-[11px] text-slate-400 font-mono">' + emailText + ' • Joined ' + new Date(u.created_at).toLocaleDateString() + '</div>' +
+        '</div>' +
+        '</div>' +
+        '<div class="flex items-center gap-3">' +
+        '<span class="text-xs bg-slate-800 text-slate-300 font-bold px-2.5 py-1 rounded-full">' + (u.deck_count || 0) + ' Decks</span>' +
+        '<i id="user-chevron-' + u.id + '" class="fa-solid ' + (isAutoOpen ? 'fa-chevron-up' : 'fa-chevron-down') + ' text-slate-500 text-xs"></i>' +
+        '</div>' +
+        '</button>' +
+        '<div id="user-folder-content-' + u.id + '" class="bg-slate-950/80 border-t border-slate-800 ' + (isAutoOpen ? '' : 'hidden') + '">' +
+        decksHtml +
+        '</div>' +
+        '</div>';
+    }).join('');
+  },
+
+  toggleUserFolder(userId) {
+    const content = document.getElementById('user-folder-content-' + userId);
+    const icon = document.getElementById('user-folder-icon-' + userId);
+    const chevron = document.getElementById('user-chevron-' + userId);
+    if (!content) return;
+
+    const isHidden = content.classList.contains('hidden');
+    if (isHidden) {
+      content.classList.remove('hidden');
+      if (icon) icon.className = 'fa-solid fa-folder-open text-purple-400 text-lg';
+      if (chevron) chevron.className = 'fa-solid fa-chevron-up text-slate-500 text-xs';
+    } else {
+      content.classList.add('hidden');
+      if (icon) icon.className = 'fa-solid fa-folder text-purple-400 text-lg';
+      if (chevron) chevron.className = 'fa-solid fa-chevron-down text-slate-500 text-xs';
     }
   },
 
@@ -251,7 +406,6 @@ window.Hub = {
     if (!grid) return;
 
     const filterTerm = (document.getElementById('deck-filter-input')?.value || '').toLowerCase().trim();
-
     let filtered = this.decks;
 
     if (this.activeTab === 'my_decks' && this.activeFolderId !== null) {
@@ -273,11 +427,21 @@ window.Hub = {
     }
 
     grid.innerHTML = filtered.map(d => {
-      const art = d.featured_card_art || 'https://cards.scryfall.io/art_crop/front/b/4/b4a530f2-772b-449e-b24d-e9c56f671c5d.jpg';
+      let rawArt = d.featured_card_art || 'https://cards.scryfall.io/art_crop/front/b/4/b4a530f2-772b-449e-b24d-e9c56f671c5d.jpg';
+      if (!rawArt.startsWith('https://')) {
+        rawArt = 'https://cards.scryfall.io/art_crop/front/b/4/b4a530f2-772b-449e-b24d-e9c56f671c5d.jpg';
+      }
+      const art = encodeURI(rawArt);
+
       const isOwner = this.user && (this.activeTab === 'my_decks');
+      const isPublic = parseInt(d.is_public || 0, 10) === 1;
+
+      const visBadge = isPublic
+        ? '<span class="text-[9px] uppercase font-black px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 ml-1.5"><i class="fa-solid fa-globe mr-0.5"></i> Public</span>'
+        : '<span class="text-[9px] uppercase font-black px-1.5 py-0.5 rounded bg-slate-900/80 text-amber-400 border border-slate-700 ml-1.5"><i class="fa-solid fa-lock mr-0.5"></i> Private</span>';
 
       const actionButtonLabel = isOwner
-        ? '<i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Edit Deck'
+        ? '<i class="fa-solid fa-pen-to-square mr-1"></i> Edit'
         : '<i class="fa-solid fa-eye mr-1"></i> View Deck';
 
       const escTitle = this.escapeHtml(d.title).replace(/'/g, "\\'");
@@ -285,6 +449,7 @@ window.Hub = {
       let ownerActions = '';
       if (isOwner) {
         ownerActions = '<div class="flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition">' +
+          '<button onclick="Hub.toggleDeckVisibility(' + d.id + ')" class="p-1 bg-slate-900/80 hover:bg-sky-600 text-slate-300 hover:text-white rounded text-xs transition" title="' + (isPublic ? 'Make Private' : 'Make Public') + '"><i class="fa-solid ' + (isPublic ? 'fa-globe text-emerald-400' : 'fa-lock text-amber-400') + '"></i></button>' +
           '<button onclick="Hub.openRenameModal(' + d.id + ', \'' + escTitle + '\')" class="p-1 bg-slate-900/80 hover:bg-sky-600 text-slate-300 hover:text-white rounded text-xs transition" title="Rename"><i class="fa-solid fa-pen"></i></button>' +
           '<button onclick="Hub.openMoveModal(' + d.id + ')" class="p-1 bg-slate-900/80 hover:bg-sky-600 text-slate-300 hover:text-white rounded text-xs transition" title="Move Folder"><i class="fa-solid fa-folder-tree"></i></button>' +
           '<button onclick="Hub.cloneDeck(' + d.id + ')" class="p-1 bg-slate-900/80 hover:bg-emerald-600 text-slate-300 hover:text-white rounded text-xs transition" title="Duplicate"><i class="fa-solid fa-copy"></i></button>' +
@@ -296,7 +461,10 @@ window.Hub = {
         '<div class="hub-art-header h-28 p-3 flex flex-col justify-between" style="background-image: url(\'' + art + '\');">' +
         '<div class="hub-art-gradient absolute inset-0"></div>' +
         '<div class="relative flex justify-between items-start z-10">' +
+        '<div class="flex items-center">' +
         '<span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-sky-950/90 text-sky-400 border border-sky-700">' + (d.format || 'Pauper') + '</span>' +
+        (isOwner ? visBadge : '') +
+        '</div>' +
         ownerActions +
         '</div>' +
         '<div class="relative z-10">' +
@@ -316,6 +484,24 @@ window.Hub = {
         '</div>' +
         '</div>';
     }).join('');
+  },
+
+  async toggleDeckVisibility(deckId) {
+    try {
+      const res = await fetch('/api_decks.php?action=toggle_visibility', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deckId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update visibility');
+
+      const target = this.decks.find(d => d.id == deckId);
+      if (target) target.is_public = data.is_public;
+      this.renderDecks();
+    } catch (err) {
+      alert(err.message);
+    }
   },
 
   editDeck(deckId) {

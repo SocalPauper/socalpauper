@@ -35,6 +35,7 @@ session_start();
       <nav class="flex items-center gap-2 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs font-bold">
         <button id="tab-my-decks" type="button" class="px-4 py-1.5 rounded-md bg-sky-600 text-white transition">My Decks</button>
         <button id="tab-community" type="button" class="px-4 py-1.5 rounded-md text-slate-400 hover:text-white transition">Community Brews</button>
+        <button id="tab-admin" type="button" class="px-4 py-1.5 rounded-md text-purple-400 hover:text-white transition hidden"><i class="fa-solid fa-shield-halved mr-1"></i> Admin Explorer</button>
       </nav>
     </div>
 
@@ -51,8 +52,8 @@ session_start();
   <div class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
 
     <!-- Left Sidebar: Folders & Filters -->
-    <aside class="md:col-span-1 space-y-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+    <aside id="hub-sidebar" class="md:col-span-1 space-y-4">
+      <div id="folders-panel" class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
         <div class="flex items-center justify-between border-b border-slate-800 pb-2">
           <span class="text-xs font-black uppercase tracking-wider text-slate-400">Folders</span>
           <button onclick="openFolderModal()" class="text-sky-400 hover:text-white text-xs font-bold transition flex items-center gap-1">
@@ -70,23 +71,27 @@ session_start();
 
       <!-- Quick Search Filter -->
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Search Decks</label>
+        <label id="filter-label" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Search Decks</label>
         <div class="relative">
-          <input type="text" id="deck-filter-input" placeholder="Filter by deck name..." 
+          <input type="text" id="deck-filter-input" placeholder="Filter decks..." 
                  class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500">
           <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-slate-500 text-xs"></i>
         </div>
       </div>
     </aside>
 
-    <!-- Right Content: Decks Grid -->
-    <main class="md:col-span-3 space-y-4">
+    <!-- Right Content: Decks Grid / Admin Tree -->
+    <main id="hub-main-content" class="md:col-span-3 space-y-4">
       <div class="flex items-center justify-between">
         <h1 id="view-title" class="text-xl font-black text-white">All Decks</h1>
         <span id="filtered-deck-count" class="text-xs text-slate-400 font-mono">Loading decks...</span>
       </div>
 
+      <!-- Standard Decks Container -->
       <div id="decks-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+      <!-- Admin User-Folders Tree Container -->
+      <div id="admin-users-tree" class="space-y-3 hidden"></div>
     </main>
   </div>
 
@@ -137,7 +142,7 @@ session_start();
     </div>
   </div>
 
-  <!-- Auth Modal (Sign In & Register) -->
+  <!-- Auth Modal -->
   <div id="auth-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-2">
@@ -158,7 +163,6 @@ session_start();
           <input type="password" id="auth-password" required minlength="8" autocomplete="current-password" class="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-sm focus:border-sky-500 focus:outline-none">
         </div>
 
-        <!-- Registration extra fields -->
         <div id="auth-register-extra" class="space-y-3 hidden">
           <div>
             <label class="block text-xs font-bold text-slate-300 uppercase mb-1">Email <span class="text-slate-500 font-normal lowercase">(optional)</span></label>
@@ -186,6 +190,6 @@ session_start();
     </div>
   </div>
 
-  <script src="js/decks_hub.js?v=7"></script>
+  <script src="js/decks_hub.js?v=9"></script>
 </body>
 </html>
