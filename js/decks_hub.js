@@ -30,11 +30,17 @@ window.Hub = {
   updateAuthUI() {
     const slot = document.getElementById('nav-auth-slot');
     const adminTab = document.getElementById('tab-admin');
+    const broadcastLink = document.getElementById('link-admin-broadcast');
 
     if (this.user) {
       if (adminTab) {
         if (this.user.role === 'admin') adminTab.classList.remove('hidden');
         else adminTab.classList.add('hidden');
+      }
+
+      if (broadcastLink) {
+        if (this.user.role === 'admin') broadcastLink.classList.remove('hidden');
+        else broadcastLink.classList.add('hidden');
       }
 
       if (slot) {
@@ -45,6 +51,7 @@ window.Hub = {
       }
     } else {
       if (adminTab) adminTab.classList.add('hidden');
+      if (broadcastLink) broadcastLink.classList.add('hidden');
       if (slot) {
         slot.innerHTML = '<button onclick="openAuthModal()" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-3 py-1.5 rounded-lg transition shadow-sm">Sign In</button>';
       }
@@ -96,7 +103,8 @@ window.Hub = {
       document.getElementById('folders-panel')?.classList.remove('hidden');
       document.getElementById('decks-grid')?.classList.remove('hidden');
       document.getElementById('admin-users-tree')?.classList.add('hidden');
-      document.getElementById('filter-label').textContent = 'Search Decks';
+      const label = document.getElementById('filter-label');
+      if (label) label.textContent = 'Search Decks';
     };
 
     if (myDecksTab) {
@@ -104,7 +112,8 @@ window.Hub = {
         resetTabs();
         this.activeTab = 'my_decks';
         myDecksTab.className = 'px-4 py-1.5 rounded-md bg-sky-600 text-white transition';
-        document.getElementById('view-title').textContent = "My Decks";
+        const title = document.getElementById('view-title');
+        if (title) title.textContent = "My Decks";
         this.loadDecks();
       };
     }
@@ -114,7 +123,8 @@ window.Hub = {
         resetTabs();
         this.activeTab = 'community';
         commTab.className = 'px-4 py-1.5 rounded-md bg-sky-600 text-white transition';
-        document.getElementById('view-title').textContent = "Community Brews";
+        const title = document.getElementById('view-title');
+        if (title) title.textContent = "Community Brews";
         this.loadDecks();
       };
     }
@@ -124,11 +134,13 @@ window.Hub = {
         resetTabs();
         this.activeTab = 'admin';
         adminTab.className = 'px-4 py-1.5 rounded-md bg-purple-700 text-white transition';
-        document.getElementById('view-title').textContent = "Admin Explorer: All Users & Decks";
+        const title = document.getElementById('view-title');
+        if (title) title.textContent = "Admin Explorer: All Users & Decks";
         document.getElementById('folders-panel')?.classList.add('hidden');
         document.getElementById('decks-grid')?.classList.add('hidden');
         document.getElementById('admin-users-tree')?.classList.remove('hidden');
-        document.getElementById('filter-label').textContent = 'Filter Users / Decks';
+        const label = document.getElementById('filter-label');
+        if (label) label.textContent = 'Filter Users / Decks';
         this.loadAdminTree();
       };
     }

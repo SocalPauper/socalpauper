@@ -36,6 +36,9 @@ session_start();
         <button id="tab-my-decks" type="button" class="px-4 py-1.5 rounded-md bg-sky-600 text-white transition">My Decks</button>
         <button id="tab-community" type="button" class="px-4 py-1.5 rounded-md text-slate-400 hover:text-white transition">Community Brews</button>
         <button id="tab-admin" type="button" class="px-4 py-1.5 rounded-md text-purple-400 hover:text-white transition hidden"><i class="fa-solid fa-shield-halved mr-1"></i> Admin Explorer</button>
+        <a href="admin_broadcast.php" id="link-admin-broadcast" class="px-3 py-1.5 rounded-md text-purple-300 bg-purple-950/60 border border-purple-800 hover:bg-purple-900 transition hidden text-xs font-bold flex items-center gap-1.5">
+          <i class="fa-solid fa-paper-plane text-purple-400"></i> Broadcast
+        </a>
       </nav>
     </div>
 
@@ -190,6 +193,6 @@ session_start();
     </div>
   </div>
 
-  <script src="js/decks_hub.js?v=10"></script>
+  <script src="js/decks_hub.js?v=11"></script>
 </body>
 </html>
