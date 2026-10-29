@@ -24,8 +24,8 @@ fetch-depth: 2
       password: ${{ secrets.FTP_PASSWORD }}
       protocol: ftps
       port: 21
-      # Target domain directory on Spaceship hosting
-      server-dir: socalpauper.com/
+      # When using an FTP user jailed to the website directory, root is ./
+      server-dir: ./
       # Exclude development files, documentation, and git metadata
       exclude: |
         **/.git*
