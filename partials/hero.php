@@ -19,7 +19,7 @@
       The community directory connecting players across Los Angeles, Orange County, the Inland Empire, and San Diego with local tournaments, weekly meetups, partner store networks, and turn-by-turn navigation.
     </p>
 
-    <!-- Deck Command Hub Callout (Clean, No Awkward Box) -->
+    <!-- Deck Command Hub Callout Banner -->
     <div class="pt-2">
       <div class="bg-gradient-to-r from-slate-900/90 via-[#161922] to-slate-900/90 border border-amber-500/30 rounded-2xl p-5 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
         <div>
@@ -39,13 +39,13 @@
 
     <!-- Main Actions -->
     <div class="flex flex-wrap items-center justify-center gap-3 pt-3">
-      <a href="#calendar" class="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-600/20 transition flex items-center gap-2">
+      <a href="tracker.html" class="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-600/20 transition flex items-center gap-2">
         <i class="fa-solid fa-bolt text-xs"></i> Tournament Tracker
       </a>
       <a href="https://discord.gg/socalpauper" target="_blank" rel="noopener noreferrer" class="px-5 py-2.5 rounded-xl bg-[#5865F2] hover:bg-[#4752c4] text-white font-bold text-xs shadow-lg shadow-indigo-600/20 transition flex items-center gap-2">
         <i class="fa-brands fa-discord text-xs"></i> Enter Community Discord
       </a>
-      <a href="#calendar" class="px-5 py-2.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 font-bold text-xs transition">
+      <a href="index.php#calendar" class="px-5 py-2.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 font-bold text-xs transition">
         Browse Tournament Schedule
       </a>
     </div>

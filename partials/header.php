@@ -3,9 +3,7 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-$isLoggedIn = !empty($_SESSION['user_id']);
-$username = $_SESSION['username'] ?? '';
-$isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
+$isLoggedIn = !empty($_SESSION['user_id']);$username = $_SESSION['username'] ?? '';$isAdmin = !empty($_SESSION['role']) &&$_SESSION['role'] === 'admin';
 ?>
 <header class="sticky top-0 z-40 bg-[#0c0e12]/95 backdrop-blur border-b border-[#2a3040]">
   <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
@@ -22,20 +20,35 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
     </a>
 
     <!-- Desktop Navigation Links -->
-    <nav class="hidden lg:flex items-center gap-1.5 text-xs font-semibold">
-      <a href="index.php#calendar" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-calendar-days text-zinc-400 text-xs"></i>
-        <span>Events</span>
-      </a>
-
-      <a href="index.php#calendar" class="px-3 py-1.5 rounded-lg text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm">
+    <nav class="hidden xl:flex items-center gap-1.5 text-xs font-semibold">
+      <a href="tracker.html" class="px-3 py-1.5 rounded-lg text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm">
         <i class="fa-solid fa-bolt text-amber-400 text-xs"></i>
         <span>Tracker</span>
       </a>
 
-      <a href="/life.php" onclick="if(window.openLifeModal){event.preventDefault();openLifeModal();}" class="px-3 py-1.5 rounded-lg text-rose-300 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 transition flex items-center gap-1.5 shadow-sm">
+      <a href="life.html" class="px-3 py-1.5 rounded-lg text-rose-300 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 transition flex items-center gap-1.5 shadow-sm">
         <i class="fa-solid fa-heart-pulse text-rose-400 text-xs"></i>
         <span>Life Counter</span>
+      </a>
+
+      <a href="metagame.html" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-chart-pie text-zinc-400 text-xs"></i>
+        <span>Metagame</span>
+      </a>
+
+      <a href="stats.html" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-chart-simple text-zinc-400 text-xs"></i>
+        <span>Stats</span>
+      </a>
+
+      <a href="news.html" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-newspaper text-zinc-400 text-xs"></i>
+        <span>News</span>
+      </a>
+
+      <a href="index.php#calendar" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-calendar-days text-zinc-400 text-xs"></i>
+        <span>Events</span>
       </a>
 
       <a href="index.php#stores" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
@@ -45,17 +58,12 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
 
       <a href="index.php#card-explorer" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
         <i class="fa-solid fa-magnifying-glass text-zinc-400 text-xs"></i>
-        <span>Card Explorer</span>
-      </a>
-
-      <a href="index.php#format-primer" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-book-open text-zinc-400 text-xs"></i>
-        <span>Primer</span>
+        <span>Cards</span>
       </a>
 
       <div class="h-4 w-px bg-zinc-800 mx-1"></div>
 
-      <!-- Deck Hub (Primary Entrypoint to Decks & Builder) -->
+      <!-- Deck Hub -->
       <a href="decks.php" class="px-3 py-1.5 rounded-lg text-sky-300 bg-sky-950/50 hover:bg-sky-900/60 border border-sky-800/60 transition flex items-center gap-1.5 shadow-sm">
         <i class="fa-solid fa-layer-group text-sky-400 text-xs"></i>
         <span>Deck Hub</span>
@@ -94,7 +102,7 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
     </nav>
 
     <!-- Mobile Navigation Toggle -->
-    <div class="flex items-center gap-2 lg:hidden">
+    <div class="flex items-center gap-2 xl:hidden">
       <a href="decks.php" class="px-2.5 py-1.5 rounded-lg text-sky-400 bg-sky-950/60 border border-sky-800/80 text-xs font-bold flex items-center gap-1">
         <i class="fa-solid fa-layer-group text-[11px]"></i> Hub
       </a>
@@ -106,7 +114,7 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
   </div>
 
   <!-- Mobile Collapsible Menu Drawer -->
-  <div id="mobile-menu-drawer" class="hidden lg:hidden border-t border-[#2a3040] bg-[#0c0e12]/98 px-4 py-4 space-y-3">
+  <div id="mobile-menu-drawer" class="hidden xl:hidden border-t border-[#2a3040] bg-[#0c0e12]/98 px-4 py-4 space-y-3">
     
     <!-- User Status Banner for Mobile -->
     <div class="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between">
@@ -123,23 +131,29 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
     </div>
 
     <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
-      <a href="index.php#calendar" class="p-2.5 rounded-lg text-zinc-300 hover:text-white bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
-        <i class="fa-solid fa-calendar-days text-zinc-400"></i> Events
-      </a>
-      <a href="index.php#calendar" class="p-2.5 rounded-lg text-amber-300 hover:text-amber-200 bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
+      <a href="tracker.html" class="p-2.5 rounded-lg text-amber-300 bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
         <i class="fa-solid fa-bolt text-amber-400"></i> Tracker
       </a>
-      <a href="/life.php" onclick="if(window.openLifeModal){event.preventDefault();openLifeModal();}" class="p-2.5 rounded-lg text-rose-300 hover:text-rose-200 bg-rose-950/40 border border-rose-800/60 flex items-center gap-2">
+      <a href="life.html" class="p-2.5 rounded-lg text-rose-300 bg-rose-950/40 border border-rose-800/60 flex items-center gap-2">
         <i class="fa-solid fa-heart-pulse text-rose-400"></i> Life Counter
       </a>
-      <a href="index.php#stores" class="p-2.5 rounded-lg text-zinc-300 hover:text-white bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
+      <a href="metagame.html" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
+        <i class="fa-solid fa-chart-pie text-zinc-400"></i> Metagame
+      </a>
+      <a href="stats.html" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
+        <i class="fa-solid fa-chart-simple text-zinc-400"></i> Stats
+      </a>
+      <a href="news.html" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
+        <i class="fa-solid fa-newspaper text-zinc-400"></i> News
+      </a>
+      <a href="index.php#calendar" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
+        <i class="fa-solid fa-calendar-days text-zinc-400"></i> Events
+      </a>
+      <a href="index.php#stores" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
         <i class="fa-solid fa-store text-zinc-400"></i> Stores
       </a>
-      <a href="index.php#card-explorer" class="p-2.5 rounded-lg text-zinc-300 hover:text-white bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
+      <a href="index.php#card-explorer" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
         <i class="fa-solid fa-magnifying-glass text-zinc-400"></i> Cards
-      </a>
-      <a href="index.php#format-primer" class="p-2.5 rounded-lg text-zinc-300 hover:text-white bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
-        <i class="fa-solid fa-book-open text-zinc-400"></i> Primer
       </a>
     </div>
 
@@ -164,7 +178,7 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
   </div>
 </header>
 
-<!-- Header Auth Modal (Sign In / Register) -->
+<!-- Header Auth Modal -->
 <div id="header-auth-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
   <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl">
     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
