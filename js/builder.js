@@ -29,7 +29,7 @@ window.Builder = {
     id: null,
     user_id: null,
     title: "Untitled Pauper Brew",
-	is_public: 0,
+    is_public: 0,
     main: [],
     side: []
   },
@@ -53,6 +53,7 @@ window.Builder = {
       if (!this.user) {
         this.openAuthModal('login');
       }
+      this.updateVisibilityUI();
       this.render();
     }
   },
@@ -95,6 +96,28 @@ window.Builder = {
     }
   },
 
+  toggleVisibility() {
+    if (this.isReadOnly) return;
+    this.deck.is_public = (parseInt(this.deck.is_public || 0, 10) === 1) ? 0 : 1;
+    this.updateVisibilityUI();
+  },
+
+  updateVisibilityUI() {
+    const btn = document.getElementById('visibility-toggle-btn');
+    if (!btn) return;
+
+    const isPub = (parseInt(this.deck.is_public || 0, 10) === 1);
+    if (isPub) {
+      btn.className = 'px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 text-xs font-bold rounded-lg border border-emerald-700 transition flex items-center gap-1.5';
+      btn.innerHTML = '<i class="fa-solid fa-globe text-emerald-400"></i> <span>Public</span>';
+      btn.title = 'Anyone can view this brew under Community Brews';
+    } else {
+      btn.className = 'px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg border border-slate-700 transition flex items-center gap-1.5';
+      btn.innerHTML = '<i class="fa-solid fa-lock text-amber-400"></i> <span>Private</span>';
+      btn.title = 'Only you can view and edit this brew';
+    }
+  },
+
   bindEvents() {
     const mainBtn = document.getElementById('target-main-btn');
     const sideBtn = document.getElementById('target-side-btn');
@@ -112,15 +135,6 @@ window.Builder = {
         mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
       };
     }
-	
-	const visBtn = document.getElementById('visibility-toggle-btn');
-	if (visBtn) {
-		visBtn.onclick = () => {
-			if (this.isReadOnly) return;
-			this.deck.is_public = this.deck.is_public ? 0 : 1;
-			this.updateVisibilityUI();
-		};
-	}
 
     const titleInput = document.getElementById('deck-title-input');
     if (titleInput) {
@@ -675,6 +689,7 @@ window.Builder = {
     const cloneBtn = document.getElementById('clone-deck-btn');
     const importBtn = document.getElementById('import-deck-btn');
     const searchSection = document.getElementById('search-section');
+    const visBtn = document.getElementById('visibility-toggle-btn');
 
     if (this.isReadOnly) {
       if (titleInput) titleInput.disabled = true;
@@ -683,6 +698,7 @@ window.Builder = {
       if (cloneBtn) cloneBtn.classList.remove('hidden');
       if (importBtn) importBtn.classList.add('hidden');
       if (searchSection) searchSection.classList.add('hidden');
+      if (visBtn) visBtn.classList.add('hidden');
     } else {
       if (titleInput) titleInput.disabled = false;
       if (readOnlyBadge) readOnlyBadge.classList.add('hidden');
@@ -690,6 +706,7 @@ window.Builder = {
       if (cloneBtn) cloneBtn.classList.add('hidden');
       if (importBtn) importBtn.classList.remove('hidden');
       if (searchSection) searchSection.classList.remove('hidden');
+      if (visBtn) visBtn.classList.remove('hidden');
     }
   },
 
@@ -1045,6 +1062,7 @@ window.Builder = {
         body: JSON.stringify({
           id: this.deck.id,
           title: this.deck.title,
+          is_public: parseInt(this.deck.is_public || 0, 10),
           cards: {
             main: this.deck.main,
             side: this.deck.side
@@ -1209,6 +1227,7 @@ window.Builder = {
       this.deck.id = d.id;
       this.deck.user_id = d.user_id;
       this.deck.title = d.title;
+      this.deck.is_public = parseInt(d.is_public || 0, 10);
       this.deck.main = d.cards_data.main || [];
       this.deck.side = d.cards_data.side || [];
 
@@ -1217,6 +1236,7 @@ window.Builder = {
       this.isReadOnly = !isOwner && !isAdmin;
 
       document.getElementById('deck-title-input').value = d.title;
+      this.updateVisibilityUI();
       window.closeMyDecksModal();
       window.closeAdminModal();
       this.render();

@@ -8,7 +8,7 @@ session_start();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SoCal Pauper — Deck Architect</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/builder.css?v=11">
+  <link rel="stylesheet" href="css/builder.css?v=13">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="builder-root">
@@ -48,15 +48,12 @@ session_start();
         <i class="fa-solid fa-hand"></i> Sample Hand
       </button>
 
-      <button id="save-deck-btn" type="button" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5">
-        <i class="fa-solid fa-floppy-disk"></i> Save
-      </button>
-
-	  <!-- Deck Visibility Toggle -->
-      <button id="visibility-toggle-btn" type="button" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+      <!-- Visibility Toggle Button (Only One) -->
+      <button id="visibility-toggle-btn" type="button" onclick="Builder.toggleVisibility()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg border border-slate-700 transition flex items-center gap-1.5">
         <i class="fa-solid fa-lock text-amber-400"></i> <span>Private</span>
       </button>
 
+      <!-- Save Button (Only One) -->
       <button id="save-deck-btn" type="button" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5">
         <i class="fa-solid fa-floppy-disk"></i> Save
       </button>
@@ -215,7 +212,7 @@ session_start();
         <div id="search-suggestions" class="suggestions-dropdown"></div>
       </div>
 
-      <!-- Mainboard Visual Stacks (Empty container populated strictly via JS) -->
+      <!-- Mainboard Visual Stacks -->
       <div class="space-y-2">
         <div class="flex items-center justify-between border-b border-slate-800 pb-2">
           <h2 class="text-sm font-extrabold tracking-wider uppercase text-slate-300">Mainboard</h2>
@@ -224,7 +221,7 @@ session_start();
         <div id="main-stacks" class="stacks-lane"></div>
       </div>
 
-      <!-- Sideboard Visual Stacks (Empty container populated strictly via JS) -->
+      <!-- Sideboard Visual Stacks -->
       <div class="space-y-2 mt-8">
         <div class="flex items-center justify-between border-b border-slate-800 pb-2">
           <h2 class="text-sm font-extrabold tracking-wider uppercase text-slate-300">Sideboard</h2>
@@ -357,6 +354,7 @@ session_start();
     </div>
   </div>
 
-  <script src="js/builder.js?v=12"></script>
+  <!-- Version bumped to 13 to clear old JS caches -->
+  <script src="js/builder.js?v=13"></script>
 </body>
 </html>
