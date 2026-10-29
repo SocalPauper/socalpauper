@@ -1,1333 +1,164 @@
-// js/builder.js
-const BASIC_LANDS = new Set([
-  'Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes',
-  'Snow-Covered Plains', 'Snow-Covered Island', 'Snow-Covered Swamp',
-  'Snow-Covered Mountain', 'Snow-Covered Forest', 'Snow-Covered Wastes'
-]);
-
-const UNLIMITED_COPIES = new Set([
-  'Relentless Rats', 'Shadowborn Apostle', 'Persistent Petitioners',
-  'Dragon\'s Approach', 'Slime Against Humanity', 'Templar Knight'
-]);
-
-function combinations(n, r) {
-  if (r < 0 || r > n) return 0;
-  if (r === 0 || r === n) return 1;
-  let c = 1;
-  for (let i = 1; i <= r; i++) {
-    c = c * (n - (i - 1)) / i;
-  }
-  return c;
-}
-
-function hypergeomPdf(k, N, K, n) {
-  return (combinations(K, k) * combinations(N - K, n - k)) / combinations(N, n);
-}
-
-window.Builder = {
-  deck: {
-    id: null,
-    user_id: null,
-    title: "Untitled Pauper Brew",
-    main: [],
-    side: []
-  },
-  user: null,
-  isReadOnly: false,
-  activeTarget: 'main',
-  selectedCardForPrints: null,
-  searchDebounce: null,
-  authMode: 'login',
-
-  async init() {
-    await this.checkAuth();
-    this.bindEvents();
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const targetDeckId = urlParams.get('id');
-
-    if (targetDeckId) {
-      await this.loadDeck(parseInt(targetDeckId, 10));
-    } else {
-      // Non-logged-in user attempting to create a new deck directly
-      if (!this.user) {
-        this.openAuthModal('login');
-      }
-      this.render();
+<?php
+session_start();
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SoCal Pauper — Deck Command Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .hub-bg { background-color: #090d16; }
+    .hub-card { background-color: #0f172a; border-color: #1e293b; }
+    .hub-card:hover { border-color: #38bdf8; }
+    .hub-art-header {
+      background-size: cover;
+      background-position: center top;
+      background-repeat: no-repeat;
+      position: relative;
     }
-  },
-
-  async checkAuth() {
-    try {
-      const res = await fetch('/api_auth.php?action=check');
-      const data = await res.json();
-      this.user = data.authenticated ? data.user : null;
-    } catch (e) {
-      this.user = null;
+    .hub-art-gradient {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.2) 0%, rgba(15, 23, 42, 0.95) 100%);
     }
-    this.updateAuthUI();
-  },
-
-  updateAuthUI() {
-    const slot = document.getElementById('nav-auth-slot');
-    const myDecksBtn = document.getElementById('my-decks-btn');
-    const adminBtn = document.getElementById('admin-panel-btn');
-
-    if (!slot) return;
-
-    if (this.user) {
-      if (myDecksBtn) myDecksBtn.classList.remove('hidden');
-      if (adminBtn) {
-        if (this.user.role === 'admin') adminBtn.classList.remove('hidden');
-        else adminBtn.classList.add('hidden');
-      }
-
-      slot.innerHTML = `
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-sky-400 font-bold uppercase tracking-wider">👤 ${this.escapeHtml(this.user.username)}</span>
-          <button type="button" onclick="Builder.logout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 transition">Log Out</button>
-        </div>
-      `;
-    } else {
-      if (myDecksBtn) myDecksBtn.classList.add('hidden');
-      if (adminBtn) adminBtn.classList.add('hidden');
-
-      slot.innerHTML = `
-        <button type="button" onclick="Builder.openAuthModal('login')" class="text-xs text-slate-300 hover:text-white px-2 py-1 transition font-medium">Log In</button>
-        <button type="button" onclick="Builder.openAuthModal('register')" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-2.5 py-1 rounded transition shadow-sm">Sign Up</button>
-      `;
-    }
-  },
-
-  bindEvents() {
-    const mainBtn = document.getElementById('target-main-btn');
-    const sideBtn = document.getElementById('target-side-btn');
-
-    if (mainBtn && sideBtn) {
-      mainBtn.onclick = () => {
-        this.activeTarget = 'main';
-        mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md bg-sky-600 text-white transition';
-        sideBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
-      };
-
-      sideBtn.onclick = () => {
-        this.activeTarget = 'side';
-        sideBtn.className = 'px-3 py-1 text-xs font-bold rounded-md bg-emerald-600 text-white transition';
-        mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
-      };
-    }
-
-    const titleInput = document.getElementById('deck-title-input');
-    if (titleInput) {
-      titleInput.oninput = (e) => {
-        if (this.isReadOnly) return;
-        this.deck.title = e.target.value;
-      };
-    }
-
-    const importBtn = document.getElementById('import-deck-btn');
-    if (importBtn) {
-      importBtn.onclick = () => {
-        if (this.isReadOnly) return;
-        if (!this.user) {
-          this.openAuthModal('login');
-          return;
-        }
-        window.openImportModal();
-      };
-    }
-
-    const importSubmitBtn = document.getElementById('import-submit-btn');
-    if (importSubmitBtn) importSubmitBtn.onclick = () => this.handleImportDeck();
-
-    const myDecksBtn = document.getElementById('my-decks-btn');
-    if (myDecksBtn) myDecksBtn.onclick = () => this.openMyDecksModal();
-
-    const adminBtn = document.getElementById('admin-panel-btn');
-    if (adminBtn) adminBtn.onclick = () => this.openAdminModal();
-
-    const cloneDeckBtn = document.getElementById('clone-deck-btn');
-    if (cloneDeckBtn) cloneDeckBtn.onclick = () => this.cloneCurrentDeck();
-
-    const searchInput = document.getElementById('card-search-input');
-    const suggestionsBox = document.getElementById('search-suggestions');
-
-    if (searchInput && suggestionsBox) {
-      searchInput.addEventListener('keydown', (e) => {
-        if (this.isReadOnly) return;
-        if (!this.user) {
-          this.openAuthModal('login');
-          return;
-        }
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          const firstRow = suggestionsBox.querySelector('.suggestion-row');
-          if (firstRow) {
-            const cardName = firstRow.getAttribute('data-card');
-            this.addCardByName(cardName);
-          } else if (searchInput.value.trim().length >= 2) {
-            this.addCardByName(searchInput.value.trim());
-          }
-        }
-      });
-
-      searchInput.addEventListener('input', (e) => {
-        if (this.isReadOnly) return;
-        if (!this.user) {
-          this.openAuthModal('login');
-          return;
-        }
-
-        clearTimeout(this.searchDebounce);
-        const val = e.target.value.trim();
-
-        if (val.length < 2) {
-          suggestionsBox.classList.remove('is-open');
-          suggestionsBox.style.display = 'none';
-          return;
-        }
-
-        const spinner = document.getElementById('search-spinner');
-        if (spinner) spinner.style.display = 'block';
-
-        this.searchDebounce = setTimeout(async () => {
-          try {
-            const endpoint = `https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(val)}`;
-            const res = await fetch(endpoint);
-            if (!res.ok) return;
-            const data = await res.json();
-            this.renderSuggestions(data.data || []);
-          } catch (err) {
-            console.error(err);
-          } finally {
-            if (spinner) spinner.style.display = 'none';
-          }
-        }, 160);
-      });
-
-      document.addEventListener('click', (e) => {
-        if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
-          suggestionsBox.classList.remove('is-open');
-          suggestionsBox.style.display = 'none';
-        }
-      });
-    }
-
-    const saveBtn = document.getElementById('save-deck-btn');
-    if (saveBtn) saveBtn.onclick = () => this.saveDeck();
-
-    const handBtn = document.getElementById('sample-hand-btn');
-    if (handBtn) handBtn.onclick = () => this.openSampleHand();
-
-    const mulliBtn = document.getElementById('mulligan-btn');
-    if (mulliBtn) mulliBtn.onclick = () => this.openSampleHand();
-
-    const authForm = document.getElementById('auth-form');
-    if (authForm) {
-      authForm.onsubmit = (e) => {
-        e.preventDefault();
-        this.handleAuthSubmit();
-      };
-    }
-
-    const authToggleBtn = document.getElementById('auth-toggle-btn');
-    if (authToggleBtn) {
-      authToggleBtn.onclick = () => {
-        this.openAuthModal(this.authMode === 'login' ? 'register' : 'login');
-      };
-    }
-  },
-
-  renderSuggestions(names) {
-    const box = document.getElementById('search-suggestions');
-    if (!box) return;
-
-    if (!names.length) {
-      box.innerHTML = `<div class="p-3 text-xs text-slate-400 italic">No matching cards found.</div>`;
-      box.classList.add('is-open');
-      box.style.display = 'block';
-      return;
-    }
-
-    box.innerHTML = names.map(name => {
-      const cleanName = name.replace(/"/g, '&quot;');
-      return `
-        <div class="suggestion-row" data-card="${cleanName}">
-          <span class="text-sm font-semibold text-white pointer-events-none">${name}</span>
-          <span class="text-xs text-sky-400 font-bold pointer-events-none">+ Add to ${this.activeTarget.toUpperCase()}</span>
-        </div>
-      `;
-    }).join('');
-
-    box.querySelectorAll('.suggestion-row').forEach(row => {
-      row.onmousedown = (e) => {
-        e.preventDefault();
-        const targetCard = row.getAttribute('data-card');
-        this.addCardByName(targetCard);
-      };
-    });
-
-    box.classList.add('is-open');
-    box.style.display = 'block';
-  },
-
-  async addCardByName(cardName) {
-    if (this.isReadOnly) return;
-    if (!this.user) {
-      this.openAuthModal('login');
-      return;
-    }
-
-    const box = document.getElementById('search-suggestions');
-    const input = document.getElementById('card-search-input');
-    if (box) {
-      box.classList.remove('is-open');
-      box.style.display = 'none';
-    }
-    if (input) input.value = '';
-
-    const spinner = document.getElementById('search-spinner');
-    if (spinner) spinner.style.display = 'block';
-
-    try {
-      const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}`);
-      if (!res.ok) throw new Error(`Lookup failed (${res.status})`);
-      const data = await res.json();
-      this.insertCardIntoDeck(data, this.activeTarget, 1);
-      this.render();
-    } catch (err) {
-      console.error(err);
-      alert(`Could not fetch data for "${cardName}".`);
-    } finally {
-      if (spinner) spinner.style.display = 'none';
-    }
-  },
-
-  insertCardIntoDeck(scryfallCard, target, qty = 1) {
-    const image = scryfallCard.image_uris?.normal 
-      || scryfallCard.card_faces?.[0]?.image_uris?.normal 
-      || '';
-    const prices = scryfallCard.prices || {};
-
-    const card = {
-      id: scryfallCard.id,
-      oracle_id: scryfallCard.oracle_id,
-      name: scryfallCard.name,
-      mana_cost: scryfallCard.mana_cost || (scryfallCard.card_faces ? scryfallCard.card_faces[0].mana_cost : ''),
-      cmc: Math.floor(scryfallCard.cmc || 0),
-      type_line: scryfallCard.type_line || '',
-      pauper_legal: scryfallCard.legalities ? scryfallCard.legalities.pauper === 'legal' : false,
-      image: image,
-      price_usd: parseFloat(prices.usd || 0),
-      price_eur: parseFloat(prices.eur || 0),
-      qty: qty
-    };
-
-    const targetList = target === 'main' ? this.deck.main : this.deck.side;
-    const existing = targetList.find(c => c.name === card.name);
-
-    if (existing) {
-      existing.qty += qty;
-    } else {
-      targetList.push(card);
-    }
-  },
-
-  async handleImportDeck() {
-    if (this.isReadOnly) return;
-    if (!this.user) {
-      this.openAuthModal('login');
-      return;
-    }
-
-    const textarea = document.getElementById('import-textarea');
-    const text = textarea ? textarea.value.trim() : '';
-    if (!text) {
-      alert("Please paste a deck list into the box.");
-      return;
-    }
-
-    const replaceCurrent = document.getElementById('import-replace-checkbox').checked;
-    const submitBtn = document.getElementById('import-submit-btn');
-    submitBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Parsing cards...`;
-    submitBtn.disabled = true;
-
-    try {
-      const parsedEntries = this.parseRawDeckText(text);
-
-      if (!parsedEntries.main.length && !parsedEntries.side.length) {
-        alert("No valid card lines found.");
-        return;
-      }
-
-      if (replaceCurrent) {
-        this.deck.main = [];
-        this.deck.side = [];
-      }
-
-      const allEntries = [...parsedEntries.main, ...parsedEntries.side];
-      const uniqueNames = [...new Set(allEntries.map(e => e.name))];
-
-      const batches = [];
-      for (let i = 0; i < uniqueNames.length; i += 75) {
-        batches.push(uniqueNames.slice(i, i + 75));
-      }
-
-      const cardLookupMap = new Map();
-      const notFoundNames = [];
-
-      for (const batch of batches) {
-        const identifiers = batch.map(name => ({ name: name }));
-        const res = await fetch('https://api.scryfall.com/cards/collection', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifiers })
-        });
-
-        if (!res.ok) throw new Error("Scryfall bulk lookup failed.");
-        const data = await res.json();
-
-        (data.data || []).forEach(card => {
-          const fullName = card.name.toLowerCase();
-          const frontName = fullName.split('//')[0].trim();
-
-          cardLookupMap.set(fullName, card);
-          cardLookupMap.set(frontName, card);
-        });
-
-        if (data.not_found && data.not_found.length) {
-          data.not_found.forEach(nf => {
-            if (nf.name) notFoundNames.push(nf.name);
-          });
-        }
-      }
-
-      if (notFoundNames.length) {
-        for (const missingName of notFoundNames) {
-          try {
-            const fallbackRes = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(missingName)}`);
-            if (fallbackRes.ok) {
-              const fallbackCard = await fallbackRes.json();
-              const fullName = fallbackCard.name.toLowerCase();
-              const frontName = fullName.split('//')[0].trim();
-
-              cardLookupMap.set(fullName, fallbackCard);
-              cardLookupMap.set(frontName, fallbackCard);
-              cardLookupMap.set(missingName.toLowerCase(), fallbackCard);
-            }
-          } catch (e) {
-            console.warn(`Could not resolve missing card "${missingName}" via fallback:`, e);
-          }
-        }
-      }
-
-      const getCard = (rawName) => {
-        const clean = rawName.toLowerCase();
-        const front = clean.split('//')[0].trim();
-        return cardLookupMap.get(clean) || cardLookupMap.get(front) || null;
-      };
-
-      parsedEntries.main.forEach(entry => {
-        const scryfallCard = getCard(entry.name);
-        if (scryfallCard) this.insertCardIntoDeck(scryfallCard, 'main', entry.qty);
-      });
-
-      parsedEntries.side.forEach(entry => {
-        const scryfallCard = getCard(entry.name);
-        if (scryfallCard) this.insertCardIntoDeck(scryfallCard, 'side', entry.qty);
-      });
-
-      window.closeImportModal();
-      this.render();
-    } catch (err) {
-      console.error(err);
-      alert(`Import failed: ${err.message}`);
-    } finally {
-      submitBtn.innerHTML = `<i class="fa-solid fa-file-arrow-down"></i> Import & Parse`;
-      submitBtn.disabled = false;
-    }
-  },
-
-  parseRawDeckText(text) {
-    const lines = text.split(/\r?\n/);
-    const main = [];
-    const side = [];
-    let currentBoard = 'main';
-
-    for (let rawLine of lines) {
-      let line = rawLine.trim();
-      if (!line || line.startsWith('//') || line.startsWith('#')) continue;
-
-      const lower = line.toLowerCase();
-      if (lower === 'sideboard' || lower === 'sideboard:' || lower === 'side:' || lower === '--sideboard--') {
-        currentBoard = 'side';
-        continue;
-      }
-      if (lower === 'deck' || lower === 'main' || lower === 'mainboard:' || lower === 'main:') {
-        currentBoard = 'main';
-        continue;
-      }
-
-      let lineTarget = currentBoard;
-      if (line.toUpperCase().startsWith('SB:')) {
-        lineTarget = 'side';
-        line = line.substring(3).trim();
-      }
-
-      const match = line.match(/^(\d+)[xX]?\s+(.+)$/);
-      if (!match) continue;
-
-      const qty = parseInt(match[1], 10);
-      let cardName = match[2].trim();
-      cardName = cardName.replace(/\s*\([A-Za-z0-9_]+\)\s+[0-9a-zA-Z]+.*$/, '').trim();
-      cardName = cardName.replace(/\s*\*F\*\s*$/, '').trim();
-      cardName = cardName.replace(/\s*#.*$/, '').trim();
-
-      if (lineTarget === 'main') main.push({ name: cardName, qty });
-      else side.push({ name: cardName, qty });
-    }
-
-    return { main, side };
-  },
-
-  changeCardQty(name, target, delta) {
-    if (this.isReadOnly) return;
-    if (!this.user) {
-      this.openAuthModal('login');
-      return;
-    }
-
-    const list = target === 'main' ? this.deck.main : this.deck.side;
-    const card = list.find(c => c.name === name);
-    if (!card) return;
-
-    card.qty += delta;
-
-    if (card.qty <= 0) {
-      if (target === 'main') {
-        this.deck.main = this.deck.main.filter(c => c.name !== name);
-      } else {
-        this.deck.side = this.deck.side.filter(c => c.name !== name);
-      }
-      this.render();
-    } else {
-      const wrapperId = `card-${target}-${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      const wrapEl = document.getElementById(wrapperId);
-      if (wrapEl) {
-        const badge = wrapEl.querySelector('.card-badge-qty');
-        if (badge) badge.textContent = card.qty;
-      }
-      this.calculateStats();
-      this.checkPauperLegality();
-
-      const category = this.getCardCategory(card);
-      this.updateColumnHeaderCount(target, category);
-    }
-  },
-
-  updateColumnHeaderCount(target, category) {
-    const containerId = target === 'main' ? 'main-stacks' : 'side-stacks';
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    const list = target === 'main' ? this.deck.main : this.deck.side;
-    const catCards = list.filter(c => this.getCardCategory(c) === category);
-    const catTotal = catCards.reduce((sum, c) => sum + c.qty, 0);
-
-    const headers = container.querySelectorAll('.stack-column');
-    headers.forEach(col => {
-      const titleSpan = col.querySelector('.stack-column-header span:first-child');
-      const countSpan = col.querySelector('.stack-column-header span:last-child');
-      if (titleSpan && titleSpan.textContent === category && countSpan) {
-        countSpan.textContent = catTotal;
-      }
-    });
-  },
-
-  moveCardBoard(name, fromTarget) {
-    if (this.isReadOnly) return;
-    if (!this.user) {
-      this.openAuthModal('login');
-      return;
-    }
-
-    const sourceList = fromTarget === 'main' ? this.deck.main : this.deck.side;
-    const destList = fromTarget === 'main' ? this.deck.side : this.deck.main;
-    const toTarget = fromTarget === 'main' ? 'Sideboard' : 'Mainboard';
-
-    const card = sourceList.find(c => c.name === name);
-    if (!card) return;
-
-    let moveQty = 1;
-    if (card.qty > 1) {
-      const input = prompt(`Move how many copies of "${card.name}" to ${toTarget}? (1 - ${card.qty})`, card.qty);
-      if (input === null) return;
-      moveQty = parseInt(input, 10);
-      if (isNaN(moveQty) || moveQty <= 0) return;
-      if (moveQty > card.qty) moveQty = card.qty;
-    }
-
-    const existingInDest = destList.find(c => c.name === name);
-    if (existingInDest) {
-      existingInDest.qty += moveQty;
-    } else {
-      destList.push({ ...card, qty: moveQty });
-    }
-
-    card.qty -= moveQty;
-    if (card.qty <= 0) {
-      if (fromTarget === 'main') {
-        this.deck.main = this.deck.main.filter(c => c.name !== name);
-      } else {
-        this.deck.side = this.deck.side.filter(c => c.name !== name);
-      }
-    }
-
-    this.render();
-  },
-
-  async openArtModal(cardName) {
-    if (this.isReadOnly) return;
-    if (!this.user) {
-      this.openAuthModal('login');
-      return;
-    }
-
-    const card = [...this.deck.main, ...this.deck.side].find(c => c.name === cardName);
-    if (!card) return;
-    this.selectedCardForPrints = card;
-
-    const modal = document.getElementById('art-modal');
-    const grid = document.getElementById('art-prints-grid');
-    document.getElementById('art-modal-title').textContent = `Alternate Art: ${card.name}`;
-    grid.innerHTML = `<div class="col-span-full text-center text-sky-400 py-8"><i class="fa-solid fa-circle-notch fa-spin text-2xl"></i></div>`;
-    modal.style.display = 'flex';
-
-    try {
-      const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(card.name)}"&unique=prints`);
-      const data = await res.json();
-      const prints = data.data || [];
-
-      grid.innerHTML = prints.map(p => {
-        const img = p.image_uris?.normal || p.card_faces?.[0]?.image_uris?.normal || '';
-        if (!img) return '';
-        return `
-          <div class="cursor-pointer group flex flex-col items-center" onclick="Builder.selectArt('${p.id}', '${img}')">
-            <img src="${img}" class="rounded-lg border-2 border-transparent group-hover:border-sky-500 transition shadow-lg">
-            <span class="text-[10px] text-slate-400 font-bold uppercase mt-1.5">${p.set_name} (${p.set.toUpperCase()})</span>
-          </div>
-        `;
-      }).join('');
-    } catch (err) {
-      grid.innerHTML = `<div class="col-span-full text-red-400 text-center py-4">Failed to fetch printings.</div>`;
-    }
-  },
-
-  selectArt(newId, newImg) {
-    if (this.isReadOnly) return;
-    const cardName = this.selectedCardForPrints.name;
-    const all = [...this.deck.main, ...this.deck.side].filter(c => c.name === cardName);
-    all.forEach(c => {
-      c.id = newId;
-      c.image = newImg;
-    });
-
-    const safeName = cardName.replace(/[^a-zA-Z0-9]/g, '_');
-    ['main', 'side'].forEach(target => {
-      const wrapEl = document.getElementById(`card-${target}-${safeName}`);
-      if (wrapEl) {
-        const imgEl = wrapEl.querySelector('.visual-card-img');
-        if (imgEl) imgEl.src = newImg;
-      }
-    });
-
-    window.closeArtModal();
-  },
-
-  getCardCategory(card) {
-    const rawType = card.type_line || '';
-    const primaryFaceType = rawType.split('//')[0].trim();
-
-    if (primaryFaceType.includes('Planeswalker')) return 'Planeswalkers';
-    if (primaryFaceType.includes('Creature')) return 'Creatures';
-    if (primaryFaceType.includes('Instant')) return 'Instants';
-    if (primaryFaceType.includes('Sorcery')) return 'Sorceries';
-    if (primaryFaceType.includes('Artifact')) return 'Artifacts';
-    if (primaryFaceType.includes('Enchantment')) return 'Enchantments';
-    if (primaryFaceType.includes('Battle')) return 'Battles';
-    if (primaryFaceType.includes('Land')) return 'Lands';
-    return 'Other';
-  },
-
-  render() {
-    this.renderBoardLane('main', 'main-stacks', 'main-group-count');
-    this.renderBoardLane('side', 'side-stacks', 'side-group-count');
-    this.calculateStats();
-    this.checkPauperLegality();
-    this.applyReadOnlyState();
-  },
-
-  applyReadOnlyState() {
-    const titleInput = document.getElementById('deck-title-input');
-    const readOnlyBadge = document.getElementById('read-only-badge');
-    const saveBtn = document.getElementById('save-deck-btn');
-    const cloneBtn = document.getElementById('clone-deck-btn');
-    const importBtn = document.getElementById('import-deck-btn');
-    const searchSection = document.getElementById('search-section');
-
-    if (this.isReadOnly) {
-      if (titleInput) titleInput.disabled = true;
-      if (readOnlyBadge) readOnlyBadge.classList.remove('hidden');
-      if (saveBtn) saveBtn.classList.add('hidden');
-      if (cloneBtn) cloneBtn.classList.remove('hidden');
-      if (importBtn) importBtn.classList.add('hidden');
-      if (searchSection) searchSection.classList.add('hidden');
-    } else {
-      if (titleInput) titleInput.disabled = false;
-      if (readOnlyBadge) readOnlyBadge.classList.add('hidden');
-      if (saveBtn) saveBtn.classList.remove('hidden');
-      if (cloneBtn) cloneBtn.classList.add('hidden');
-      if (importBtn) importBtn.classList.remove('hidden');
-      if (searchSection) searchSection.classList.remove('hidden');
-    }
-  },
-
-  renderBoardLane(target, containerId, countId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    const list = target === 'main' ? this.deck.main : this.deck.side;
-    const totalCount = list.reduce((sum, c) => sum + c.qty, 0);
-    const countEl = document.getElementById(countId);
-    if (countEl) countEl.textContent = `${totalCount} Cards`;
-
-    container.innerHTML = '';
-    if (!list.length) {
-      container.innerHTML = `<div class="text-xs text-slate-500 italic py-6 col-span-full">No cards in ${target}.</div>`;
-      return;
-    }
-
-    const categoryOrder = [
-      'Creatures',
-      'Planeswalkers',
-      'Instants',
-      'Sorceries',
-      'Artifacts',
-      'Enchantments',
-      'Battles',
-      'Lands',
-      'Other'
-    ];
-
-    const buckets = {};
-    categoryOrder.forEach(cat => { buckets[cat] = []; });
-
-    list.forEach(card => {
-      const cat = this.getCardCategory(card);
-      if (!buckets[cat]) buckets[cat] = [];
-      buckets[cat].push(card);
-    });
-
-    for (const title of categoryOrder) {
-      const cards = buckets[title];
-      if (!cards || !cards.length) continue;
-
-      const groupQty = cards.reduce((sum, c) => sum + c.qty, 0);
-      const col = document.createElement('div');
-      col.className = 'stack-column';
-
-      col.innerHTML = `
-        <div class="stack-column-header">
-          <span>${title}</span>
-          <span>${groupQty}</span>
-        </div>
-      `;
-
-      const cascade = document.createElement('div');
-      cascade.className = 'card-cascade-container';
-      cascade.style.height = `${240 + (cards.length - 1) * 36}px`;
-
-      cards.forEach((card, idx) => {
-        const wrap = document.createElement('div');
-        const safeName = card.name.replace(/[^a-zA-Z0-9]/g, '_');
-        wrap.id = `card-${target}-${safeName}`;
-        wrap.className = 'visual-card-wrapper';
-        wrap.style.top = `${idx * 34}px`;
-        wrap.style.zIndex = idx + 1;
-
-        // In Read-Only mode, quick action buttons (+, -, switch, art) are omitted
-        const actionsHtml = this.isReadOnly ? '' : `
-          <div class="card-quick-actions">
-            <button class="quick-btn" title="Add Copy" onclick="Builder.changeCardQty('${card.name.replace(/'/g, "\\'")}', '${target}', 1)">+</button>
-            <button class="quick-btn" title="Remove Copy" onclick="Builder.changeCardQty('${card.name.replace(/'/g, "\\'")}', '${target}', -1)">-</button>
-            <button class="quick-btn" title="Switch Board" onclick="Builder.moveCardBoard('${card.name.replace(/'/g, "\\'")}', '${target}')">⇄</button>
-            <button class="quick-btn" title="Change Art" onclick="Builder.openArtModal('${card.name.replace(/'/g, "\\'")}')">🎨</button>
-          </div>
-        `;
-
-        wrap.innerHTML = `
-          <img src="${card.image}" class="visual-card-img" alt="${card.name}">
-          <span class="card-badge-qty">${card.qty}</span>
-          ${actionsHtml}
-        `;
-        cascade.appendChild(wrap);
-      });
-
-      col.appendChild(cascade);
-      container.appendChild(col);
-    }
-  },
-
-  checkPauperLegality() {
-    const badge = document.getElementById('pauper-badge');
-    const reasonsContainer = document.getElementById('legality-reasons');
-    if (!badge) return;
-
-    const reasons = [];
-    const mainCount = this.deck.main.reduce((s, c) => s + c.qty, 0);
-    const sideCount = this.deck.side.reduce((s, c) => s + c.qty, 0);
-
-    if (mainCount < 60) {
-      reasons.push(`Mainboard requires at least 60 cards (${mainCount}/60).`);
-    }
-
-    if (sideCount > 15) {
-      reasons.push(`Sideboard exceeds maximum of 15 cards (${sideCount}/15).`);
-    }
-
-    const combinedCounts = {};
-    const legalityFlags = {};
-
-    [...this.deck.main, ...this.deck.side].forEach(c => {
-      combinedCounts[c.name] = (combinedCounts[c.name] || 0) + c.qty;
-      legalityFlags[c.name] = c.pauper_legal;
-    });
-
-    for (const [name, qty] of Object.entries(combinedCounts)) {
-      if (legalityFlags[name] === false) {
-        reasons.push(`"${name}" is banned or not legal in Pauper.`);
-      }
-
-      if (!BASIC_LANDS.has(name) && !UNLIMITED_COPIES.has(name)) {
-        const limit = (name === 'Seven Dwarves') ? 7 : 4;
-        if (qty > limit) {
-          reasons.push(`"${name}" exceeds the ${limit}-copy limit (${qty} copies present).`);
-        }
-      }
-    }
-
-    if (reasons.length === 0 && mainCount >= 60) {
-      badge.textContent = 'Pauper Legal';
-      badge.className = 'text-xs uppercase px-2.5 py-1 bg-emerald-950 text-emerald-400 font-bold border border-emerald-700 rounded transition cursor-default';
-      badge.title = 'Deck meets all tournament requirements!';
-      if (reasonsContainer) reasonsContainer.innerHTML = '';
-    } else {
-      badge.textContent = 'Not Legal';
-      badge.className = 'text-xs uppercase px-2.5 py-1 bg-rose-950 text-rose-400 font-bold border border-rose-800 rounded transition cursor-pointer';
-      badge.title = reasons.join('\n');
-      
-      if (reasonsContainer) {
-        reasonsContainer.innerHTML = `
-          <div class="text-[11px] text-rose-300 bg-rose-950/60 border border-rose-900 rounded p-2.5 space-y-1">
-            <div class="font-bold uppercase tracking-wider text-rose-400">Legality Requirements:</div>
-            ${reasons.map(r => `<div>• ${r}</div>`).join('')}
-          </div>
-        `;
-      }
-    }
-  },
-
-  calculateStats() {
-    const mainList = this.deck.main;
-    const sideList = this.deck.side;
-
-    const mainTotal = mainList.reduce((s, c) => s + c.qty, 0);
-    const sideTotal = sideList.reduce((s, c) => s + c.qty, 0);
-
-    const mainCountEl = document.getElementById('stat-main-count');
-    const sideCountEl = document.getElementById('stat-side-count');
-    if (mainCountEl) mainCountEl.textContent = mainTotal;
-    if (sideCountEl) sideCountEl.textContent = sideTotal;
-
-    let totalUsd = 0;
-    let totalEur = 0;
-    [...mainList, ...sideList].forEach(c => {
-      totalUsd += (c.price_usd || 0) * c.qty;
-      totalEur += (c.price_eur || 0) * c.qty;
-    });
-
-    const usdEl = document.getElementById('stat-price-usd');
-    const eurEl = document.getElementById('stat-price-eur');
-    if (usdEl) usdEl.textContent = `$${totalUsd.toFixed(2)}`;
-    if (eurEl) eurEl.textContent = `€${totalEur.toFixed(2)}`;
-
-    const curve = [0, 0, 0, 0, 0, 0, 0];
-    mainList.filter(c => !c.type_line.includes('Land')).forEach(c => {
-      const cmc = Math.min(c.cmc, 6);
-      curve[cmc] += c.qty;
-    });
-
-    const maxCurve = Math.max(...curve, 1);
-    curve.forEach((val, i) => {
-      const bar = document.getElementById(`curve-bar-${i}`);
-      if (bar) {
-        const pct = (val / maxCurve) * 100;
-        bar.style.height = `${Math.max(pct, 4)}%`;
-      }
-    });
-
-    const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
-    mainList.forEach(c => {
-      const cost = c.mana_cost || '';
-      for (const char of cost) {
-        if (pips[char] !== undefined) pips[char] += c.qty;
-      }
-    });
-
-    const totalPips = Object.values(pips).reduce((a, b) => a + b, 0) || 1;
-    const wEl = document.getElementById('pip-val-w');
-    const uEl = document.getElementById('pip-val-u');
-    const bEl = document.getElementById('pip-val-b');
-    const rEl = document.getElementById('pip-val-r');
-    const gEl = document.getElementById('pip-val-g');
-    const cEl = document.getElementById('pip-val-c');
-
-    if (wEl) wEl.textContent = pips.W;
-    if (uEl) uEl.textContent = pips.U;
-    if (bEl) bEl.textContent = pips.B;
-    if (rEl) rEl.textContent = pips.R;
-    if (gEl) gEl.textContent = pips.G;
-    if (cEl) cEl.textContent = pips.C;
-
-    const bar = document.getElementById('pip-progress-bar');
-    if (bar) {
-      bar.innerHTML = `
-        <div class="pip-segment-w" style="width: ${(pips.W / totalPips) * 100}%"></div>
-        <div class="pip-segment-u" style="width: ${(pips.U / totalPips) * 100}%"></div>
-        <div class="pip-segment-b" style="width: ${(pips.B / totalPips) * 100}%"></div>
-        <div class="pip-segment-r" style="width: ${(pips.R / totalPips) * 100}%"></div>
-        <div class="pip-segment-g" style="width: ${(pips.G / totalPips) * 100}%"></div>
-        <div class="pip-segment-c" style="width: ${(pips.C / totalPips) * 100}%"></div>
-      `;
-    }
-
-    this.renderTypeBreakdown(mainList, 'main-type-counts-list');
-    this.renderTypeBreakdown(sideList, 'side-type-counts-list');
-    this.calculateHandProbabilities(mainList, mainTotal);
-  },
-
-  renderTypeBreakdown(cardsList, containerId) {
-    const types = {};
-    cardsList.forEach(c => {
-      const rawType = c.type_line || '';
-      const frontFace = rawType.split('//')[0].trim();
-      const mainTypeSection = frontFace.split('—')[0].trim();
-      
-      let label = 'Other';
-      if (mainTypeSection.includes('Creature')) label = 'Creatures';
-      else if (mainTypeSection.includes('Instant')) label = 'Instants';
-      else if (mainTypeSection.includes('Sorcery')) label = 'Sorceries';
-      else if (mainTypeSection.includes('Artifact')) label = 'Artifacts';
-      else if (mainTypeSection.includes('Enchantment')) label = 'Enchantments';
-      else if (mainTypeSection.includes('Battle')) label = 'Battles';
-      else if (mainTypeSection.includes('Planeswalker')) label = 'Planeswalkers';
-      else if (mainTypeSection.includes('Land')) label = 'Lands';
-
-      types[label] = (types[label] || 0) + c.qty;
-    });
-
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    if (!cardsList.length) {
-      container.innerHTML = `<span class="text-slate-500 italic">No cards added</span>`;
-      return;
-    }
-
-    container.innerHTML = Object.entries(types).map(([k, v]) => `
-      <div class="flex justify-between py-0.5 border-b border-slate-800/60 last:border-0">
-        <span class="text-slate-400">${k}</span>
-        <span class="text-white font-bold">${v}</span>
-      </div>
-    `).join('');
-  },
-
-  calculateHandProbabilities(mainList, mainTotal) {
-    const N = mainTotal;
-    const n = 7;
-
-    const probStdEl = document.getElementById('prob-standard-lands');
-    const barStdEl = document.getElementById('bar-standard-lands');
-    const probAggroEl = document.getElementById('prob-aggro-lands');
-    const barAggroEl = document.getElementById('bar-aggro-lands');
-    const probOneEl = document.getElementById('prob-one-drop');
-    const barOneEl = document.getElementById('bar-one-drop');
-
-    if (N < 7) {
-      if (probStdEl) probStdEl.textContent = '0.0%';
-      if (probAggroEl) probAggroEl.textContent = '0.0%';
-      if (probOneEl) probOneEl.textContent = '0.0%';
-      return;
-    }
-
-    const totalLands = mainList
-      .filter(c => c.type_line.includes('Land'))
-      .reduce((sum, c) => sum + c.qty, 0);
-
-    const totalOneDrops = mainList
-      .filter(c => !c.type_line.includes('Land') && c.cmc === 1)
-      .reduce((sum, c) => sum + c.qty, 0);
-
-    let probStd = 0;
-    for (let k = 2; k <= 4; k++) {
-      probStd += hypergeomPdf(k, N, totalLands, n);
-    }
-
-    let probAggro = 0;
-    for (let k = 1; k <= 3; k++) {
-      probAggro += hypergeomPdf(k, N, totalLands, n);
-    }
-
-    const probZeroOneDrops = hypergeomPdf(0, N, totalOneDrops, n);
-    const probOneDrop = Math.max(0, 1 - probZeroOneDrops);
-
-    const pctStd = Math.min(100, Math.max(0, probStd * 100));
-    const pctAggro = Math.min(100, Math.max(0, probAggro * 100));
-    const pctOne = Math.min(100, Math.max(0, probOneDrop * 100));
-
-    if (probStdEl) probStdEl.textContent = `${pctStd.toFixed(1)}%`;
-    if (barStdEl) barStdEl.style.width = `${pctStd}%`;
-
-    if (probAggroEl) probAggroEl.textContent = `${pctAggro.toFixed(1)}%`;
-    if (barAggroEl) barAggroEl.style.width = `${pctAggro}%`;
-
-    if (probOneEl) probOneEl.textContent = `${pctOne.toFixed(1)}%`;
-    if (barOneEl) barOneEl.style.width = `${pctOne}%`;
-  },
-
-  openSampleHand() {
-    const flatDeck = [];
-    this.deck.main.forEach(c => {
-      for (let i = 0; i < c.qty; i++) flatDeck.push(c);
-    });
-
-    if (flatDeck.length < 7) {
-      alert("Mainboard needs at least 7 cards to draw a sample hand!");
-      return;
-    }
-
-    for (let i = flatDeck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [flatDeck[i], flatDeck[j]] = [flatDeck[j], flatDeck[i]];
-    }
-
-    const hand = flatDeck.slice(0, 7);
-    const lane = document.getElementById('sample-hand-lane');
-    if (lane) {
-      lane.innerHTML = hand.map(c => `
-        <img src="${c.image}" class="w-32 rounded-lg shadow-xl hover:-translate-y-2 transition-transform">
-      `).join('');
-    }
-
-    const modal = document.getElementById('hand-modal');
-    if (modal) modal.style.display = 'flex';
-  },
-
-  async saveDeck() {
-    if (this.isReadOnly) return;
-    if (!this.user) {
-      this.openAuthModal('login');
-      return;
-    }
-
-    const btn = document.getElementById('save-deck-btn');
-    if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...`;
-
-    try {
-      const res = await fetch('/api_decks.php?action=save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: this.deck.id,
-          title: this.deck.title,
-          cards: {
-            main: this.deck.main,
-            side: this.deck.side
-          }
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save');
-
-      this.deck.id = data.deck_id;
-      if (btn) btn.innerHTML = `<i class="fa-solid fa-check"></i> Saved!`;
-      setTimeout(() => {
-        if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save`;
-      }, 2000);
-    } catch (err) {
-      alert(err.message);
-      if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save`;
-    }
-  },
-
-  async cloneCurrentDeck() {
-    if (!this.user) {
-      this.openAuthModal('login');
-      return;
-    }
-
-    try {
-      const res = await fetch('/api_decks.php?action=clone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: this.deck.id })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to clone');
-
-      // Redirect directly to the newly cloned deck in full editable mode
-      window.location.href = `builder.php?id=${data.new_deck_id}`;
-    } catch (err) {
-      alert(err.message);
-    }
-  },
-
-  openAuthModal(mode = 'login') {
-    this.authMode = mode;
-    const modal = document.getElementById('auth-modal');
-    const title = document.getElementById('auth-modal-title');
-    const submitBtn = document.getElementById('auth-submit-btn');
-    const togglePrompt = document.getElementById('auth-toggle-prompt');
-    const toggleBtn = document.getElementById('auth-toggle-btn');
-    const registerFields = document.getElementById('auth-register-fields');
-    const errBox = document.getElementById('auth-error-msg');
-
-    if (errBox) errBox.classList.add('hidden');
-
-    if (mode === 'register') {
-      title.textContent = "Create Account";
-      submitBtn.textContent = "Sign Up";
-      togglePrompt.textContent = "Already have an account?";
-      toggleBtn.textContent = "Sign In";
-      registerFields.style.display = 'block';
-    } else {
-      title.textContent = "Sign In to SoCal Pauper";
-      submitBtn.textContent = "Sign In";
-      togglePrompt.textContent = "Don't have an account?";
-      toggleBtn.textContent = "Create Account";
-      registerFields.style.display = 'none';
-    }
-
-    modal.style.display = 'flex';
-  },
-
-  async handleAuthSubmit() {
-    const errBox = document.getElementById('auth-error-msg');
-    const username = document.getElementById('auth-username').value.trim();
-    const password = document.getElementById('auth-password').value;
-    const email = document.getElementById('auth-email').value.trim();
-    const notifyEvents = document.getElementById('auth-notify-events').checked;
-    const notifyPromos = document.getElementById('auth-notify-promos').checked;
-
-    const endpoint = this.authMode === 'register' 
-      ? '/api_auth.php?action=register' 
-      : '/api_auth.php?action=login';
-
-    const payload = this.authMode === 'register'
-      ? { username, password, email, notify_events: notifyEvents, notify_promotions: notifyPromos }
-      : { username, password };
-
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Authentication error');
-
-      this.user = data.user;
-      this.updateAuthUI();
-      window.closeAuthModal();
-
-      // Re-evaluate read-only state now that user is signed in
-      if (this.deck.id) {
-        await this.loadDeck(this.deck.id);
-      } else {
-        this.render();
-      }
-    } catch (err) {
-      if (errBox) {
-        errBox.textContent = err.message;
-        errBox.classList.remove('hidden');
-      }
-    }
-  },
-
-  async logout() {
-    await fetch('/api_auth.php?action=logout');
-    this.user = null;
-    this.updateAuthUI();
-    window.location.href = 'decks.php';
-  },
-
-  async openMyDecksModal() {
-    const modal = document.getElementById('my-decks-modal');
-    const list = document.getElementById('my-decks-list');
-    list.innerHTML = `<div class="text-center py-6 text-sky-400"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading decks...</div>`;
-    modal.style.display = 'flex';
-
-    try {
-      const res = await fetch('/api_decks.php?action=my_decks');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch decks');
-
-      const decks = data.decks || [];
-      if (!decks.length) {
-        list.innerHTML = `<div class="text-slate-400 text-xs italic py-4 text-center">You haven't saved any decks yet.</div>`;
-        return;
-      }
-
-      list.innerHTML = decks.map(d => `
-        <div class="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-slate-700 transition">
-          <div>
-            <div class="font-bold text-white text-sm">${this.escapeHtml(d.title)}</div>
-            <div class="text-[10px] text-slate-400">Updated: ${new Date(d.updated_at).toLocaleDateString()}</div>
-          </div>
-          <button type="button" onclick="Builder.loadDeck(${d.id})" class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded transition">
-            Load
+  </style>
+</head>
+<body class="hub-bg text-slate-100 min-h-screen flex flex-col font-sans">
+
+  <!-- Hub Header -->
+  <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40">
+    <div class="flex items-center gap-6">
+      <a href="index.php" class="text-sky-400 font-black tracking-wider text-lg flex items-center gap-2 hover:text-white transition">
+        <span>⚡ SoCal Pauper</span>
+      </a>
+      <nav class="flex items-center gap-2 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs font-bold">
+        <button id="tab-my-decks" type="button" class="px-4 py-1.5 rounded-md bg-sky-600 text-white transition">My Decks</button>
+        <button id="tab-community" type="button" class="px-4 py-1.5 rounded-md text-slate-400 hover:text-white transition">Community Brews</button>
+      </nav>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button onclick="Hub.handleNewDeck()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg shadow-lg transition flex items-center gap-2">
+        <i class="fa-solid fa-plus"></i> New Deck
+      </button>
+
+      <div id="nav-auth-slot"></div>
+    </div>
+  </header>
+
+  <!-- Main Grid Workspace -->
+  <div class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+
+    <!-- Left Sidebar: Folders & Filters -->
+    <aside class="md:col-span-1 space-y-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <span class="text-xs font-black uppercase tracking-wider text-slate-400">Folders</span>
+          <button onclick="openFolderModal()" class="text-sky-400 hover:text-white text-xs font-bold transition flex items-center gap-1">
+            <i class="fa-solid fa-folder-plus"></i> New
           </button>
         </div>
-      `).join('');
-    } catch (err) {
-      list.innerHTML = `<div class="text-rose-400 text-xs py-4 text-center">${err.message}</div>`;
-    }
-  },
 
-  async loadDeck(deckId) {
-    try {
-      const res = await fetch(`/api_decks.php?action=get&id=${deckId}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load deck');
+        <nav id="folder-list-container" class="space-y-1 text-xs font-medium">
+          <button onclick="Hub.selectFolder(null)" id="folder-all-btn" class="w-full text-left px-3 py-2 rounded-lg bg-sky-950 text-sky-400 font-bold border border-sky-800 flex items-center justify-between">
+            <span class="flex items-center gap-2"><i class="fa-solid fa-layer-group"></i> All Decks</span>
+            <span id="all-decks-count" class="text-[10px] bg-sky-900/60 px-2 py-0.5 rounded-full">0</span>
+          </button>
+        </nav>
+      </div>
 
-      const d = data.deck;
-      this.deck.id = d.id;
-      this.deck.user_id = d.user_id;
-      this.deck.title = d.title;
-      this.deck.main = d.cards_data.main || [];
-      this.deck.side = d.cards_data.side || [];
+      <!-- Quick Search Filter -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Search Decks</label>
+        <div class="relative">
+          <input type="text" id="deck-filter-input" placeholder="Filter by deck name..." 
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500">
+          <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-slate-500 text-xs"></i>
+        </div>
+      </div>
+    </aside>
 
-      // Determine Read-Only state: active if user is logged out, or user doesn't own deck and isn't admin
-      const isOwner = this.user && (this.user.id == d.user_id);
-      const isAdmin = this.user && (this.user.role === 'admin');
-      this.isReadOnly = !isOwner && !isAdmin;
+    <!-- Right Content: Decks Grid (Empty container populated strictly via JS) -->
+    <main class="md:col-span-3 space-y-4">
+      <div class="flex items-center justify-between">
+        <h1 id="view-title" class="text-xl font-black text-white">All Decks</h1>
+        <span id="filtered-deck-count" class="text-xs text-slate-400 font-mono">Loading decks...</span>
+      </div>
 
-      document.getElementById('deck-title-input').value = d.title;
-      window.closeMyDecksModal();
-      window.closeAdminModal();
-      this.render();
-    } catch (err) {
-      alert(err.message);
-    }
-  },
+      <div id="decks-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </main>
+  </div>
 
-  async openAdminModal() {
-    const modal = document.getElementById('admin-modal');
-    const container = document.getElementById('admin-decks-table-container');
-    container.innerHTML = `<div class="text-center py-8 text-purple-400"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching site-wide decks...</div>`;
-    modal.style.display = 'flex';
+  <!-- Rename Deck Modal -->
+  <div id="rename-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+        <h3 class="font-bold text-white text-base">Rename Deck</h3>
+        <button onclick="closeRenameModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="text" id="rename-deck-input" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-sky-500">
+      <div class="flex justify-end gap-2">
+        <button onclick="closeRenameModal()" class="px-3 py-1.5 text-xs text-slate-300 hover:text-white">Cancel</button>
+        <button id="rename-submit-btn" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition">Save</button>
+      </div>
+    </div>
+  </div>
 
-    try {
-      const res = await fetch('/api_decks.php?action=admin_all_decks');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Admin request failed');
+  <!-- Create Folder Modal -->
+  <div id="folder-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+        <h3 class="font-bold text-white text-base">Create Folder</h3>
+        <button onclick="closeFolderModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="text" id="folder-name-input" placeholder="e.g. Competitive Meta, Sideboard Tech..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-sky-500">
+      <div class="flex justify-end gap-2">
+        <button onclick="closeFolderModal()" class="px-3 py-1.5 text-xs text-slate-300 hover:text-white">Cancel</button>
+        <button id="folder-submit-btn" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition">Create Folder</button>
+      </div>
+    </div>
+  </div>
 
-      const decks = data.decks || [];
-      if (!decks.length) {
-        container.innerHTML = `<div class="text-slate-400 text-xs italic text-center py-4">No decks found in database.</div>`;
-        return;
-      }
+  <!-- Move to Folder Modal -->
+  <div id="move-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+        <h3 class="font-bold text-white text-base">Move Deck to Folder</h3>
+        <button onclick="closeMoveModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <select id="move-folder-select" class="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2 text-sm focus:border-sky-500 focus:outline-none">
+        <option value="">Uncategorized (No Folder)</option>
+      </select>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeMoveModal()" class="px-3 py-1.5 text-xs text-slate-300 hover:text-white">Cancel</button>
+        <button id="move-submit-btn" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition">Move</button>
+      </div>
+    </div>
+  </div>
 
-      container.innerHTML = `
-        <table class="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr class="border-b border-slate-700 text-slate-400 font-bold uppercase text-[10px]">
-              <th class="pb-2">Deck Title</th>
-              <th class="pb-2">Author</th>
-              <th class="pb-2">Email</th>
-              <th class="pb-2">Updated</th>
-              <th class="pb-2 text-right">Inspect</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-800">
-            ${decks.map(d => `
-              <tr class="hover:bg-slate-900/60">
-                <td class="py-2.5 font-bold text-white">${this.escapeHtml(d.title)}</td>
-                <td class="py-2.5 text-sky-400 font-mono">${this.escapeHtml(d.username)}</td>
-                <td class="py-2.5 text-slate-400">${d.email ? this.escapeHtml(d.email) : '<span class="italic text-slate-600">none</span>'}</td>
-                <td class="py-2.5 text-slate-400">${new Date(d.updated_at).toLocaleDateString()}</td>
-                <td class="py-2.5 text-right">
-                  <button type="button" onclick="Builder.loadDeck(${d.id})" class="px-2.5 py-1 bg-purple-900/80 hover:bg-purple-800 border border-purple-700 text-purple-200 font-bold rounded text-[11px] transition">
-                    View
-                  </button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-    } catch (err) {
-      container.innerHTML = `<div class="text-rose-400 text-xs py-4 text-center">${err.message}</div>`;
-    }
-  },
+  <!-- Auth Modal -->
+  <div id="auth-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+        <h3 id="auth-modal-title" class="font-bold text-white text-base">Sign In</h3>
+        <button onclick="closeAuthModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="auth-form" class="space-y-4">
+        <div id="auth-error-msg" class="text-xs text-rose-400 bg-rose-950/60 border border-rose-900 rounded p-2 hidden"></div>
+        <div>
+          <label class="block text-xs font-bold text-slate-300 uppercase mb-1">Username</label>
+          <input type="text" id="auth-username" required class="w-full bg-slate-950 border border-slate-700 text-white rounded p-2 text-sm focus:border-sky-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-300 uppercase mb-1">Password</label>
+          <input type="password" id="auth-password" required minlength="8" class="w-full bg-slate-950 border border-slate-700 text-white rounded p-2 text-sm focus:border-sky-500 focus:outline-none">
+        </div>
+        <button type="submit" id="auth-submit-btn" class="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg transition text-sm">Sign In</button>
+      </form>
+    </div>
+  </div>
 
-  escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-};
-
-window.openImportModal = function() {
-  const modal = document.getElementById('import-modal');
-  if (modal) modal.style.display = 'flex';
-};
-
-window.closeImportModal = function() {
-  const modal = document.getElementById('import-modal');
-  if (modal) modal.style.display = 'none';
-};
-
-window.closeArtModal = function() {
-  const modal = document.getElementById('art-modal');
-  if (modal) modal.style.display = 'none';
-};
-
-window.closeHandModal = function() {
-  const modal = document.getElementById('hand-modal');
-  if (modal) modal.style.display = 'none';
-};
-
-window.closeAuthModal = function() {
-  const modal = document.getElementById('auth-modal');
-  if (modal) modal.style.display = 'none';
-};
-
-window.closeMyDecksModal = function() {
-  const modal = document.getElementById('my-decks-modal');
-  if (modal) modal.style.display = 'none';
-};
-
-window.closeAdminModal = function() {
-  const modal = document.getElementById('admin-modal');
-  if (modal) modal.style.display = 'none';
-};
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => window.Builder.init());
-} else {
-  window.Builder.init();
-}
+  <script src="js/decks_hub.js?v=4"></script>
+</body>
+</html>
