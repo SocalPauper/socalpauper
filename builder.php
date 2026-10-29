@@ -189,7 +189,7 @@ session_start();
   </div>
 
   <!-- Core Scripts -->
-  <script src="js/auth.js"></script>
+  
   <script src="js/builder.js"></script>
 </body>
 </html>
