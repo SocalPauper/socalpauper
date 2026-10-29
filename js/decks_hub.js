@@ -174,9 +174,14 @@ window.Hub = {
         : '/api_decks.php?action=community_decks';
 
       const res = await fetch(endpoint);
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        throw new Error('Server returned HTTP ' + res.status + ' without JSON output');
+      }
 
-      if (!res.ok) throw new Error(data.error || ('Server responded with ' + res.status));
+      if (!res.ok) throw new Error(data.error || ('Server error (' + res.status + ')'));
 
       this.decks = data.decks || [];
       this.folders = data.folders || [];
