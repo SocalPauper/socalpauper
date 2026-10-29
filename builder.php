@@ -8,7 +8,7 @@ session_start();
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SoCal Pauper — Deck Architect</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/builder.css?v=9">
+  <link rel="stylesheet" href="css/builder.css?v=10">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="builder-root">
@@ -16,7 +16,8 @@ session_start();
   <!-- Top Action Bar -->
   <header class="builder-header">
     <div class="flex items-center gap-4">
-      <a href="index.php" class="text-sky-400 font-bold hover:text-white transition text-sm">
+      <!-- Hub button pointing to decks.php -->
+      <a href="decks.php" class="text-sky-400 font-bold hover:text-white transition text-sm flex items-center gap-1.5">
         <i class="fa-solid fa-arrow-left"></i> Hub
       </a>
       <input type="text" id="deck-title-input" value="Untitled Pauper Brew" 
@@ -25,6 +26,11 @@ session_start();
       <!-- Pauper Legality Status Badge -->
       <span id="pauper-badge" class="text-xs uppercase px-2.5 py-1 bg-rose-950 text-rose-400 font-bold border border-rose-800 rounded transition cursor-default">
         Not Legal
+      </span>
+
+      <!-- Read Only Pill Indicator -->
+      <span id="read-only-badge" class="hidden text-xs uppercase px-2.5 py-1 bg-amber-950 text-amber-300 font-bold border border-amber-800 rounded">
+        <i class="fa-solid fa-eye mr-1"></i> Read Only View
       </span>
     </div>
 
@@ -45,6 +51,11 @@ session_start();
 
       <button id="save-deck-btn" type="button" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5">
         <i class="fa-solid fa-floppy-disk"></i> Save
+      </button>
+
+      <!-- Clone foreign deck button for read-only view -->
+      <button id="clone-deck-btn" type="button" class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-copy"></i> Clone to My Decks
       </button>
 
       <!-- User Deck List Button -->
@@ -185,8 +196,8 @@ session_start();
     <!-- Visual Deck Surface -->
     <main class="workspace-content">
       
-      <!-- Search Bar Wrap -->
-      <div class="search-bar-wrap">
+      <!-- Search Bar Wrap (Hidden in Read-Only Mode) -->
+      <div id="search-section" class="search-bar-wrap">
         <div class="relative">
           <input type="text" id="card-search-input" placeholder="Search card name (e.g. Counterspell, Kuldotha Rebirth, Lightning Bolt)..." 
                  class="w-full bg-slate-900 border border-slate-700 text-white placeholder-slate-500 px-4 py-2.5 rounded-lg text-sm focus:outline-none focus:border-sky-500" autocomplete="off">
@@ -339,6 +350,6 @@ session_start();
     </div>
   </div>
 
-  <script src="js/builder.js?v=9"></script>
+  <script src="js/builder.js?v=10"></script>
 </body>
 </html>

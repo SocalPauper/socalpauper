@@ -27,27 +27,32 @@ function hypergeomPdf(k, N, K, n) {
 window.Builder = {
   deck: {
     id: null,
+    user_id: null,
     title: "Untitled Pauper Brew",
     main: [],
     side: []
   },
   user: null,
+  isReadOnly: false,
   activeTarget: 'main',
   selectedCardForPrints: null,
   searchDebounce: null,
   authMode: 'login',
 
-  init() {
-    this.checkAuth();
+  async init() {
+    await this.checkAuth();
     this.bindEvents();
 
-    // Check if deck ID is specified in URL (e.g. builder.php?id=15)
     const urlParams = new URLSearchParams(window.location.search);
     const targetDeckId = urlParams.get('id');
 
     if (targetDeckId) {
-      this.loadDeck(parseInt(targetDeckId, 10));
+      await this.loadDeck(parseInt(targetDeckId, 10));
     } else {
+      // Non-logged-in user attempting to create a new deck directly
+      if (!this.user) {
+        this.openAuthModal('login');
+      }
       this.render();
     }
   },
@@ -115,12 +120,22 @@ window.Builder = {
     const titleInput = document.getElementById('deck-title-input');
     if (titleInput) {
       titleInput.oninput = (e) => {
+        if (this.isReadOnly) return;
         this.deck.title = e.target.value;
       };
     }
 
     const importBtn = document.getElementById('import-deck-btn');
-    if (importBtn) importBtn.onclick = () => window.openImportModal();
+    if (importBtn) {
+      importBtn.onclick = () => {
+        if (this.isReadOnly) return;
+        if (!this.user) {
+          this.openAuthModal('login');
+          return;
+        }
+        window.openImportModal();
+      };
+    }
 
     const importSubmitBtn = document.getElementById('import-submit-btn');
     if (importSubmitBtn) importSubmitBtn.onclick = () => this.handleImportDeck();
@@ -131,11 +146,19 @@ window.Builder = {
     const adminBtn = document.getElementById('admin-panel-btn');
     if (adminBtn) adminBtn.onclick = () => this.openAdminModal();
 
+    const cloneDeckBtn = document.getElementById('clone-deck-btn');
+    if (cloneDeckBtn) cloneDeckBtn.onclick = () => this.cloneCurrentDeck();
+
     const searchInput = document.getElementById('card-search-input');
     const suggestionsBox = document.getElementById('search-suggestions');
 
     if (searchInput && suggestionsBox) {
       searchInput.addEventListener('keydown', (e) => {
+        if (this.isReadOnly) return;
+        if (!this.user) {
+          this.openAuthModal('login');
+          return;
+        }
         if (e.key === 'Enter') {
           e.preventDefault();
           const firstRow = suggestionsBox.querySelector('.suggestion-row');
@@ -149,6 +172,12 @@ window.Builder = {
       });
 
       searchInput.addEventListener('input', (e) => {
+        if (this.isReadOnly) return;
+        if (!this.user) {
+          this.openAuthModal('login');
+          return;
+        }
+
         clearTimeout(this.searchDebounce);
         const val = e.target.value.trim();
 
@@ -243,6 +272,12 @@ window.Builder = {
   },
 
   async addCardByName(cardName) {
+    if (this.isReadOnly) return;
+    if (!this.user) {
+      this.openAuthModal('login');
+      return;
+    }
+
     const box = document.getElementById('search-suggestions');
     const input = document.getElementById('card-search-input');
     if (box) {
@@ -299,6 +334,12 @@ window.Builder = {
   },
 
   async handleImportDeck() {
+    if (this.isReadOnly) return;
+    if (!this.user) {
+      this.openAuthModal('login');
+      return;
+    }
+
     const textarea = document.getElementById('import-textarea');
     const text = textarea ? textarea.value.trim() : '';
     if (!text) {
@@ -450,6 +491,12 @@ window.Builder = {
   },
 
   changeCardQty(name, target, delta) {
+    if (this.isReadOnly) return;
+    if (!this.user) {
+      this.openAuthModal('login');
+      return;
+    }
+
     const list = target === 'main' ? this.deck.main : this.deck.side;
     const card = list.find(c => c.name === name);
     if (!card) return;
@@ -498,6 +545,12 @@ window.Builder = {
   },
 
   moveCardBoard(name, fromTarget) {
+    if (this.isReadOnly) return;
+    if (!this.user) {
+      this.openAuthModal('login');
+      return;
+    }
+
     const sourceList = fromTarget === 'main' ? this.deck.main : this.deck.side;
     const destList = fromTarget === 'main' ? this.deck.side : this.deck.main;
     const toTarget = fromTarget === 'main' ? 'Sideboard' : 'Mainboard';
@@ -534,6 +587,12 @@ window.Builder = {
   },
 
   async openArtModal(cardName) {
+    if (this.isReadOnly) return;
+    if (!this.user) {
+      this.openAuthModal('login');
+      return;
+    }
+
     const card = [...this.deck.main, ...this.deck.side].find(c => c.name === cardName);
     if (!card) return;
     this.selectedCardForPrints = card;
@@ -565,6 +624,7 @@ window.Builder = {
   },
 
   selectArt(newId, newImg) {
+    if (this.isReadOnly) return;
     const cardName = this.selectedCardForPrints.name;
     const all = [...this.deck.main, ...this.deck.side].filter(c => c.name === cardName);
     all.forEach(c => {
@@ -604,6 +664,32 @@ window.Builder = {
     this.renderBoardLane('side', 'side-stacks', 'side-group-count');
     this.calculateStats();
     this.checkPauperLegality();
+    this.applyReadOnlyState();
+  },
+
+  applyReadOnlyState() {
+    const titleInput = document.getElementById('deck-title-input');
+    const readOnlyBadge = document.getElementById('read-only-badge');
+    const saveBtn = document.getElementById('save-deck-btn');
+    const cloneBtn = document.getElementById('clone-deck-btn');
+    const importBtn = document.getElementById('import-deck-btn');
+    const searchSection = document.getElementById('search-section');
+
+    if (this.isReadOnly) {
+      if (titleInput) titleInput.disabled = true;
+      if (readOnlyBadge) readOnlyBadge.classList.remove('hidden');
+      if (saveBtn) saveBtn.classList.add('hidden');
+      if (cloneBtn) cloneBtn.classList.remove('hidden');
+      if (importBtn) importBtn.classList.add('hidden');
+      if (searchSection) searchSection.classList.add('hidden');
+    } else {
+      if (titleInput) titleInput.disabled = false;
+      if (readOnlyBadge) readOnlyBadge.classList.add('hidden');
+      if (saveBtn) saveBtn.classList.remove('hidden');
+      if (cloneBtn) cloneBtn.classList.add('hidden');
+      if (importBtn) importBtn.classList.remove('hidden');
+      if (searchSection) searchSection.classList.remove('hidden');
+    }
   },
 
   renderBoardLane(target, containerId, countId) {
@@ -617,7 +703,7 @@ window.Builder = {
 
     container.innerHTML = '';
     if (!list.length) {
-      container.innerHTML = `<div class="text-xs text-slate-500 italic py-6 col-span-full">No cards in ${target}. Use the search bar or import a deck list above.</div>`;
+      container.innerHTML = `<div class="text-xs text-slate-500 italic py-6 col-span-full">No cards in ${target}.</div>`;
       return;
     }
 
@@ -669,15 +755,20 @@ window.Builder = {
         wrap.style.top = `${idx * 34}px`;
         wrap.style.zIndex = idx + 1;
 
-        wrap.innerHTML = `
-          <img src="${card.image}" class="visual-card-img" alt="${card.name}">
-          <span class="card-badge-qty">${card.qty}</span>
+        // In Read-Only mode, quick action buttons (+, -, switch, art) are omitted
+        const actionsHtml = this.isReadOnly ? '' : `
           <div class="card-quick-actions">
             <button class="quick-btn" title="Add Copy" onclick="Builder.changeCardQty('${card.name.replace(/'/g, "\\'")}', '${target}', 1)">+</button>
             <button class="quick-btn" title="Remove Copy" onclick="Builder.changeCardQty('${card.name.replace(/'/g, "\\'")}', '${target}', -1)">-</button>
             <button class="quick-btn" title="Switch Board" onclick="Builder.moveCardBoard('${card.name.replace(/'/g, "\\'")}', '${target}')">⇄</button>
             <button class="quick-btn" title="Change Art" onclick="Builder.openArtModal('${card.name.replace(/'/g, "\\'")}')">🎨</button>
           </div>
+        `;
+
+        wrap.innerHTML = `
+          <img src="${card.image}" class="visual-card-img" alt="${card.name}">
+          <span class="card-badge-qty">${card.qty}</span>
+          ${actionsHtml}
         `;
         cascade.appendChild(wrap);
       });
@@ -943,6 +1034,7 @@ window.Builder = {
   },
 
   async saveDeck() {
+    if (this.isReadOnly) return;
     if (!this.user) {
       this.openAuthModal('login');
       return;
@@ -976,6 +1068,28 @@ window.Builder = {
     } catch (err) {
       alert(err.message);
       if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save`;
+    }
+  },
+
+  async cloneCurrentDeck() {
+    if (!this.user) {
+      this.openAuthModal('login');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api_decks.php?action=clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: this.deck.id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to clone');
+
+      // Redirect directly to the newly cloned deck in full editable mode
+      window.location.href = `builder.php?id=${data.new_deck_id}`;
+    } catch (err) {
+      alert(err.message);
     }
   },
 
@@ -1038,8 +1152,11 @@ window.Builder = {
       this.updateAuthUI();
       window.closeAuthModal();
 
-      if (this.deck.main.length > 0) {
-        this.saveDeck();
+      // Re-evaluate read-only state now that user is signed in
+      if (this.deck.id) {
+        await this.loadDeck(this.deck.id);
+      } else {
+        this.render();
       }
     } catch (err) {
       if (errBox) {
@@ -1053,6 +1170,7 @@ window.Builder = {
     await fetch('/api_auth.php?action=logout');
     this.user = null;
     this.updateAuthUI();
+    window.location.href = 'decks.php';
   },
 
   async openMyDecksModal() {
@@ -1096,9 +1214,15 @@ window.Builder = {
 
       const d = data.deck;
       this.deck.id = d.id;
+      this.deck.user_id = d.user_id;
       this.deck.title = d.title;
       this.deck.main = d.cards_data.main || [];
       this.deck.side = d.cards_data.side || [];
+
+      // Determine Read-Only state: active if user is logged out, or user doesn't own deck and isn't admin
+      const isOwner = this.user && (this.user.id == d.user_id);
+      const isAdmin = this.user && (this.user.role === 'admin');
+      this.isReadOnly = !isOwner && !isAdmin;
 
       document.getElementById('deck-title-input').value = d.title;
       window.closeMyDecksModal();

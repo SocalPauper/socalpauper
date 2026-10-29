@@ -1,7 +1,7 @@
 // js/decks_hub.js
 window.Hub = {
   user: null,
-  activeTab: 'my_decks', // 'my_decks' or 'community'
+  activeTab: 'my_decks',
   activeFolderId: null,
   decks: [],
   folders: [],
@@ -43,8 +43,15 @@ window.Hub = {
     }
   },
 
+  handleNewDeck() {
+    if (!this.user) {
+      openAuthModal();
+      return;
+    }
+    window.location.href = 'builder.php';
+  },
+
   bindEvents() {
-    // Tabs
     const myDecksTab = document.getElementById('tab-my-decks');
     const commTab = document.getElementById('tab-community');
 
@@ -64,13 +71,11 @@ window.Hub = {
       this.loadDecks();
     };
 
-    // Filter input
     const filterInput = document.getElementById('deck-filter-input');
     if (filterInput) {
       filterInput.addEventListener('input', () => this.renderDecks());
     }
 
-    // Modal submit handlers
     const folderSubmitBtn = document.getElementById('folder-submit-btn');
     if (folderSubmitBtn) folderSubmitBtn.onclick = () => this.handleCreateFolder();
 
@@ -147,7 +152,6 @@ window.Hub = {
     const allCount = document.getElementById('all-decks-count');
     if (allCount) allCount.textContent = this.decks.length;
 
-    // Remove old dynamic folders, leaving only "All Decks"
     while (container.children.length > 1) {
       container.removeChild(container.lastChild);
     }
@@ -221,6 +225,10 @@ window.Hub = {
       const art = d.featured_card_art || 'https://cards.scryfall.io/art_crop/front/b/4/b4a530f2-772b-449e-b24d-e9c56f671c5d.jpg';
       const isOwner = this.user && this.activeTab === 'my_decks';
 
+      const actionButtonLabel = isOwner
+        ? `<i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Edit in Architect`
+        : `<i class="fa-solid fa-eye mr-1"></i> View Deck`;
+
       return `
         <div class="hub-card border rounded-xl overflow-hidden shadow-lg transition flex flex-col justify-between group">
           
@@ -263,8 +271,8 @@ window.Hub = {
           <!-- Bottom Action Bar -->
           <div class="p-3 bg-slate-950 flex items-center justify-between border-t border-slate-800/80">
             <span class="text-[10px] text-slate-500 font-mono">Updated ${new Date(d.updated_at).toLocaleDateString()}</span>
-            <button onclick="Hub.editDeck(${d.id})" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> Edit in Architect
+            <button onclick="Hub.editDeck(${d.id})" class="px-3 py-1.5 ${isOwner ? 'bg-sky-600 hover:bg-sky-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'} font-bold text-xs rounded-lg transition flex items-center shadow">
+              ${actionButtonLabel}
             </button>
           </div>
 
@@ -274,11 +282,9 @@ window.Hub = {
   },
 
   editDeck(deckId) {
-    // Route to builder with the deck ID query param
     window.location.href = `builder.php?id=${deckId}`;
   },
 
-  // Folder Actions
   async handleCreateFolder() {
     const input = document.getElementById('folder-name-input');
     const name = input ? input.value.trim() : '';
@@ -316,7 +322,6 @@ window.Hub = {
     }
   },
 
-  // Deck Actions
   openRenameModal(deckId, currentTitle) {
     this.activeDeckActionId = deckId;
     const input = document.getElementById('rename-deck-input');
@@ -420,7 +425,6 @@ window.Hub = {
   }
 };
 
-// Modal toggles
 function openFolderModal() { document.getElementById('folder-modal').classList.remove('hidden'); }
 function closeFolderModal() { document.getElementById('folder-modal').classList.add('hidden'); }
 function closeRenameModal() { document.getElementById('rename-modal').classList.add('hidden'); }
