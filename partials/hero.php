@@ -26,6 +26,34 @@
       The community directory connecting players across Los Angeles, Orange County, the Inland Empire, and San Diego with local tournaments, weekly meetups, partner store networks, and turn-by-turn navigation.
     </p>
 
+	<!-- Deck Hub & Architect Feature Banner -->
+	  <div class="mt-8 max-w-4xl mx-auto w-full">
+		<div class="bg-gradient-to-r from-amber-950/40 via-slate-900 to-sky-950/40 border border-amber-500/30 rounded-2xl p-5 md:p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+		  <div class="flex items-center gap-4 text-left">
+			<div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-400 flex items-center justify-center text-2xl flex-shrink-0">
+			  <i class="fa-solid fa-layer-group"></i>
+			</div>
+			<div>
+			  <h2 class="text-base md:text-lg font-black text-white flex items-center gap-2">
+				Deck Command Hub & Architect
+				<span class="text-[9px] uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/40">New</span>
+			  </h2>
+			  <p class="text-xs text-zinc-300 mt-0.5 max-w-xl">
+				Save personal brews, organize deck folders, toggle public/private community brews, and simulate opening hand keep odds with full Scryfall integration.
+			  </p>
+			</div>
+		  </div>
+		  <div class="flex items-center gap-2.5 w-full md:w-auto">
+			<a href="decks.php" class="flex-1 md:flex-none text-center px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-1.5">
+			  <i class="fa-solid fa-folder-open"></i> Browse Decks
+			</a>
+			<a href="builder.php" class="flex-1 md:flex-none text-center px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5">
+			  <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> New Brew
+			</a>
+		  </div>
+		</div>
+	  </div>
+
     <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
       <!-- Tournament & Combo Tracker Launch Button -->
       <a href="/tracker.html" 
