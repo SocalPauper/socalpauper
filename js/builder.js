@@ -5,7 +5,6 @@ const BASIC_LANDS = new Set([
   'Snow-Covered Mountain', 'Snow-Covered Forest', 'Snow-Covered Wastes'
 ]);
 
-// Cards that bypass the standard 4-copy rule
 const UNLIMITED_COPIES = new Set([
   'Relentless Rats', 'Shadowborn Apostle', 'Persistent Petitioners',
   'Dragon\'s Approach', 'Slime Against Humanity', 'Templar Knight'
@@ -18,7 +17,7 @@ window.Builder = {
     main: [],
     side: []
   },
-  activeTarget: 'main', // 'main' or 'side'
+  activeTarget: 'main',
   selectedCardForPrints: null,
   searchDebounce: null,
 
@@ -28,84 +27,108 @@ window.Builder = {
   },
 
   bindEvents() {
-    // Board Switcher (Mainboard vs Sideboard)
     const mainBtn = document.getElementById('target-main-btn');
     const sideBtn = document.getElementById('target-side-btn');
 
     if (mainBtn && sideBtn) {
-      mainBtn.addEventListener('click', () => {
+      mainBtn.onclick = () => {
         this.activeTarget = 'main';
         mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md bg-sky-600 text-white transition';
         sideBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
-      });
+      };
 
-      sideBtn.addEventListener('click', () => {
+      sideBtn.onclick = () => {
         this.activeTarget = 'side';
         sideBtn.className = 'px-3 py-1 text-xs font-bold rounded-md bg-emerald-600 text-white transition';
         mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
-      });
+      };
     }
 
-    // Deck Title Input
     const titleInput = document.getElementById('deck-title-input');
     if (titleInput) {
-      titleInput.addEventListener('input', (e) => {
+      titleInput.oninput = (e) => {
         this.deck.title = e.target.value;
-      });
+      };
     }
 
-    // Scryfall Card Autocomplete Search
+    // Import modal triggers
+    const importBtn = document.getElementById('import-deck-btn');
+    if (importBtn) importBtn.onclick = () => window.openImportModal();
+
+    const importSubmitBtn = document.getElementById('import-submit-btn');
+    if (importSubmitBtn) importSubmitBtn.onclick = () => this.handleImportDeck();
+
     const searchInput = document.getElementById('card-search-input');
     const suggestionsBox = document.getElementById('search-suggestions');
 
     if (searchInput && suggestionsBox) {
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const firstRow = suggestionsBox.querySelector('.suggestion-row');
+          if (firstRow) {
+            const cardName = firstRow.getAttribute('data-card');
+            this.addCardByName(cardName);
+          } else if (searchInput.value.trim().length >= 2) {
+            this.addCardByName(searchInput.value.trim());
+          }
+        }
+      });
+
       searchInput.addEventListener('input', (e) => {
         clearTimeout(this.searchDebounce);
         const val = e.target.value.trim();
+
         if (val.length < 2) {
-          suggestionsBox.classList.add('hidden');
+          suggestionsBox.classList.remove('is-open');
+          suggestionsBox.style.display = 'none';
           return;
         }
 
         const spinner = document.getElementById('search-spinner');
-        if (spinner) spinner.classList.remove('hidden');
+        if (spinner) spinner.style.display = 'block';
 
         this.searchDebounce = setTimeout(async () => {
           try {
-            const res = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(val)}`);
+            const endpoint = `https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(val)}`;
+            const res = await fetch(endpoint);
+            if (!res.ok) return;
             const data = await res.json();
             this.renderSuggestions(data.data || []);
           } catch (err) {
             console.error("Autocomplete error:", err);
           } finally {
-            if (spinner) spinner.classList.add('hidden');
+            if (spinner) spinner.style.display = 'none';
           }
-        }, 150);
+        }, 160);
       });
 
-      // Close dropdown when clicking outside
       document.addEventListener('click', (e) => {
         if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
-          suggestionsBox.classList.add('hidden');
+          suggestionsBox.classList.remove('is-open');
+          suggestionsBox.style.display = 'none';
         }
       });
     }
 
-    // Action buttons
     const saveBtn = document.getElementById('save-deck-btn');
-    if (saveBtn) saveBtn.addEventListener('click', () => this.saveDeck());
+    if (saveBtn) saveBtn.onclick = () => this.saveDeck();
 
     const handBtn = document.getElementById('sample-hand-btn');
-    if (handBtn) handBtn.addEventListener('click', () => this.openSampleHand());
+    if (handBtn) handBtn.onclick = () => this.openSampleHand();
 
     const mulliBtn = document.getElementById('mulligan-btn');
-    if (mulliBtn) mulliBtn.addEventListener('click', () => this.openSampleHand());
+    if (mulliBtn) mulliBtn.onclick = () => this.openSampleHand();
   },
 
   renderSuggestions(names) {
     const box = document.getElementById('search-suggestions');
+    if (!box) return;
+
     if (!names.length) {
-      box.classList.add('hidden');
+      box.innerHTML = `<div class="p-3 text-xs text-slate-400 italic">No matching cards found.</div>`;
+      box.classList.add('is-open');
+      box.style.display = 'block';
       return;
     }
 
@@ -113,72 +136,210 @@ window.Builder = {
       const cleanName = name.replace(/"/g, '&quot;');
       return `
         <div class="suggestion-row" data-card="${cleanName}">
-          <span class="text-sm font-semibold text-white">${name}</span>
-          <span class="text-xs text-sky-400 font-bold">+ Add to ${this.activeTarget.toUpperCase()}</span>
+          <span class="text-sm font-semibold text-white pointer-events-none">${name}</span>
+          <span class="text-xs text-sky-400 font-bold pointer-events-none">+ Add to ${this.activeTarget.toUpperCase()}</span>
         </div>
       `;
     }).join('');
 
-    // Attach event listeners directly to avoid inline escaping bugs
     box.querySelectorAll('.suggestion-row').forEach(row => {
-      row.addEventListener('click', () => {
+      row.onmousedown = (e) => {
+        e.preventDefault();
         const targetCard = row.getAttribute('data-card');
         this.addCardByName(targetCard);
-      });
+      };
     });
 
-    box.classList.remove('hidden');
+    box.classList.add('is-open');
+    box.style.display = 'block';
   },
 
   async addCardByName(cardName) {
     const box = document.getElementById('search-suggestions');
     const input = document.getElementById('card-search-input');
-    if (box) box.classList.add('hidden');
+    if (box) {
+      box.classList.remove('is-open');
+      box.style.display = 'none';
+    }
     if (input) input.value = '';
 
     const spinner = document.getElementById('search-spinner');
-    if (spinner) spinner.classList.remove('hidden');
+    if (spinner) spinner.style.display = 'block';
 
     try {
       const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}`);
-      if (!res.ok) throw new Error("Card lookup failed");
+      if (!res.ok) throw new Error(`Lookup failed (${res.status})`);
       const data = await res.json();
-
-      const image = data.image_uris 
-        ? data.image_uris.normal 
-        : (data.card_faces && data.card_faces[0].image_uris ? data.card_faces[0].image_uris.normal : '');
-      const prices = data.prices || {};
-
-      const card = {
-        id: data.id,
-        oracle_id: data.oracle_id,
-        name: data.name,
-        mana_cost: data.mana_cost || (data.card_faces ? data.card_faces[0].mana_cost : ''),
-        cmc: Math.floor(data.cmc || 0),
-        type_line: data.type_line || '',
-        pauper_legal: data.legalities ? data.legalities.pauper === 'legal' : false,
-        image: image,
-        price_usd: parseFloat(prices.usd || 0),
-        price_eur: parseFloat(prices.eur || 0),
-        qty: 1
-      };
-
-      const targetList = this.activeTarget === 'main' ? this.deck.main : this.deck.side;
-      const existing = targetList.find(c => c.name === card.name);
-
-      if (existing) {
-        existing.qty += 1;
-      } else {
-        targetList.push(card);
-      }
-
+      this.insertCardIntoDeck(data, this.activeTarget, 1);
       this.render();
     } catch (err) {
       console.error(err);
-      alert(`Could not fetch data for "${cardName}". Please try again.`);
+      alert(`Could not fetch data for "${cardName}".`);
     } finally {
-      if (spinner) spinner.classList.add('hidden');
+      if (spinner) spinner.style.display = 'none';
     }
+  },
+
+  insertCardIntoDeck(scryfallCard, target, qty = 1) {
+    const image = scryfallCard.image_uris?.normal 
+      || scryfallCard.card_faces?.[0]?.image_uris?.normal 
+      || '';
+    const prices = scryfallCard.prices || {};
+
+    const card = {
+      id: scryfallCard.id,
+      oracle_id: scryfallCard.oracle_id,
+      name: scryfallCard.name,
+      mana_cost: scryfallCard.mana_cost || (scryfallCard.card_faces ? scryfallCard.card_faces[0].mana_cost : ''),
+      cmc: Math.floor(scryfallCard.cmc || 0),
+      type_line: scryfallCard.type_line || '',
+      pauper_legal: scryfallCard.legalities ? scryfallCard.legalities.pauper === 'legal' : false,
+      image: image,
+      price_usd: parseFloat(prices.usd || 0),
+      price_eur: parseFloat(prices.eur || 0),
+      qty: qty
+    };
+
+    const targetList = target === 'main' ? this.deck.main : this.deck.side;
+    const existing = targetList.find(c => c.name === card.name);
+
+    if (existing) {
+      existing.qty += qty;
+    } else {
+      targetList.push(card);
+    }
+  },
+
+  // --- Universal Deck List Parser (Moxfield, MTGGoldfish, Arena, MTGO, Archidekt) ---
+  async handleImportDeck() {
+    const textarea = document.getElementById('import-textarea');
+    const text = textarea ? textarea.value.trim() : '';
+    if (!text) {
+      alert("Please paste a deck list into the box.");
+      return;
+    }
+
+    const replaceCurrent = document.getElementById('import-replace-checkbox').checked;
+    const submitBtn = document.getElementById('import-submit-btn');
+    submitBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Parsing cards...`;
+    submitBtn.disabled = true;
+
+    try {
+      const parsedEntries = this.parseRawDeckText(text);
+
+      if (!parsedEntries.main.length && !parsedEntries.side.length) {
+        alert("No valid card lines found. Ensure quantities and card names are present.");
+        return;
+      }
+
+      if (replaceCurrent) {
+        this.deck.main = [];
+        this.deck.side = [];
+      }
+
+      // Collect all unique names to fetch from Scryfall Collection endpoint
+      const allEntries = [...parsedEntries.main, ...parsedEntries.side];
+      const uniqueNames = [...new Set(allEntries.map(e => e.name))];
+
+      // Scryfall allows up to 75 identifiers per batch request
+      const batches = [];
+      for (let i = 0; i < uniqueNames.length; i += 75) {
+        batches.push(uniqueNames.slice(i, i + 75));
+      }
+
+      const cardLookupMap = new Map();
+
+      for (const batch of batches) {
+        const identifiers = batch.map(name => ({ name: name }));
+        const res = await fetch('https://api.scryfall.com/cards/collection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifiers })
+        });
+
+        if (!res.ok) throw new Error("Scryfall bulk lookup failed.");
+        const data = await res.json();
+
+        (data.data || []).forEach(card => {
+          cardLookupMap.set(card.name.toLowerCase(), card);
+        });
+      }
+
+      // Insert parsed cards into deck
+      parsedEntries.main.forEach(entry => {
+        const scryfallCard = cardLookupMap.get(entry.name.toLowerCase());
+        if (scryfallCard) {
+          this.insertCardIntoDeck(scryfallCard, 'main', entry.qty);
+        }
+      });
+
+      parsedEntries.side.forEach(entry => {
+        const scryfallCard = cardLookupMap.get(entry.name.toLowerCase());
+        if (scryfallCard) {
+          this.insertCardIntoDeck(scryfallCard, 'side', entry.qty);
+        }
+      });
+
+      window.closeImportModal();
+      this.render();
+    } catch (err) {
+      console.error(err);
+      alert(`Import failed: ${err.message}`);
+    } finally {
+      submitBtn.innerHTML = `<i class="fa-solid fa-file-arrow-down"></i> Import & Parse`;
+      submitBtn.disabled = false;
+    }
+  },
+
+  parseRawDeckText(text) {
+    const lines = text.split(/\r?\n/);
+    const main = [];
+    const side = [];
+    let currentBoard = 'main';
+
+    for (let rawLine of lines) {
+      let line = rawLine.trim();
+      if (!line || line.startsWith('//') || line.startsWith('#')) continue;
+
+      // Detect sideboard section headers
+      const lower = line.toLowerCase();
+      if (lower === 'sideboard' || lower === 'sideboard:' || lower === 'side:' || lower === '--sideboard--') {
+        currentBoard = 'side';
+        continue;
+      }
+      if (lower === 'deck' || lower === 'main' || lower === 'mainboard:' || lower === 'main:') {
+        currentBoard = 'main';
+        continue;
+      }
+
+      let lineTarget = currentBoard;
+
+      // Handle lines with "SB:" prefix (MTGGoldfish / MTGO format)
+      if (line.toUpperCase().startsWith('SB:')) {
+        lineTarget = 'side';
+        line = line.substring(3).trim();
+      }
+
+      // Regex matches: "4 Lightning Bolt" or "4x Lightning Bolt (CLB) 187 *F*"
+      const match = line.match(/^(\d+)[xX]?\s+(.+)$/);
+      if (!match) continue;
+
+      const qty = parseInt(match[1], 10);
+      let cardName = match[2].trim();
+
+      // Clean set codes, collector numbers, and tags (e.g., "(CLB) 187 *F*")
+      cardName = cardName.replace(/\s*\([A-Za-z0-9_]+\)\s+[0-9a-zA-Z]+.*$/, '').trim();
+      cardName = cardName.replace(/\s*\*F\*\s*$/, '').trim();
+      cardName = cardName.replace(/\s*#.*$/, '').trim();
+
+      if (lineTarget === 'main') {
+        main.push({ name: cardName, qty });
+      } else {
+        side.push({ name: cardName, qty });
+      }
+    }
+
+    return { main, side };
   },
 
   changeCardQty(name, target, delta) {
@@ -230,7 +391,7 @@ window.Builder = {
     const grid = document.getElementById('art-prints-grid');
     document.getElementById('art-modal-title').textContent = `Alternate Art: ${card.name}`;
     grid.innerHTML = `<div class="col-span-full text-center text-sky-400 py-8"><i class="fa-solid fa-circle-notch fa-spin text-2xl"></i></div>`;
-    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
 
     try {
       const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(card.name)}"&unique=prints`);
@@ -238,9 +399,7 @@ window.Builder = {
       const prints = data.data || [];
 
       grid.innerHTML = prints.map(p => {
-        const img = p.image_uris 
-          ? p.image_uris.normal 
-          : (p.card_faces && p.card_faces[0].image_uris ? p.card_faces[0].image_uris.normal : '');
+        const img = p.image_uris?.normal || p.card_faces?.[0]?.image_uris?.normal || '';
         if (!img) return '';
         return `
           <div class="cursor-pointer group flex flex-col items-center" onclick="Builder.selectArt('${p.id}', '${img}')">
@@ -273,13 +432,16 @@ window.Builder = {
 
   renderBoardLane(target, containerId, countId) {
     const container = document.getElementById(containerId);
+    if (!container) return;
+
     const list = target === 'main' ? this.deck.main : this.deck.side;
     const totalCount = list.reduce((sum, c) => sum + c.qty, 0);
-    document.getElementById(countId).textContent = `${totalCount} Cards`;
+    const countEl = document.getElementById(countId);
+    if (countEl) countEl.textContent = `${totalCount} Cards`;
 
     container.innerHTML = '';
     if (!list.length) {
-      container.innerHTML = `<div class="text-xs text-slate-500 italic py-6 col-span-full">No cards in ${target}. Use the search bar above to begin brewing.</div>`;
+      container.innerHTML = `<div class="text-xs text-slate-500 italic py-6 col-span-full">No cards in ${target}. Use the search bar or import a deck list above.</div>`;
       return;
     }
 
@@ -343,17 +505,14 @@ window.Builder = {
     const mainCount = this.deck.main.reduce((s, c) => s + c.qty, 0);
     const sideCount = this.deck.side.reduce((s, c) => s + c.qty, 0);
 
-    // Rule 1: Minimum 60 cards in mainboard
     if (mainCount < 60) {
       reasons.push(`Mainboard requires at least 60 cards (${mainCount}/60).`);
     }
 
-    // Rule 2: Maximum 15 cards in sideboard
     if (sideCount > 15) {
       reasons.push(`Sideboard exceeds maximum of 15 cards (${sideCount}/15).`);
     }
 
-    // Rule 3: 4-Copy Limit & Format Legality
     const combinedCounts = {};
     const legalityFlags = {};
 
@@ -375,7 +534,6 @@ window.Builder = {
       }
     }
 
-    // Update UI Badge & Diagnostics Panel
     if (reasons.length === 0 && mainCount >= 60) {
       badge.textContent = 'Pauper Legal';
       badge.className = 'text-xs uppercase px-2.5 py-1 bg-emerald-950 text-emerald-400 font-bold border border-emerald-700 rounded transition cursor-default';
@@ -409,7 +567,6 @@ window.Builder = {
     if (mainCountEl) mainCountEl.textContent = mainTotal;
     if (sideCountEl) sideCountEl.textContent = sideTotal;
 
-    // Price Calculations (Main + Side)
     let totalUsd = 0;
     let totalEur = 0;
     [...mainList, ...sideList].forEach(c => {
@@ -422,7 +579,6 @@ window.Builder = {
     if (usdEl) usdEl.textContent = `$${totalUsd.toFixed(2)}`;
     if (eurEl) eurEl.textContent = `€${totalEur.toFixed(2)}`;
 
-    // Mana Curve (Non-lands in mainboard)
     const curve = [0, 0, 0, 0, 0, 0, 0];
     mainList.filter(c => !c.type_line.includes('Land')).forEach(c => {
       const cmc = Math.min(c.cmc, 6);
@@ -438,7 +594,6 @@ window.Builder = {
       }
     });
 
-    // Colored Mana Pip Distribution
     const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
     mainList.forEach(c => {
       const cost = c.mana_cost || '';
@@ -476,7 +631,6 @@ window.Builder = {
       `;
     }
 
-    // Type Breakdown
     const types = {};
     mainList.forEach(c => {
       const primary = c.type_line.split('—')[0].trim();
@@ -505,7 +659,6 @@ window.Builder = {
       return;
     }
 
-    // Fisher-Yates shuffle
     for (let i = flatDeck.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [flatDeck[i], flatDeck[j]] = [flatDeck[j], flatDeck[i]];
@@ -520,7 +673,7 @@ window.Builder = {
     }
 
     const modal = document.getElementById('hand-modal');
-    if (modal) modal.classList.remove('hidden');
+    if (modal) modal.style.display = 'flex';
   },
 
   async saveDeck() {
@@ -556,16 +709,28 @@ window.Builder = {
   }
 };
 
+window.openImportModal = function() {
+  const modal = document.getElementById('import-modal');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.closeImportModal = function() {
+  const modal = document.getElementById('import-modal');
+  if (modal) modal.style.display = 'none';
+};
+
 window.closeArtModal = function() {
   const modal = document.getElementById('art-modal');
-  if (modal) modal.classList.add('hidden');
+  if (modal) modal.style.display = 'none';
 };
 
 window.closeHandModal = function() {
   const modal = document.getElementById('hand-modal');
-  if (modal) modal.classList.add('hidden');
+  if (modal) modal.style.display = 'none';
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => window.Builder.init());
+} else {
   window.Builder.init();
-});
+}
