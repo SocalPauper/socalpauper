@@ -53,6 +53,118 @@ $statsStmt = $pdo->query("
 ");
 $stats = $statsStmt->fetch(PDO::FETCH_ASSOC) ?: ['count_events' => 0, 'count_promos' => 0, 'count_any' => 0];
 
+// ==========================================
+// PURE PHP AUTHENTICATED SMTP CLIENT
+// ==========================================
+function sendSmtpEmail($smtpConfig, $to, $toName, $subject, $htmlContent) {
+    $host = $smtpConfig['host'];
+    $port = (int)$smtpConfig['port'];
+    $user = $smtpConfig['user'];
+    $pass = $smtpConfig['pass'];
+    $from = $smtpConfig['from'];
+    $fromName = $smtpConfig['from_name'];
+
+    $proto = ($port === 465) ? 'ssl://' : '';
+    $socket = @stream_socket_client("{$proto}{$host}:{$port}", $errno, $errstr, 15, STREAM_CLIENT_CONNECT);
+
+    if (!$socket) {
+        return ['success' => false, 'error' => "Connection to {$host}:{$port} failed: {$errstr} ({$errno})"];
+    }
+
+    $read = function() use ($socket) {
+        $res = '';
+        while ($str = fgets($socket, 515)) {
+            $res .= $str;
+            if (substr($str, 3, 1) === ' ') break;
+        }
+        return $res;
+    };
+
+    $send = function($cmd) use ($socket) {
+        fputs($socket, $cmd . "\r\n");
+    };
+
+    $init = $read();
+    if (substr($init, 0, 3) !== '220') {
+        fclose($socket);
+        return ['success' => false, 'error' => "Server error: {$init}"];
+    }
+
+    $send("EHLO " . ($_SERVER['SERVER_NAME'] ?? 'localhost'));
+    $read();
+
+    if ($port === 587) {
+        $send("STARTTLS");
+        $tlsRes = $read();
+        if (substr($tlsRes, 0, 3) !== '220') {
+            fclose($socket);
+            return ['success' => false, 'error' => "STARTTLS failed: {$tlsRes}"];
+        }
+        stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+        $send("EHLO " . ($_SERVER['SERVER_NAME'] ?? 'localhost'));
+        $read();
+    }
+
+    $send("AUTH LOGIN");
+    $authRes = $read();
+    if (substr($authRes, 0, 3) !== '334') {
+        fclose($socket);
+        return ['success' => false, 'error' => "AUTH LOGIN not supported: {$authRes}"];
+    }
+
+    $send(base64_encode($user));
+    $read();
+    $send(base64_encode($pass));
+    $authFinal = $read();
+    if (substr($authFinal, 0, 3) !== '235') {
+        fclose($socket);
+        return ['success' => false, 'error' => "Authentication failed. Check your SMTP username/password."];
+    }
+
+    $send("MAIL FROM:<{$from}>");
+    $mailRes = $read();
+    if (substr($mailRes, 0, 3) !== '250') {
+        fclose($socket);
+        return ['success' => false, 'error' => "MAIL FROM rejected: {$mailRes}"];
+    }
+
+    $send("RCPT TO:<{$to}>");
+    $rcptRes = $read();
+    if (substr($rcptRes, 0, 3) !== '250') {
+        fclose($socket);
+        return ['success' => false, 'error' => "RCPT TO rejected: {$rcptRes}"];
+    }
+
+    $send("DATA");
+    $dataRes = $read();
+    if (substr($dataRes, 0, 3) !== '354') {
+        fclose($socket);
+        return ['success' => false, 'error' => "DATA rejected: {$dataRes}"];
+    }
+
+    $headers = [
+        "MIME-Version: 1.0",
+        "Content-Type: text/html; charset=UTF-8",
+        "From: =?UTF-8?B?" . base64_encode($fromName) . "?= <{$from}>",
+        "To: =?UTF-8?B?" . base64_encode($toName) . "?= <{$to}>",
+        "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=",
+        "Date: " . date('r'),
+        "X-Mailer: SoCalPauper-SMTP"
+    ];
+
+    $emailData = implode("\r\n", $headers) . "\r\n\r\n" . $htmlContent . "\r\n.";
+    $send($emailData);
+    $sendRes = $read();
+    $send("QUIT");
+    fclose($socket);
+
+    if (substr($sendRes, 0, 3) !== '250') {
+        return ['success' => false, 'error' => "Sending failed: {$sendRes}"];
+    }
+
+    return ['success' => true];
+}
+
 // Handle Broadcast Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $audience = $_POST['audience'] ?? 'events';
@@ -63,8 +175,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $enablePopup = !empty($_POST['show_popup']);
     $popupDays = max(1, min(14, (int)($_POST['popup_days'] ?? 3)));
 
+    // SMTP Configuration from Form
+    $smtpConfig = [
+        'host'      => trim($_POST['smtp_host'] ?? ''),
+        'port'      => (int)($_POST['smtp_port'] ?? 465),
+        'user'      => trim($_POST['smtp_user'] ?? ''),
+        'pass'      => trim($_POST['smtp_pass'] ?? ''),
+        'from'      => trim($_POST['smtp_from'] ?? 'updates@socalpauper.com'),
+        'from_name' => 'SoCal Pauper'
+    ];
+
     if ($subject === '' || $messageBody === '') {
         $feedback = ['type' => 'error', 'msg' => 'Subject line and message body cannot be empty.'];
+    } elseif (empty($smtpConfig['host']) || empty($smtpConfig['user']) || empty($smtpConfig['pass'])) {
+        $feedback = ['type' => 'error', 'msg' => 'Please fill in your SMTP Host, Username, and Password below.'];
     } else {
         if ($isTestOnly) {
             $testEmail = filter_var($testTargetEmail, FILTER_VALIDATE_EMAIL) ?: filter_var($_SESSION['email'] ?? '', FILTER_VALIDATE_EMAIL);
@@ -89,20 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($recipients)) {
             $sentCount = 0;
             $failedCount = 0;
-            $mailDiagnostics = [];
-
-            // Configure From Address matching host domain
-            $senderEmail = 'noreply@' . ($_SERVER['SERVER_NAME'] ?? 'socalpauper.com');
-            $senderEmail = preg_replace('/^www\./i', '', $senderEmail);
-
-            $headers  = "MIME-Version: 1.0\r\n";
-            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-            $headers .= "From: SoCal Pauper <{$senderEmail}>\r\n";
-            $headers .= "Reply-To: {$senderEmail}\r\n";
-            $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
-            $headers .= "X-Priority: 3\r\n";
-
-            $envelopeParam = "-f" . $senderEmail;
+            $errorLog = [];
 
             foreach ($recipients as $recipient) {
                 $email = filter_var($recipient['email'], FILTER_VALIDATE_EMAIL);
@@ -114,35 +225,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $cleanUser = htmlspecialchars($recipient['username'], ENT_QUOTES, 'UTF-8');
                 $formattedContent = nl2br(htmlspecialchars($messageBody, ENT_QUOTES, 'UTF-8'));
 
-                // MTG-Themed Responsive HTML Template
                 $htmlBody = "
                 <!DOCTYPE html>
                 <html>
-                <head>
-                  <meta charset='UTF-8'>
-                  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-                </head>
+                <head><meta charset='UTF-8'></head>
                 <body style='margin:0; padding:24px; background-color:#0c0e12; font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color:#d4d4d8;'>
                   <table width='100%' border='0' cellspacing='0' cellpadding='0'>
                     <tr>
                       <td align='center'>
-                        <table width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width:600px; background-color:#161922; border:1px solid #2a3040; border-radius:14px; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.6);'>
+                        <table width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width:600px; background-color:#161922; border:1px solid #2a3040; border-radius:14px; overflow:hidden;'>
                           <tr>
                             <td style='background:linear-gradient(90deg, #b45309 0%, #d97706 100%); padding:22px 28px; text-align:left;'>
-                              <h1 style='margin:0; font-size:22px; color:#ffffff; font-weight:900; letter-spacing:0.5px;'>⚡ SoCal Pauper</h1>
+                              <h1 style='margin:0; font-size:22px; color:#ffffff; font-weight:900;'>⚡ SoCal Pauper</h1>
                             </td>
                           </tr>
                           <tr>
                             <td style='padding:32px 28px; font-size:14px; line-height:1.65; color:#e4e4e7;'>
                               <p style='margin-top:0; font-size:15px;'>Hey <strong>{$cleanUser}</strong>,</p>
-                              <div style='margin:20px 0; color:#d4d4d8; font-size:14px;'>{$formattedContent}</div>
+                              <div style='margin:20px 0; color:#d4d4d8;'>{$formattedContent}</div>
                               <p style='margin-bottom:0; color:#a1a1aa; font-size:12px;'>— The SoCal Pauper Team</p>
                             </td>
                           </tr>
                           <tr>
                             <td style='background:#0f1218; padding:18px 28px; text-align:center; font-size:11px; color:#71717a; border-top:1px solid #2a3040;'>
-                              You received this message because you opted in to updates on <a href='https://socalpauper.com' style='color:#f59e0b; text-decoration:none;'>socalpauper.com</a>.<br>
-                              Manage preferences anytime by logging into your account on the Deck Hub.
+                              You received this message because you opted in on <a href='https://socalpauper.com' style='color:#f59e0b;'>socalpauper.com</a>.
                             </td>
                           </tr>
                         </table>
@@ -152,24 +258,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </body>
                 </html>";
 
-                // Attempt mail() with envelope sender parameter
-                $sent = @mail($email, $subject, $htmlBody, $headers, $envelopeParam);
-                if (!$sent) {
-                    // Fallback without envelope parameter if server blocks -f flag
-                    $sent = @mail($email, $subject, $htmlBody, $headers);
-                }
-
-                if ($sent) {
+                $res = sendSmtpEmail($smtpConfig, $email, $recipient['username'], $subject, $htmlBody);
+                if ($res['success']) {
                     $sentCount++;
                 } else {
                     $failedCount++;
-                    $mailDiagnostics[] = "Failed handing off to mail agent for {$email}.";
+                    $errorLog[] = "{$email}: " . $res['error'];
                 }
             }
 
-            // ALWAYS create the popup when enabled (even in Safe Mode, so you can test it)
+            // Always manage popup
             if ($enablePopup) {
-                // Delete previous test popups with the exact same subject to keep the DB clean
                 $delOld = $pdo->prepare("DELETE FROM broadcasts WHERE subject = ?");
                 $delOld->execute([$subject]);
 
@@ -178,24 +277,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     VALUES (?, ?, ?, 1, DATE_ADD(NOW(), INTERVAL ? DAY))
                 ");
                 $ins->execute([$subject, $messageBody, $audience, $popupDays]);
-                $createdPopupId = (int)$pdo->lastInsertId();
+                $createdId = (int)$pdo->lastInsertId();
             }
 
-            $diagHtml = '';
-            if (!empty($mailDiagnostics)) {
-                $diagHtml = '<div class="mt-2 text-[11px] text-amber-300 font-mono">' . implode('<br>', $mailDiagnostics) . '</div>';
-            }
+            $diagHtml = !empty($errorLog) ? '<div class="mt-2 text-xs text-rose-300 font-mono bg-black/40 p-2 rounded">' . implode('<br>', $errorLog) . '</div>' : '';
 
             $feedback = [
                 'type' => ($sentCount > 0) ? 'success' : 'error',
-                'msg' => $isTestOnly 
-                    ? "<strong>Safe Mode Test Dispatched:</strong> Sent test to <strong>" . htmlspecialchars($recipients[0]['email']) . "</strong>." . 
-                      ($enablePopup ? " <strong>Homepage announcement popup is now LIVE for {$popupDays} days!</strong> (<a href='index.php?preview_popup=1' target='_blank' class='underline text-amber-300 font-bold'>Click here to open index.php and test popup</a>)" : "") . $diagHtml
-                    : "<strong>Live Broadcast Complete:</strong> <strong>{$sentCount}</strong> dispatched, <strong>{$failedCount}</strong> failed." .
-                      ($enablePopup ? " <strong>Homepage announcement popup is now LIVE for {$popupDays} days!</strong>" : "") . $diagHtml
+                'msg' => ($sentCount > 0) 
+                    ? "<strong>Sent successfully!</strong> {$sentCount} delivered via SMTP to " . htmlspecialchars($recipients[0]['email']) . "." .
+                      ($enablePopup ? " <strong>Homepage announcement popup is active!</strong> (<a href='index.php?preview_popup={$createdId}' target='_blank' class='underline text-amber-300 font-bold'>Click to preview popup</a>)" : "")
+                    : "<strong>SMTP Dispatch Failed:</strong> {$failedCount} failed.<br>" . $diagHtml
             ];
-        } elseif (!$feedback) {
-            $feedback = ['type' => 'error', 'msg' => 'No subscribed players found for the selected audience.'];
         }
     }
 }
@@ -221,7 +314,6 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
 </head>
 <body class="bg-[#0c0e12] text-zinc-200 min-h-screen flex flex-col">
 
-  <!-- Header Bar -->
   <header class="bg-[#12151e] border-b border-[#2a3040] px-6 py-4 flex items-center justify-between sticky top-0 z-40">
     <div class="flex items-center gap-4">
       <a href="index.php" class="text-amber-400 font-bold hover:text-white transition text-xs flex items-center gap-1.5">
@@ -239,14 +331,14 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
     </div>
 
     <div class="flex items-center gap-3 text-xs">
-      <span class="text-zinc-400">Authenticated: <strong class="text-purple-400"><?= htmlspecialchars($_SESSION['username'] ?? 'BigMeatyPawz') ?></strong></span>
+      <span class="text-zinc-400">Admin: <strong class="text-purple-400"><?= htmlspecialchars($_SESSION['username'] ?? 'BigMeatyPawz') ?></strong></span>
       <a href="api_auth.php?action=logout" class="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 transition">Log Out</a>
     </div>
   </header>
 
   <main class="flex-1 max-w-4xl w-full mx-auto p-6 space-y-6">
 
-    <!-- Audience Stat Counters -->
+    <!-- Audience Stats -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div class="bg-[#161922] border border-[#2a3040] rounded-xl p-4">
         <div class="text-[11px] uppercase tracking-wider font-bold text-zinc-400 flex items-center gap-1.5">
@@ -293,7 +385,7 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
                 <a href="index.php?preview_popup=<?= (int)$p['id'] ?>" target="_blank" class="text-amber-400 hover:text-white font-bold text-[11px] px-2.5 py-1 rounded bg-amber-950/60 border border-amber-800 transition">
                   <i class="fa-solid fa-eye mr-1"></i> Preview on Site
                 </a>
-                <a href="admin_broadcast.php?delete_popup=<?= (int)$p['id'] ?>" onclick="return confirm('Immediately remove this announcement popup from the main page?')" class="text-rose-400 hover:text-rose-300 font-bold text-[11px] px-2.5 py-1 rounded bg-rose-950/60 border border-rose-900 transition">
+                <a href="admin_broadcast.php?delete_popup=<?= (int)$p['id'] ?>" onclick="return confirm('Remove this popup immediately?')" class="text-rose-400 hover:text-rose-300 font-bold text-[11px] px-2.5 py-1 rounded bg-rose-950/60 border border-rose-900 transition">
                   <i class="fa-solid fa-trash-can mr-1"></i> End Popup
                 </a>
               </div>
@@ -312,11 +404,10 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
     <!-- Broadcast Composition Form -->
     <form method="POST" class="bg-[#161922] border border-[#2a3040] rounded-2xl p-6 space-y-5 shadow-2xl">
       
-      <!-- Target Audience Selector -->
+      <!-- Target Audience -->
       <div>
         <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-2">1. Target Audience</label>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          
           <label class="border border-[#2a3040] rounded-xl p-3 flex items-start gap-3 bg-[#0c0e12]/60 cursor-pointer hover:border-amber-500/50 transition">
             <input type="radio" name="audience" value="events" checked class="mt-0.5 text-amber-600 focus:ring-0">
             <div>
@@ -340,7 +431,6 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
               <div class="text-[11px] text-zinc-400 mt-0.5"><?= (int)$stats['count_any'] ?> players</div>
             </div>
           </label>
-
         </div>
       </div>
 
@@ -354,8 +444,51 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
       <!-- Message Body -->
       <div>
         <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-1">3. Message Body</label>
-        <textarea name="message" rows="9" required placeholder="Write your announcement here. Line breaks are converted automatically." 
+        <textarea name="message" rows="8" required placeholder="Write your announcement here. Line breaks are converted automatically." 
                   class="w-full bg-[#0c0e12] border border-[#2a3040] rounded-lg p-4 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500 font-mono leading-relaxed"></textarea>
+      </div>
+
+      <!-- SMTP Settings (Stored in LocalStorage for Easy Reuse) -->
+      <div class="p-4 bg-[#0c0e12]/80 rounded-xl border border-sky-900/60 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-server"></i> SMTP Server Authentication
+          </span>
+          <span class="text-[10px] text-zinc-500 font-mono">Saved in browser</span>
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase mb-1">SMTP Host</label>
+            <input type="text" id="smtp_host" name="smtp_host" required placeholder="e.g. mail.spacemail.com or smtp.gmail.com" 
+                   class="w-full bg-[#161922] border border-[#2a3040] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase mb-1">Port</label>
+            <select id="smtp_port" name="smtp_port" class="w-full bg-[#161922] border border-[#2a3040] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500">
+              <option value="465" selected>465 (SSL - Recommended)</option>
+              <option value="587">587 (TLS)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase mb-1">From Email</label>
+            <input type="email" id="smtp_from" name="smtp_from" required placeholder="updates@socalpauper.com" 
+                   class="w-full bg-[#161922] border border-[#2a3040] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase mb-1">SMTP Username / Account Email</label>
+            <input type="text" id="smtp_user" name="smtp_user" required placeholder="your-email@socalpauper.com" 
+                   class="w-full bg-[#161922] border border-[#2a3040] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase mb-1">SMTP Password</label>
+            <input type="password" id="smtp_pass" name="smtp_pass" required placeholder="••••••••••••" 
+                   class="w-full bg-[#161922] border border-[#2a3040] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500">
+          </div>
+        </div>
       </div>
 
       <!-- Homepage Popup Duration -->
@@ -372,7 +505,6 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
             <option value="3" selected>3 Days</option>
             <option value="5">5 Days</option>
             <option value="7">7 Days</option>
-            <option value="14">14 Days</option>
           </select>
         </div>
       </div>
@@ -383,16 +515,16 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
           <input type="checkbox" id="test-only-checkbox" name="test_only" value="1" checked class="rounded bg-zinc-900 border-zinc-700 text-purple-600 focus:ring-0">
           <span class="text-xs font-bold text-purple-300">Safe Mode: Send a single test email preview first</span>
         </label>
-        <input type="email" name="test_email" required placeholder="Enter your email to test (e.g. yourname@gmail.com)" 
-               value="<?= htmlspecialchars($_SESSION['email'] ?? '') ?>"
+        <input type="email" name="test_email" required placeholder="Enter your email to test (e.g. jalvarez5091@gmail.com)" 
+               value="jalvarez5091@gmail.com"
                class="w-full bg-[#0c0e12] border border-purple-800/50 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-400">
       </div>
 
       <!-- Actions -->
       <div class="flex items-center justify-between pt-2">
-        <span class="text-[11px] text-zinc-500">Branding & unsubscribe notice are included automatically.</span>
-        <button type="submit" onclick="return confirmSend()" class="px-6 py-2.5 bg-gradient-to-r from-purple-700 to-amber-600 hover:from-purple-600 hover:to-amber-500 text-white font-bold text-xs rounded-xl transition shadow-lg flex items-center gap-2">
-          <i class="fa-solid fa-paper-plane"></i> Dispatch Blast
+        <span class="text-[11px] text-zinc-500">Authenticated directly over SSL/TLS socket.</span>
+        <button type="submit" onclick="saveSmtpLocally(); return confirmSend();" class="px-6 py-2.5 bg-gradient-to-r from-purple-700 to-amber-600 hover:from-purple-600 hover:to-amber-500 text-white font-bold text-xs rounded-xl transition shadow-lg flex items-center gap-2">
+          <i class="fa-solid fa-paper-plane"></i> Dispatch Email
         </button>
       </div>
 
@@ -401,10 +533,29 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
   </main>
 
   <script>
+    // Remember SMTP credentials locally in browser so you don't type them every time
+    document.addEventListener('DOMContentLoaded', () => {
+      ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from'].forEach(field => {
+        const val = localStorage.getItem('socal_' + field);
+        if (val) document.getElementById(field).value = val;
+      });
+      const savedPass = sessionStorage.getItem('socal_smtp_pass');
+      if (savedPass) document.getElementById('smtp_pass').value = savedPass;
+    });
+
+    function saveSmtpLocally() {
+      ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from'].forEach(field => {
+        const el = document.getElementById(field);
+        if (el) localStorage.setItem('socal_' + field, el.value);
+      });
+      const pass = document.getElementById('smtp_pass').value;
+      if (pass) sessionStorage.setItem('socal_smtp_pass', pass);
+    }
+
     function confirmSend() {
       const isTest = document.getElementById('test-only-checkbox').checked;
       if (isTest) return true;
-      return confirm("WARNING: You are in LIVE mode. This will send an email blast to all selected players. Proceed?");
+      return confirm("WARNING: You are about to send a LIVE email broadcast to all selected subscribers. Proceed?");
     }
   </script>
 </body>
