@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 
 ini_set('session.cookie_httponly', '1');
 ini_set('session.cookie_samesite', 'Lax');
-if (!empty($_SERVER['HTTPS']) &&$_SERVER['HTTPS'] !== 'off') {
+if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
     ini_set('session.cookie_secure', '1');
 }
 
@@ -12,8 +12,39 @@ session_start();
 require_once __DIR__ . '/db.php';
 
 try {
-    $pdo = getDBConnection();$userId = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
-    $userRole = $_SESSION['role'] ?? 'user';$action = $_GET['action'] ?? '';$payload = json_decode(file_get_contents('php://input'), true) ?? [];
+    $pdo = getDBConnection();
+
+    // Auto-create missing tables if they do not exist
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `deck_folders` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `user_id` INT NOT NULL,
+          `name` VARCHAR(100) NOT NULL,
+          `parent_id` INT NULL DEFAULT NULL,
+          `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX (`user_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+        CREATE TABLE IF NOT EXISTS `decks` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `user_id` INT NOT NULL,
+          `folder_id` INT NULL DEFAULT NULL,
+          `title` VARCHAR(255) NOT NULL DEFAULT 'Untitled Pauper Brew',
+          `format` VARCHAR(50) NOT NULL DEFAULT 'pauper',
+          `is_public` TINYINT(1) NOT NULL DEFAULT 0,
+          `featured_card_art` TEXT NULL DEFAULT NULL,
+          `cards_data` LONGTEXT NULL DEFAULT NULL,
+          `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+          `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX (`user_id`),
+          INDEX (`folder_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+
+    $userId = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+    $userRole = $_SESSION['role'] ?? 'user';
+    $action = $_GET['action'] ?? '';
+    $payload = json_decode(file_get_contents('php://input'), true) ?? [];
 
     function checkAuth($userId) {
         if (!$userId) {
@@ -32,64 +63,81 @@ try {
     }
 
     switch ($action) {
-        // Logged-in user decks and folders
         case 'my_decks':
             checkAuth($userId);
 
-            $folderStmt =$pdo->prepare("SELECT id, name, parent_id FROM deck_folders WHERE user_id = ? ORDER BY name ASC");
-            $folderStmt->execute([$userId]);
-            $folders =$folderStmt->fetchAll(PDO::FETCH_ASSOC);
+            $folders = [];
+            try {
+                $folderStmt = $pdo->prepare("SELECT id, name, parent_id FROM deck_folders WHERE user_id = ? ORDER BY name ASC");
+                $folderStmt->execute([$userId]);
+                $folders = $folderStmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Throwable $e) {
+                $folders = [];
+            }
 
-            $deckStmt =$pdo->prepare("
-                SELECT id, folder_id, title, format, is_public, featured_card_art, cards_data, updated_at 
-                FROM decks 
-                WHERE user_id = ? 
-                ORDER BY updated_at DESC
-            ");
-            $deckStmt->execute([$userId]);
-            $decks =$deckStmt->fetchAll(PDO::FETCH_ASSOC);
+            $decks = [];
+            try {
+                $deckStmt = $pdo->prepare("
+                    SELECT id, folder_id, title, format, is_public, featured_card_art, cards_data, updated_at 
+                    FROM decks 
+                    WHERE user_id = ? 
+                    ORDER BY updated_at DESC
+                ");
+                $deckStmt->execute([$userId]);
+                $decks = $deckStmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Throwable $e) {
+                $decks = [];
+            }
 
-            foreach ($decks as &$d) {$parsed = json_decode($d['cards_data'] ?? '', true) ?? ['main' => [], 'side' => []];$mainCount = 0;
+            foreach ($decks as &$d) {
+                $parsed = json_decode($d['cards_data'] ?? '', true) ?? ['main' => [], 'side' => []];
+                $mainCount = 0;
                 $firstArt = null;
-                foreach ($parsed['main'] ?? [] as$c) {
+                foreach ($parsed['main'] ?? [] as $c) {
                     $mainCount += ($c['qty'] ?? 1);
                     if (!$firstArt && !empty($c['image'])) {
-                        $firstArt =$c['image'];
+                        $firstArt = $c['image'];
                     }
                 }
-                $d['card_count'] =$mainCount;
-                if (empty($d['featured_card_art']) &&$firstArt) {
-                    $d['featured_card_art'] =$firstArt;
+                $d['card_count'] = $mainCount;
+                if (empty($d['featured_card_art']) && $firstArt) {
+                    $d['featured_card_art'] = $firstArt;
                 }
                 unset($d['cards_data']);
             }
 
-            echo json_encode(['folders' => $folders, 'decks' =>$decks]);
+            echo json_encode(['folders' => $folders, 'decks' => $decks]);
             break;
 
-        // Public community decks
         case 'community_decks':
-            $stmt =$pdo->query("
-                SELECT d.id, d.title, d.format, d.featured_card_art, d.cards_data, d.updated_at, u.username 
-                FROM decks d
-                JOIN users u ON d.user_id = u.id
-                WHERE d.is_public = 1
-                ORDER BY d.updated_at DESC
-                LIMIT 60
-            ");
-            $decks =$stmt->fetchAll(PDO::FETCH_ASSOC);
+            $decks = [];
+            try {
+                $stmt = $pdo->query("
+                    SELECT d.id, d.title, d.format, d.featured_card_art, d.cards_data, d.updated_at, u.username 
+                    FROM decks d
+                    JOIN users u ON d.user_id = u.id
+                    WHERE d.is_public = 1
+                    ORDER BY d.updated_at DESC
+                    LIMIT 60
+                ");
+                $decks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Throwable $e) {
+                $decks = [];
+            }
 
-            foreach ($decks as &$d) {$parsed = json_decode($d['cards_data'] ?? '', true) ?? ['main' => [], 'side' => []];$mainCount = 0;
+            foreach ($decks as &$d) {
+                $parsed = json_decode($d['cards_data'] ?? '', true) ?? ['main' => [], 'side' => []];
+                $mainCount = 0;
                 $firstArt = null;
-                foreach ($parsed['main'] ?? [] as$c) {
+                foreach ($parsed['main'] ?? [] as $c) {
                     $mainCount += ($c['qty'] ?? 1);
                     if (!$firstArt && !empty($c['image'])) {
-                        $firstArt =$c['image'];
+                        $firstArt = $c['image'];
                     }
                 }
-                $d['card_count'] =$mainCount;
-                if (empty($d['featured_card_art']) &&$firstArt) {
-                    $d['featured_card_art'] =$firstArt;
+                $d['card_count'] = $mainCount;
+                if (empty($d['featured_card_art']) && $firstArt) {
+                    $d['featured_card_art'] = $firstArt;
                 }
                 unset($d['cards_data']);
             }
@@ -97,46 +145,48 @@ try {
             echo json_encode(['decks' => $decks]);
             break;
 
-        // Admin: Group all site users and decks into folders
         case 'admin_users_and_decks':
             checkAuth($userId);
             checkAdmin($userRole);
 
-            $usersStmt =$pdo->query("SELECT id, username, email, role, created_at FROM users ORDER BY username ASC");
-            $users =$usersStmt->fetchAll(PDO::FETCH_ASSOC);
+            $usersStmt = $pdo->query("SELECT id, username, email, role, created_at FROM users ORDER BY username ASC");
+            $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            $decksStmt =$pdo->query("SELECT id, user_id, folder_id, title, format, is_public, featured_card_art, cards_data, updated_at FROM decks ORDER BY updated_at DESC");
-            $rawDecks =$decksStmt->fetchAll(PDO::FETCH_ASSOC);
+            $decksStmt = $pdo->query("SELECT id, user_id, folder_id, title, format, is_public, featured_card_art, cards_data, updated_at FROM decks ORDER BY updated_at DESC");
+            $rawDecks = $decksStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $decksByUser = [];
-            foreach ($rawDecks as $d) {$parsed = json_decode($d['cards_data'] ?? '', true) ?? ['main' => [], 'side' => []];$mainCount = 0;
+            foreach ($rawDecks as $d) {
+                $parsed = json_decode($d['cards_data'] ?? '', true) ?? ['main' => [], 'side' => []];
+                $mainCount = 0;
                 $firstArt = null;
-                foreach ($parsed['main'] ?? [] as$c) {
+                foreach ($parsed['main'] ?? [] as $c) {
                     $mainCount += ($c['qty'] ?? 1);
                     if (!$firstArt && !empty($c['image'])) {
-                        $firstArt =$c['image'];
+                        $firstArt = $c['image'];
                     }
                 }
-                $d['card_count'] =$mainCount;
-                if (empty($d['featured_card_art']) &&$firstArt) {
-                    $d['featured_card_art'] =$firstArt;
+                $d['card_count'] = $mainCount;
+                if (empty($d['featured_card_art']) && $firstArt) {
+                    $d['featured_card_art'] = $firstArt;
                 }
-                unset($d['cards_data']);$decksByUser[$d['user_id']][] =$d;
+                unset($d['cards_data']);
+                $decksByUser[$d['user_id']][] = $d;
             }
 
-            foreach ($users as &$u) {$u['decks'] = $decksByUser[$u['id']] ?? [];
+            foreach ($users as &$u) {
+                $u['decks'] = $decksByUser[$u['id']] ?? [];
                 $u['deck_count'] = count($u['decks']);
             }
 
             echo json_encode(['users' => $users]);
             break;
 
-        // Fetch single deck
         case 'get':
             $deckId = (int)($_GET['id'] ?? 0);
-            $stmt =$pdo->prepare("SELECT * FROM decks WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT * FROM decks WHERE id = ?");
             $stmt->execute([$deckId]);
-            $deck =$stmt->fetch(PDO::FETCH_ASSOC);
+            $deck = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$deck) {
                 http_response_code(404);
@@ -144,8 +194,7 @@ try {
                 exit;
             }
 
-            // Secure ownership check
-            $isOwner =$userId && ((int)$deck['user_id'] === (int)$userId);
+            $isOwner = $userId && ((int)$deck['user_id'] === (int)$userId);
             $isAdmin = ($userRole === 'admin');
 
             if (!$deck['is_public'] && !$isOwner && !$isAdmin) {
@@ -158,59 +207,58 @@ try {
             echo json_encode(['deck' => $deck]);
             break;
 
-        // Save or update deck
         case 'save':
             checkAuth($userId);
 
             $id = !empty($payload['id']) ? (int)$payload['id'] : null;
-            $title = trim($payload['title'] ?? 'Untitled Pauper Brew');$folderId = !empty($payload['folder_id']) ? (int)$payload['folder_id'] : null;
+            $title = trim($payload['title'] ?? 'Untitled Pauper Brew');
+            $folderId = !empty($payload['folder_id']) ? (int)$payload['folder_id'] : null;
             $isPublic = !empty($payload['is_public']) ? 1 : 0;
             $cardsData = json_encode($payload['cards'] ?? ['main' => [], 'side' => []]);
 
-            // Validate folder ownership if assigned
             if ($folderId !== null) {
-                $checkF =$pdo->prepare("SELECT id FROM deck_folders WHERE id = ? AND user_id = ?");
-                $checkF->execute([$folderId,$userId]);
-                if (!$checkF->fetch()) {$folderId = null;
+                $checkF = $pdo->prepare("SELECT id FROM deck_folders WHERE id = ? AND user_id = ?");
+                $checkF->execute([$folderId, $userId]);
+                if (!$checkF->fetch()) {
+                    $folderId = null;
                 }
             }
 
-            $featuredArt =$payload['featured_card_art'] ?? null;
+            $featuredArt = $payload['featured_card_art'] ?? null;
             if (!$featuredArt && !empty($payload['cards']['main'][0]['image'])) {
-                $featuredArt =$payload['cards']['main'][0]['image'];
+                $featuredArt = $payload['cards']['main'][0]['image'];
             }
 
             if ($id) {
-                $checkStmt =$pdo->prepare("SELECT user_id FROM decks WHERE id = ?");
+                $checkStmt = $pdo->prepare("SELECT user_id FROM decks WHERE id = ?");
                 $checkStmt->execute([$id]);
-                $owner =$checkStmt->fetchColumn();
+                $owner = $checkStmt->fetchColumn();
 
-                if ((int)$owner !== (int)$userId &&$userRole !== 'admin') {
+                if ((int)$owner !== (int)$userId && $userRole !== 'admin') {
                     http_response_code(403);
                     echo json_encode(['error' => 'You do not own this deck.']);
                     exit;
                 }
 
-                $stmt =$pdo->prepare("UPDATE decks SET title = ?, folder_id = ?, is_public = ?, featured_card_art = ?, cards_data = ? WHERE id = ?");
-                $stmt->execute([$title,$folderId, $isPublic,$featuredArt, $cardsData,$id]);
-                $deckId =$id;
+                $stmt = $pdo->prepare("UPDATE decks SET title = ?, folder_id = ?, is_public = ?, featured_card_art = ?, cards_data = ? WHERE id = ?");
+                $stmt->execute([$title, $folderId, $isPublic, $featuredArt, $cardsData, $id]);
+                $deckId = $id;
             } else {
-                $stmt =$pdo->prepare("INSERT INTO decks (user_id, folder_id, title, is_public, featured_card_art, cards_data) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$userId,$folderId, $title,$isPublic, $featuredArt,$cardsData]);
+                $stmt = $pdo->prepare("INSERT INTO decks (user_id, folder_id, title, is_public, featured_card_art, cards_data) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$userId, $folderId, $title, $isPublic, $featuredArt, $cardsData]);
                 $deckId = (int)$pdo->lastInsertId();
             }
 
             echo json_encode(['success' => true, 'deck_id' => $deckId]);
             break;
 
-        // Toggle visibility
         case 'toggle_visibility':
             checkAuth($userId);
             $deckId = (int)($payload['id'] ?? 0);
 
-            $stmt =$pdo->prepare("SELECT is_public, user_id FROM decks WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT is_public, user_id FROM decks WHERE id = ?");
             $stmt->execute([$deckId]);
-            $deck =$stmt->fetch(PDO::FETCH_ASSOC);
+            $deck = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$deck) {
                 http_response_code(404);
@@ -218,26 +266,27 @@ try {
                 exit;
             }
 
-            if ((int)$deck['user_id'] !== (int)$userId &&$userRole !== 'admin') {
+            if ((int)$deck['user_id'] !== (int)$userId && $userRole !== 'admin') {
                 http_response_code(403);
                 echo json_encode(['error' => 'Unauthorized.']);
                 exit;
             }
 
-            $newVisibility =$deck['is_public'] ? 0 : 1;
-            $update =$pdo->prepare("UPDATE decks SET is_public = ? WHERE id = ?");
-            $update->execute([$newVisibility,$deckId]);
+            $newVisibility = $deck['is_public'] ? 0 : 1;
+            $update = $pdo->prepare("UPDATE decks SET is_public = ? WHERE id = ?");
+            $update->execute([$newVisibility, $deckId]);
 
             echo json_encode(['success' => true, 'is_public' => $newVisibility]);
             break;
 
-        // Move folder with ownership verification
         case 'move_folder':
-            checkAuth($userId);$deckId = (int)($payload['id'] ?? 0);$folderId = !empty($payload['folder_id']) ? (int)$payload['folder_id'] : null;
+            checkAuth($userId);
+            $deckId = (int)($payload['id'] ?? 0);
+            $folderId = !empty($payload['folder_id']) ? (int)$payload['folder_id'] : null;
 
             if ($folderId !== null) {
-                $folderCheck =$pdo->prepare("SELECT id FROM deck_folders WHERE id = ? AND user_id = ?");
-                $folderCheck->execute([$folderId,$userId]);
+                $folderCheck = $pdo->prepare("SELECT id FROM deck_folders WHERE id = ? AND user_id = ?");
+                $folderCheck->execute([$folderId, $userId]);
                 if (!$folderCheck->fetch()) {
                     http_response_code(400);
                     echo json_encode(['error' => 'Target folder not found in your collection.']);
@@ -245,46 +294,49 @@ try {
                 }
             }
 
-            $stmt =$pdo->prepare("UPDATE decks SET folder_id = ? WHERE id = ? AND (user_id = ? OR ? = 'admin')");
-            $stmt->execute([$folderId,$deckId, $userId,$userRole]);
+            $stmt = $pdo->prepare("UPDATE decks SET folder_id = ? WHERE id = ? AND (user_id = ? OR ? = 'admin')");
+            $stmt->execute([$folderId, $deckId, $userId, $userRole]);
             echo json_encode(['success' => true]);
             break;
 
-        // Rename deck
         case 'rename':
             checkAuth($userId);
             $deckId = (int)($payload['id'] ?? 0);
             $newTitle = trim($payload['title'] ?? '');
 
-            if (!$deckId \vert{}\vert{} !$newTitle) {
+            if (!$deckId || !$newTitle) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Deck ID and new title required.']);
                 exit;
             }
 
-            $stmt =$pdo->prepare("UPDATE decks SET title = ? WHERE id = ? AND (user_id = ? OR ? = 'admin')");
-            $stmt->execute([$newTitle,$deckId, $userId,$userRole]);
+            $stmt = $pdo->prepare("UPDATE decks SET title = ? WHERE id = ? AND (user_id = ? OR ? = 'admin')");
+            $stmt->execute([$newTitle, $deckId, $userId, $userRole]);
             echo json_encode(['success' => true]);
             break;
 
-        // Delete deck
         case 'delete':
             checkAuth($userId);
             $deckId = (int)($payload['id'] ?? 0);
 
-            $stmt =$pdo->prepare("DELETE FROM decks WHERE id = ? AND (user_id = ? OR ? = 'admin')");
-            $stmt->execute([$deckId, $userId,$userRole]);
+            if (!$deckId) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Deck ID required.']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare("DELETE FROM decks WHERE id = ? AND (user_id = ? OR ? = 'admin')");
+            $stmt->execute([$deckId, $userId, $userRole]);
             echo json_encode(['success' => true]);
             break;
 
-        // Clone deck
         case 'clone':
             checkAuth($userId);
             $deckId = (int)($payload['id'] ?? 0);
 
-            $stmt =$pdo->prepare("SELECT * FROM decks WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT * FROM decks WHERE id = ?");
             $stmt->execute([$deckId]);
-            $orig =$stmt->fetch(PDO::FETCH_ASSOC);
+            $orig = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$orig) {
                 http_response_code(404);
@@ -292,20 +344,22 @@ try {
                 exit;
             }
 
-            $newTitle =$orig['title'] . ' (Copy)';
-            $insert =$pdo->prepare("
+            $newTitle = $orig['title'] . ' (Copy)';
+            $insert = $pdo->prepare("
                 INSERT INTO decks (user_id, folder_id, title, format, is_public, featured_card_art, cards_data)
                 VALUES (?, NULL, ?, ?, 0, ?, ?)
             ");
-            $insert->execute([$userId, 
-                $newTitle,$orig['format'] ?? 'pauper', 
-                $orig['featured_card_art'],$orig['cards_data']
+            $insert->execute([
+                $userId, 
+                $newTitle, 
+                $orig['format'] ?? 'pauper', 
+                $orig['featured_card_art'], 
+                $orig['cards_data']
             ]);
 
             echo json_encode(['success' => true, 'new_deck_id' => (int)$pdo->lastInsertId()]);
             break;
 
-        // Create folder
         case 'create_folder':
             checkAuth($userId);
             $name = trim($payload['name'] ?? '');
@@ -315,17 +369,17 @@ try {
                 exit;
             }
 
-            $stmt =$pdo->prepare("INSERT INTO deck_folders (user_id, name) VALUES (?, ?)");
-            $stmt->execute([$userId,$name]);
+            $stmt = $pdo->prepare("INSERT INTO deck_folders (user_id, name) VALUES (?, ?)");
+            $stmt->execute([$userId, $name]);
             echo json_encode(['success' => true, 'folder_id' => (int)$pdo->lastInsertId()]);
             break;
 
-        // Delete folder
         case 'delete_folder':
             checkAuth($userId);
             $folderId = (int)($payload['id'] ?? 0);
 
-            $pdo->prepare("UPDATE decks SET folder_id = NULL WHERE folder_id = ? AND user_id = ?")->execute([$folderId, $userId]);$pdo->prepare("DELETE FROM deck_folders WHERE id = ? AND user_id = ?")->execute([$folderId,$userId]);
+            $pdo->prepare("UPDATE decks SET folder_id = NULL WHERE folder_id = ? AND user_id = ?")->execute([$folderId, $userId]);
+            $pdo->prepare("DELETE FROM deck_folders WHERE id = ? AND user_id = ?")->execute([$folderId, $userId]);
             echo json_encode(['success' => true]);
             break;
 
@@ -336,6 +390,10 @@ try {
     }
 } catch (Throwable $e) {
     error_log("[api_decks Error] " . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(['error' => 'An internal server error occurred. Please try again.']);
+    echo json_encode([
+        'error' => 'Server Error: ' . $e->getMessage(),
+        'decks' => [],
+        'folders' => [],
+        'users' => []
+    ]);
 }

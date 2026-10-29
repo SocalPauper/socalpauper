@@ -190,6 +190,6 @@ session_start();
     </div>
   </div>
 
-  <script src="js/decks_hub.js?v=9"></script>
+  <script src="js/decks_hub.js?v=10"></script>
 </body>
 </html>
