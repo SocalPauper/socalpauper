@@ -515,8 +515,8 @@ $activePopups = $pdo->query("SELECT * FROM broadcasts WHERE expires_at > NOW() O
           <input type="checkbox" id="test-only-checkbox" name="test_only" value="1" checked class="rounded bg-zinc-900 border-zinc-700 text-purple-600 focus:ring-0">
           <span class="text-xs font-bold text-purple-300">Safe Mode: Send a single test email preview first</span>
         </label>
-        <input type="email" name="test_email" required placeholder="Enter your email to test (e.g. jalvarez5091@gmail.com)" 
-               value="jalvarez5091@gmail.com"
+        <input type="email" name="test_email" required placeholder="Enter your email to test (e.g. support@socalpauper.com)" 
+               value="support@socalpauper.com"
                class="w-full bg-[#0c0e12] border border-purple-800/50 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-400">
       </div>
 
