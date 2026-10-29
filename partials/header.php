@@ -8,10 +8,10 @@ $username = $_SESSION['username'] ?? '';
 $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
 ?>
 <header class="sticky top-0 z-40 bg-[#0c0e12]/95 backdrop-blur border-b border-[#2a3040]">
-  <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+  <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
 
     <!-- Brand Logo -->
-    <a href="index.php" class="flex items-center gap-2.5 group">
+    <a href="index.php" class="flex items-center gap-2.5 group shrink-0">
       <img src="/logo.webp" alt="SoCal Pauper" class="w-8 h-8 rounded-full border border-amber-500/40 group-hover:border-amber-400 transition object-cover" onerror="this.style.display='none'">
       <div class="flex flex-col">
         <span class="font-cinzel font-bold text-base md:text-lg text-white tracking-wide group-hover:text-amber-400 transition leading-tight">
@@ -26,6 +26,16 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
       <a href="index.php#calendar" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
         <i class="fa-solid fa-calendar-days text-zinc-400 text-xs"></i>
         <span>Events</span>
+      </a>
+
+      <a href="index.php#calendar" class="px-3 py-1.5 rounded-lg text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm">
+        <i class="fa-solid fa-bolt text-amber-400 text-xs"></i>
+        <span>Tracker</span>
+      </a>
+
+      <a href="/life.php" onclick="if(window.openLifeModal){event.preventDefault();openLifeModal();}" class="px-3 py-1.5 rounded-lg text-rose-300 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 transition flex items-center gap-1.5 shadow-sm">
+        <i class="fa-solid fa-heart-pulse text-rose-400 text-xs"></i>
+        <span>Life Counter</span>
       </a>
 
       <a href="index.php#stores" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
@@ -45,20 +55,15 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
 
       <div class="h-4 w-px bg-zinc-800 mx-1"></div>
 
-      <!-- Deck Hub & Architect Links -->
-      <a href="decks.php" class="px-3 py-1.5 rounded-lg text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm">
-        <i class="fa-solid fa-layer-group text-amber-400 text-xs"></i>
+      <!-- Deck Hub (Primary Entrypoint to Decks & Builder) -->
+      <a href="decks.php" class="px-3 py-1.5 rounded-lg text-sky-300 bg-sky-950/50 hover:bg-sky-900/60 border border-sky-800/60 transition flex items-center gap-1.5 shadow-sm">
+        <i class="fa-solid fa-layer-group text-sky-400 text-xs"></i>
         <span>Deck Hub</span>
-      </a>
-
-      <a href="builder.php" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-wand-magic-sparkles text-emerald-400 text-xs"></i>
-        <span>Architect</span>
       </a>
 
       <!-- Admin Broadcast Center -->
       <?php if ($isAdmin): ?>
-        <a href="admin_broadcast.php" class="px-3 py-1.5 rounded-lg text-purple-300 hover:text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/60 transition flex items-center gap-1.5 shadow-sm">
+        <a href="admin_broadcast.php" class="px-3 py-1.5 rounded-lg text-purple-300 hover:text-purple-200 bg-purple-950/50 hover:bg-purple-900/60 border border-purple-800/60 transition flex items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-bullhorn text-purple-400 text-xs"></i>
           <span>Broadcast</span>
         </a>
@@ -71,7 +76,7 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
       </a>
 
       <!-- Desktop Auth Slot -->
-      <div id="header-auth-slot" class="ml-2 flex items-center">
+      <div id="header-auth-slot" class="ml-1 flex items-center">
         <?php if ($isLoggedIn): ?>
           <div class="flex items-center gap-2">
             <a href="decks.php" class="text-xs text-sky-400 font-bold uppercase tracking-wider hover:underline flex items-center gap-1">
@@ -88,9 +93,9 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
       </div>
     </nav>
 
-    <!-- Mobile Hamburger Toggle -->
+    <!-- Mobile Navigation Toggle -->
     <div class="flex items-center gap-2 lg:hidden">
-      <a href="decks.php" class="px-2.5 py-1.5 rounded-lg text-amber-400 bg-amber-500/10 border border-amber-500/30 text-xs font-bold flex items-center gap-1">
+      <a href="decks.php" class="px-2.5 py-1.5 rounded-lg text-sky-400 bg-sky-950/60 border border-sky-800/80 text-xs font-bold flex items-center gap-1">
         <i class="fa-solid fa-layer-group text-[11px]"></i> Hub
       </a>
       <button id="mobile-menu-toggle" type="button" aria-label="Toggle Navigation" class="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center transition">
@@ -102,6 +107,7 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
 
   <!-- Mobile Collapsible Menu Drawer -->
   <div id="mobile-menu-drawer" class="hidden lg:hidden border-t border-[#2a3040] bg-[#0c0e12]/98 px-4 py-4 space-y-3">
+    
     <!-- User Status Banner for Mobile -->
     <div class="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between">
       <?php if ($isLoggedIn): ?>
@@ -111,7 +117,7 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
         </div>
         <button onclick="headerLogout()" class="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded border border-zinc-700">Log Out</button>
       <?php else: ?>
-        <span class="text-xs text-zinc-400">Join the deck hub & tournaments</span>
+        <span class="text-xs text-zinc-400">Join the community deck hub</span>
         <button onclick="openHeaderAuthModal()" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-3 py-1 rounded">Sign In</button>
       <?php endif; ?>
     </div>
@@ -119,6 +125,12 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
     <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
       <a href="index.php#calendar" class="p-2.5 rounded-lg text-zinc-300 hover:text-white bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
         <i class="fa-solid fa-calendar-days text-zinc-400"></i> Events
+      </a>
+      <a href="index.php#calendar" class="p-2.5 rounded-lg text-amber-300 hover:text-amber-200 bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
+        <i class="fa-solid fa-bolt text-amber-400"></i> Tracker
+      </a>
+      <a href="/life.php" onclick="if(window.openLifeModal){event.preventDefault();openLifeModal();}" class="p-2.5 rounded-lg text-rose-300 hover:text-rose-200 bg-rose-950/40 border border-rose-800/60 flex items-center gap-2">
+        <i class="fa-solid fa-heart-pulse text-rose-400"></i> Life Counter
       </a>
       <a href="index.php#stores" class="p-2.5 rounded-lg text-zinc-300 hover:text-white bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
         <i class="fa-solid fa-store text-zinc-400"></i> Stores
@@ -132,14 +144,9 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
     </div>
 
     <div class="pt-2 border-t border-zinc-800/80 space-y-2 text-xs font-semibold">
-      <a href="decks.php" class="w-full p-2.5 rounded-lg text-amber-300 bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
-        <span class="flex items-center gap-2"><i class="fa-solid fa-layer-group text-amber-400"></i> Deck Command Hub</span>
-        <i class="fa-solid fa-arrow-right text-[10px] text-amber-400"></i>
-      </a>
-
-      <a href="builder.php" class="w-full p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center justify-between hover:text-white">
-        <span class="flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> Deck Architect</span>
-        <i class="fa-solid fa-arrow-right text-[10px] text-zinc-500"></i>
+      <a href="decks.php" class="w-full p-2.5 rounded-lg text-sky-300 bg-sky-950/60 border border-sky-800/80 flex items-center justify-between">
+        <span class="flex items-center gap-2"><i class="fa-solid fa-layer-group text-sky-400"></i> Deck Command Hub</span>
+        <i class="fa-solid fa-arrow-right text-[10px] text-sky-400"></i>
       </a>
 
       <?php if ($isAdmin): ?>
@@ -157,7 +164,7 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
   </div>
 </header>
 
-<!-- Header Auth Modal (Sign In / Register from any page) -->
+<!-- Header Auth Modal (Sign In / Register) -->
 <div id="header-auth-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
   <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl">
     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
@@ -278,7 +285,6 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
     }
   });
 
-  // Mobile menu button toggle
   (function() {
     const toggle = document.getElementById('mobile-menu-toggle');
     const drawer = document.getElementById('mobile-menu-drawer');
