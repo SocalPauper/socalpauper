@@ -52,6 +52,15 @@ session_start();
         <i class="fa-solid fa-floppy-disk"></i> Save
       </button>
 
+	  <!-- Deck Visibility Toggle -->
+      <button id="visibility-toggle-btn" type="button" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-lock text-amber-400"></i> <span>Private</span>
+      </button>
+
+      <button id="save-deck-btn" type="button" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-floppy-disk"></i> Save
+      </button>
+
       <!-- Clone action for read-only decks -->
       <button id="clone-deck-btn" type="button" class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5">
         <i class="fa-solid fa-copy"></i> Clone to My Decks
@@ -348,6 +357,6 @@ session_start();
     </div>
   </div>
 
-  <script src="js/builder.js?v=11"></script>
+  <script src="js/builder.js?v=12"></script>
 </body>
 </html>

@@ -29,6 +29,7 @@ window.Builder = {
     id: null,
     user_id: null,
     title: "Untitled Pauper Brew",
+	is_public: 0,
     main: [],
     side: []
   },
@@ -111,6 +112,15 @@ window.Builder = {
         mainBtn.className = 'px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-white transition';
       };
     }
+	
+	const visBtn = document.getElementById('visibility-toggle-btn');
+	if (visBtn) {
+		visBtn.onclick = () => {
+			if (this.isReadOnly) return;
+			this.deck.is_public = this.deck.is_public ? 0 : 1;
+			this.updateVisibilityUI();
+		};
+	}
 
     const titleInput = document.getElementById('deck-title-input');
     if (titleInput) {

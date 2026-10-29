@@ -271,6 +271,34 @@ try {
             echo json_encode(['success' => true]);
             break;
 
+		case 'toggle_visibility':
+            checkAuth($userId);
+            $deckId = (int)($payload['id'] ?? 0);
+
+            // Fetch current visibility status and verify ownership
+            $stmt = $pdo->prepare("SELECT is_public, user_id FROM decks WHERE id = ?");
+            $stmt->execute([$deckId]);
+            $deck = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$deck) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Deck not found.']);
+                exit;
+            }
+
+            if ($deck['user_id'] != $userId && $userRole !== 'admin') {
+                http_response_code(403);
+                echo json_encode(['error' => 'Unauthorized.']);
+                exit;
+            }
+
+            $newVisibility = $deck['is_public'] ? 0 : 1;
+            $update = $pdo->prepare("UPDATE decks SET is_public = ? WHERE id = ?");
+            $update->execute([$newVisibility, $deckId]);
+
+            echo json_encode(['success' => true, 'is_public' => $newVisibility]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['error' => 'Invalid action.']);

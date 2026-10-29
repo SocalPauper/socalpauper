@@ -277,7 +277,7 @@ window.Hub = {
       const isOwner = this.user && (this.activeTab === 'my_decks');
 
       const actionButtonLabel = isOwner
-        ? '<i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Edit in Architect'
+        ? '<i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Edit Deck'
         : '<i class="fa-solid fa-eye mr-1"></i> View Deck';
 
       const escTitle = this.escapeHtml(d.title).replace(/'/g, "\\'");
