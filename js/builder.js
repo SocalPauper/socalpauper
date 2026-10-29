@@ -10,6 +10,22 @@ const UNLIMITED_COPIES = new Set([
   'Dragon\'s Approach', 'Slime Against Humanity', 'Templar Knight'
 ]);
 
+// Hypergeometric combination helper: nCr = n! / (r! * (n - r)!)
+function combinations(n, r) {
+  if (r < 0 || r > n) return 0;
+  if (r === 0 || r === n) return 1;
+  let c = 1;
+  for (let i = 1; i <= r; i++) {
+    c = c * (n - (i - 1)) / i;
+  }
+  return c;
+}
+
+// Hypergeometric probability: P(X = k)
+function hypergeomPdf(k, N, K, n) {
+  return (combinations(K, k) * combinations(N - K, n - k)) / combinations(N, n);
+}
+
 window.Builder = {
   deck: {
     id: null,
@@ -17,13 +33,58 @@ window.Builder = {
     main: [],
     side: []
   },
+  user: null,
   activeTarget: 'main',
   selectedCardForPrints: null,
   searchDebounce: null,
+  authMode: 'login',
 
   init() {
+    this.checkAuth();
     this.bindEvents();
     this.render();
+  },
+
+  async checkAuth() {
+    try {
+      const res = await fetch('/api_auth.php?action=check');
+      const data = await res.json();
+      this.user = data.authenticated ? data.user : null;
+    } catch (e) {
+      this.user = null;
+    }
+    this.updateAuthUI();
+  },
+
+  updateAuthUI() {
+    const slot = document.getElementById('nav-auth-slot');
+    const myDecksBtn = document.getElementById('my-decks-btn');
+    const adminBtn = document.getElementById('admin-panel-btn');
+
+    if (!slot) return;
+
+    if (this.user) {
+      if (myDecksBtn) myDecksBtn.classList.remove('hidden');
+      if (adminBtn) {
+        if (this.user.role === 'admin') adminBtn.classList.remove('hidden');
+        else adminBtn.classList.add('hidden');
+      }
+
+      slot.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-sky-400 font-bold uppercase tracking-wider">👤 ${this.escapeHtml(this.user.username)}</span>
+          <button type="button" onclick="Builder.logout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 transition">Log Out</button>
+        </div>
+      `;
+    } else {
+      if (myDecksBtn) myDecksBtn.classList.add('hidden');
+      if (adminBtn) adminBtn.classList.add('hidden');
+
+      slot.innerHTML = `
+        <button type="button" onclick="Builder.openAuthModal('login')" class="text-xs text-slate-300 hover:text-white px-2 py-1 transition font-medium">Log In</button>
+        <button type="button" onclick="Builder.openAuthModal('register')" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-2.5 py-1 rounded transition shadow-sm">Sign Up</button>
+      `;
+    }
   },
 
   bindEvents() {
@@ -51,12 +112,17 @@ window.Builder = {
       };
     }
 
-    // Import modal triggers
     const importBtn = document.getElementById('import-deck-btn');
     if (importBtn) importBtn.onclick = () => window.openImportModal();
 
     const importSubmitBtn = document.getElementById('import-submit-btn');
     if (importSubmitBtn) importSubmitBtn.onclick = () => this.handleImportDeck();
+
+    const myDecksBtn = document.getElementById('my-decks-btn');
+    if (myDecksBtn) myDecksBtn.onclick = () => this.openMyDecksModal();
+
+    const adminBtn = document.getElementById('admin-panel-btn');
+    if (adminBtn) adminBtn.onclick = () => this.openAdminModal();
 
     const searchInput = document.getElementById('card-search-input');
     const suggestionsBox = document.getElementById('search-suggestions');
@@ -96,7 +162,7 @@ window.Builder = {
             const data = await res.json();
             this.renderSuggestions(data.data || []);
           } catch (err) {
-            console.error("Autocomplete error:", err);
+            console.error(err);
           } finally {
             if (spinner) spinner.style.display = 'none';
           }
@@ -119,6 +185,21 @@ window.Builder = {
 
     const mulliBtn = document.getElementById('mulligan-btn');
     if (mulliBtn) mulliBtn.onclick = () => this.openSampleHand();
+
+    const authForm = document.getElementById('auth-form');
+    if (authForm) {
+      authForm.onsubmit = (e) => {
+        e.preventDefault();
+        this.handleAuthSubmit();
+      };
+    }
+
+    const authToggleBtn = document.getElementById('auth-toggle-btn');
+    if (authToggleBtn) {
+      authToggleBtn.onclick = () => {
+        this.openAuthModal(this.authMode === 'login' ? 'register' : 'login');
+      };
+    }
   },
 
   renderSuggestions(names) {
@@ -210,7 +291,6 @@ window.Builder = {
     }
   },
 
-  // --- Universal Deck List Parser (Moxfield, MTGGoldfish, Arena, MTGO, Archidekt) ---
   async handleImportDeck() {
     const textarea = document.getElementById('import-textarea');
     const text = textarea ? textarea.value.trim() : '';
@@ -228,7 +308,7 @@ window.Builder = {
       const parsedEntries = this.parseRawDeckText(text);
 
       if (!parsedEntries.main.length && !parsedEntries.side.length) {
-        alert("No valid card lines found. Ensure quantities and card names are present.");
+        alert("No valid card lines found.");
         return;
       }
 
@@ -237,11 +317,9 @@ window.Builder = {
         this.deck.side = [];
       }
 
-      // Collect all unique names to fetch from Scryfall Collection endpoint
       const allEntries = [...parsedEntries.main, ...parsedEntries.side];
       const uniqueNames = [...new Set(allEntries.map(e => e.name))];
 
-      // Scryfall allows up to 75 identifiers per batch request
       const batches = [];
       for (let i = 0; i < uniqueNames.length; i += 75) {
         batches.push(uniqueNames.slice(i, i + 75));
@@ -265,19 +343,14 @@ window.Builder = {
         });
       }
 
-      // Insert parsed cards into deck
       parsedEntries.main.forEach(entry => {
         const scryfallCard = cardLookupMap.get(entry.name.toLowerCase());
-        if (scryfallCard) {
-          this.insertCardIntoDeck(scryfallCard, 'main', entry.qty);
-        }
+        if (scryfallCard) this.insertCardIntoDeck(scryfallCard, 'main', entry.qty);
       });
 
       parsedEntries.side.forEach(entry => {
         const scryfallCard = cardLookupMap.get(entry.name.toLowerCase());
-        if (scryfallCard) {
-          this.insertCardIntoDeck(scryfallCard, 'side', entry.qty);
-        }
+        if (scryfallCard) this.insertCardIntoDeck(scryfallCard, 'side', entry.qty);
       });
 
       window.closeImportModal();
@@ -301,7 +374,6 @@ window.Builder = {
       let line = rawLine.trim();
       if (!line || line.startsWith('//') || line.startsWith('#')) continue;
 
-      // Detect sideboard section headers
       const lower = line.toLowerCase();
       if (lower === 'sideboard' || lower === 'sideboard:' || lower === 'side:' || lower === '--sideboard--') {
         currentBoard = 'side';
@@ -313,30 +385,22 @@ window.Builder = {
       }
 
       let lineTarget = currentBoard;
-
-      // Handle lines with "SB:" prefix (MTGGoldfish / MTGO format)
       if (line.toUpperCase().startsWith('SB:')) {
         lineTarget = 'side';
         line = line.substring(3).trim();
       }
 
-      // Regex matches: "4 Lightning Bolt" or "4x Lightning Bolt (CLB) 187 *F*"
       const match = line.match(/^(\d+)[xX]?\s+(.+)$/);
       if (!match) continue;
 
       const qty = parseInt(match[1], 10);
       let cardName = match[2].trim();
-
-      // Clean set codes, collector numbers, and tags (e.g., "(CLB) 187 *F*")
       cardName = cardName.replace(/\s*\([A-Za-z0-9_]+\)\s+[0-9a-zA-Z]+.*$/, '').trim();
       cardName = cardName.replace(/\s*\*F\*\s*$/, '').trim();
       cardName = cardName.replace(/\s*#.*$/, '').trim();
 
-      if (lineTarget === 'main') {
-        main.push({ name: cardName, qty });
-      } else {
-        side.push({ name: cardName, qty });
-      }
+      if (lineTarget === 'main') main.push({ name: cardName, qty });
+      else side.push({ name: cardName, qty });
     }
 
     return { main, side };
@@ -349,11 +413,8 @@ window.Builder = {
 
     card.qty += delta;
     if (card.qty <= 0) {
-      if (target === 'main') {
-        this.deck.main = this.deck.main.filter(c => c.name !== name);
-      } else {
-        this.deck.side = this.deck.side.filter(c => c.name !== name);
-      }
+      if (target === 'main') this.deck.main = this.deck.main.filter(c => c.name !== name);
+      else this.deck.side = this.deck.side.filter(c => c.name !== name);
     }
     this.render();
   },
@@ -375,10 +436,7 @@ window.Builder = {
     }
 
     card.qty -= 1;
-    if (card.qty <= 0) {
-      sourceList.splice(idx, 1);
-    }
-
+    if (card.qty <= 0) sourceList.splice(idx, 1);
     this.render();
   },
 
@@ -423,6 +481,20 @@ window.Builder = {
     this.render();
   },
 
+  // Dynamic Type Determiner (ensures no card is ever swallowed/hidden)
+  getCardCategory(card) {
+    const tl = card.type_line || '';
+    if (tl.includes('Planeswalker')) return 'Planeswalkers';
+    if (tl.includes('Creature')) return 'Creatures';
+    if (tl.includes('Instant')) return 'Instants';
+    if (tl.includes('Sorcery')) return 'Sorceries';
+    if (tl.includes('Artifact')) return 'Artifacts';
+    if (tl.includes('Enchantment')) return 'Enchantments';
+    if (tl.includes('Battle')) return 'Battles';
+    if (tl.includes('Land')) return 'Lands';
+    return 'Other';
+  },
+
   render() {
     this.renderBoardLane('main', 'main-stacks', 'main-group-count');
     this.renderBoardLane('side', 'side-stacks', 'side-group-count');
@@ -445,17 +517,31 @@ window.Builder = {
       return;
     }
 
-    const categories = {
-      'Creatures': list.filter(c => c.type_line.includes('Creature')),
-      'Instants': list.filter(c => c.type_line.includes('Instant')),
-      'Sorceries': list.filter(c => c.type_line.includes('Sorcery')),
-      'Enchantments': list.filter(c => c.type_line.includes('Enchantment') && !c.type_line.includes('Creature')),
-      'Artifacts': list.filter(c => c.type_line.includes('Artifact') && !c.type_line.includes('Creature') && !c.type_line.includes('Land')),
-      'Lands': list.filter(c => c.type_line.includes('Land'))
-    };
+    // Dynamic categorizer covering all Magic types & edge cases
+    const categoryOrder = [
+      'Creatures',
+      'Planeswalkers',
+      'Instants',
+      'Sorceries',
+      'Artifacts',
+      'Enchantments',
+      'Battles',
+      'Lands',
+      'Other'
+    ];
 
-    for (const [title, cards] of Object.entries(categories)) {
-      if (!cards.length) continue;
+    const buckets = {};
+    categoryOrder.forEach(cat => { buckets[cat] = []; });
+
+    list.forEach(card => {
+      const cat = this.getCardCategory(card);
+      if (!buckets[cat]) buckets[cat] = [];
+      buckets[cat].push(card);
+    });
+
+    for (const title of categoryOrder) {
+      const cards = buckets[title];
+      if (!cards || !cards.length) continue;
 
       const groupQty = cards.reduce((sum, c) => sum + c.qty, 0);
       const col = document.createElement('div');
@@ -598,9 +684,7 @@ window.Builder = {
     mainList.forEach(c => {
       const cost = c.mana_cost || '';
       for (const char of cost) {
-        if (pips[char] !== undefined) {
-          pips[char] += c.qty;
-        }
+        if (pips[char] !== undefined) pips[char] += c.qty;
       }
     });
 
@@ -631,21 +715,85 @@ window.Builder = {
       `;
     }
 
+    this.renderTypeBreakdown(mainList, 'main-type-counts-list');
+    this.renderTypeBreakdown(sideList, 'side-type-counts-list');
+    this.calculateHandProbabilities(mainList, mainTotal);
+  },
+
+  renderTypeBreakdown(cardsList, containerId) {
     const types = {};
-    mainList.forEach(c => {
+    cardsList.forEach(c => {
       const primary = c.type_line.split('—')[0].trim();
       types[primary] = (types[primary] || 0) + c.qty;
     });
 
-    const typeListContainer = document.getElementById('type-counts-list');
-    if (typeListContainer) {
-      typeListContainer.innerHTML = Object.entries(types).map(([k, v]) => `
-        <div class="flex justify-between">
-          <span class="text-slate-400">${k}</span>
-          <span class="text-white font-bold">${v}</span>
-        </div>
-      `).join('');
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!cardsList.length) {
+      container.innerHTML = `<span class="text-slate-500 italic">No cards added</span>`;
+      return;
     }
+
+    container.innerHTML = Object.entries(types).map(([k, v]) => `
+      <div class="flex justify-between py-0.5 border-b border-slate-800/60 last:border-0">
+        <span class="text-slate-400">${k}</span>
+        <span class="text-white font-bold">${v}</span>
+      </div>
+    `).join('');
+  },
+
+  calculateHandProbabilities(mainList, mainTotal) {
+    const N = mainTotal;
+    const n = 7;
+
+    const probStdEl = document.getElementById('prob-standard-lands');
+    const barStdEl = document.getElementById('bar-standard-lands');
+    const probAggroEl = document.getElementById('prob-aggro-lands');
+    const barAggroEl = document.getElementById('bar-aggro-lands');
+    const probOneEl = document.getElementById('prob-one-drop');
+    const barOneEl = document.getElementById('bar-one-drop');
+
+    if (N < 7) {
+      if (probStdEl) probStdEl.textContent = '0.0%';
+      if (probAggroEl) probAggroEl.textContent = '0.0%';
+      if (probOneEl) probOneEl.textContent = '0.0%';
+      return;
+    }
+
+    const totalLands = mainList
+      .filter(c => c.type_line.includes('Land'))
+      .reduce((sum, c) => sum + c.qty, 0);
+
+    const totalOneDrops = mainList
+      .filter(c => !c.type_line.includes('Land') && c.cmc === 1)
+      .reduce((sum, c) => sum + c.qty, 0);
+
+    let probStd = 0;
+    for (let k = 2; k <= 4; k++) {
+      probStd += hypergeomPdf(k, N, totalLands, n);
+    }
+
+    let probAggro = 0;
+    for (let k = 1; k <= 3; k++) {
+      probAggro += hypergeomPdf(k, N, totalLands, n);
+    }
+
+    const probZeroOneDrops = hypergeomPdf(0, N, totalOneDrops, n);
+    const probOneDrop = Math.max(0, 1 - probZeroOneDrops);
+
+    const pctStd = Math.min(100, Math.max(0, probStd * 100));
+    const pctAggro = Math.min(100, Math.max(0, probAggro * 100));
+    const pctOne = Math.min(100, Math.max(0, probOneDrop * 100));
+
+    if (probStdEl) probStdEl.textContent = `${pctStd.toFixed(1)}%`;
+    if (barStdEl) barStdEl.style.width = `${pctStd}%`;
+
+    if (probAggroEl) probAggroEl.textContent = `${pctAggro.toFixed(1)}%`;
+    if (barAggroEl) barAggroEl.style.width = `${pctAggro}%`;
+
+    if (probOneEl) probOneEl.textContent = `${pctOne.toFixed(1)}%`;
+    if (barOneEl) barOneEl.style.width = `${pctOne}%`;
   },
 
   openSampleHand() {
@@ -677,6 +825,11 @@ window.Builder = {
   },
 
   async saveDeck() {
+    if (!this.user) {
+      this.openAuthModal('login');
+      return;
+    }
+
     const btn = document.getElementById('save-deck-btn');
     if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...`;
 
@@ -700,12 +853,199 @@ window.Builder = {
       this.deck.id = data.deck_id;
       if (btn) btn.innerHTML = `<i class="fa-solid fa-check"></i> Saved!`;
       setTimeout(() => {
-        if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Deck`;
+        if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save`;
       }, 2000);
     } catch (err) {
       alert(err.message);
-      if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Deck`;
+      if (btn) btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save`;
     }
+  },
+
+  openAuthModal(mode = 'login') {
+    this.authMode = mode;
+    const modal = document.getElementById('auth-modal');
+    const title = document.getElementById('auth-modal-title');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const togglePrompt = document.getElementById('auth-toggle-prompt');
+    const toggleBtn = document.getElementById('auth-toggle-btn');
+    const registerFields = document.getElementById('auth-register-fields');
+    const errBox = document.getElementById('auth-error-msg');
+
+    if (errBox) errBox.classList.add('hidden');
+
+    if (mode === 'register') {
+      title.textContent = "Create Account";
+      submitBtn.textContent = "Sign Up";
+      togglePrompt.textContent = "Already have an account?";
+      toggleBtn.textContent = "Sign In";
+      registerFields.style.display = 'block';
+    } else {
+      title.textContent = "Sign In to SoCal Pauper";
+      submitBtn.textContent = "Sign In";
+      togglePrompt.textContent = "Don't have an account?";
+      toggleBtn.textContent = "Create Account";
+      registerFields.style.display = 'none';
+    }
+
+    modal.style.display = 'flex';
+  },
+
+  async handleAuthSubmit() {
+    const errBox = document.getElementById('auth-error-msg');
+    const username = document.getElementById('auth-username').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const email = document.getElementById('auth-email').value.trim();
+    const notifyEvents = document.getElementById('auth-notify-events').checked;
+    const notifyPromos = document.getElementById('auth-notify-promos').checked;
+
+    const endpoint = this.authMode === 'register' 
+      ? '/api_auth.php?action=register' 
+      : '/api_auth.php?action=login';
+
+    const payload = this.authMode === 'register'
+      ? { username, password, email, notify_events: notifyEvents, notify_promotions: notifyPromos }
+      : { username, password };
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Authentication error');
+
+      this.user = data.user;
+      this.updateAuthUI();
+      window.closeAuthModal();
+
+      if (this.deck.main.length > 0) {
+        this.saveDeck();
+      }
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = err.message;
+        errBox.classList.remove('hidden');
+      }
+    }
+  },
+
+  async logout() {
+    await fetch('/api_auth.php?action=logout');
+    this.user = null;
+    this.updateAuthUI();
+  },
+
+  async openMyDecksModal() {
+    const modal = document.getElementById('my-decks-modal');
+    const list = document.getElementById('my-decks-list');
+    list.innerHTML = `<div class="text-center py-6 text-sky-400"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading decks...</div>`;
+    modal.style.display = 'flex';
+
+    try {
+      const res = await fetch('/api_decks.php?action=my_decks');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch decks');
+
+      const decks = data.decks || [];
+      if (!decks.length) {
+        list.innerHTML = `<div class="text-slate-400 text-xs italic py-4 text-center">You haven't saved any decks yet.</div>`;
+        return;
+      }
+
+      list.innerHTML = decks.map(d => `
+        <div class="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-slate-700 transition">
+          <div>
+            <div class="font-bold text-white text-sm">${this.escapeHtml(d.title)}</div>
+            <div class="text-[10px] text-slate-400">Updated: ${new Date(d.updated_at).toLocaleDateString()}</div>
+          </div>
+          <button type="button" onclick="Builder.loadDeck(${d.id})" class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded transition">
+            Load
+          </button>
+        </div>
+      `).join('');
+    } catch (err) {
+      list.innerHTML = `<div class="text-rose-400 text-xs py-4 text-center">${err.message}</div>`;
+    }
+  },
+
+  async loadDeck(deckId) {
+    try {
+      const res = await fetch(`/api_decks.php?action=get&id=${deckId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load deck');
+
+      const d = data.deck;
+      this.deck.id = d.id;
+      this.deck.title = d.title;
+      this.deck.main = d.cards_data.main || [];
+      this.deck.side = d.cards_data.side || [];
+
+      document.getElementById('deck-title-input').value = d.title;
+      window.closeMyDecksModal();
+      window.closeAdminModal();
+      this.render();
+    } catch (err) {
+      alert(err.message);
+    }
+  },
+
+  async openAdminModal() {
+    const modal = document.getElementById('admin-modal');
+    const container = document.getElementById('admin-decks-table-container');
+    container.innerHTML = `<div class="text-center py-8 text-purple-400"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching site-wide decks...</div>`;
+    modal.style.display = 'flex';
+
+    try {
+      const res = await fetch('/api_decks.php?action=admin_all_decks');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Admin request failed');
+
+      const decks = data.decks || [];
+      if (!decks.length) {
+        container.innerHTML = `<div class="text-slate-400 text-xs italic text-center py-4">No decks found in database.</div>`;
+        return;
+      }
+
+      container.innerHTML = `
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="border-b border-slate-700 text-slate-400 font-bold uppercase text-[10px]">
+              <th class="pb-2">Deck Title</th>
+              <th class="pb-2">Author</th>
+              <th class="pb-2">Email</th>
+              <th class="pb-2">Updated</th>
+              <th class="pb-2 text-right">Inspect</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800">
+            ${decks.map(d => `
+              <tr class="hover:bg-slate-900/60">
+                <td class="py-2.5 font-bold text-white">${this.escapeHtml(d.title)}</td>
+                <td class="py-2.5 text-sky-400 font-mono">${this.escapeHtml(d.username)}</td>
+                <td class="py-2.5 text-slate-400">${d.email ? this.escapeHtml(d.email) : '<span class="italic text-slate-600">none</span>'}</td>
+                <td class="py-2.5 text-slate-400">${new Date(d.updated_at).toLocaleDateString()}</td>
+                <td class="py-2.5 text-right">
+                  <button type="button" onclick="Builder.loadDeck(${d.id})" class="px-2.5 py-1 bg-purple-900/80 hover:bg-purple-800 border border-purple-700 text-purple-200 font-bold rounded text-[11px] transition">
+                    View
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div class="text-rose-400 text-xs py-4 text-center">${err.message}</div>`;
+    }
+  },
+
+  escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
   }
 };
 
@@ -726,6 +1066,21 @@ window.closeArtModal = function() {
 
 window.closeHandModal = function() {
   const modal = document.getElementById('hand-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.closeAuthModal = function() {
+  const modal = document.getElementById('auth-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.closeMyDecksModal = function() {
+  const modal = document.getElementById('my-decks-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.closeAdminModal = function() {
+  const modal = document.getElementById('admin-modal');
   if (modal) modal.style.display = 'none';
 };
 
