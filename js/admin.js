@@ -2,15 +2,20 @@
 // HUB ADMIN MODAL, CRUD CONTROLLER & DATA LOADER
 // ==========================================================================
 async function loadSiteData() {
+  events = [];
+  stores = [];
+
   try {
     const resEv = await fetch('./api_hub.php?type=events&_=' + Date.now(), { cache: 'no-store' });
     if (resEv.ok) {
       const data = await resEv.json();
-      events = Array.isArray(data) ? data : [];
+      if (Array.isArray(data) && data.length > 0) events = data;
     }
-  } catch (err) {
+  } catch (err) {}
+
+  if (!events || events.length === 0) {
     try {
-      const fb = await fetch('./events.json?v=' + Date.now());
+      const fb = await fetch('./events.json?v=' + Date.now(), { cache: 'no-store' });
       if (fb.ok) {
         const data = await fb.json();
         events = Array.isArray(data) ? data : [];
@@ -22,11 +27,13 @@ async function loadSiteData() {
     const resSt = await fetch('./api_hub.php?type=stores&_=' + Date.now(), { cache: 'no-store' });
     if (resSt.ok) {
       const data = await resSt.json();
-      stores = Array.isArray(data) ? data : [];
+      if (Array.isArray(data) && data.length > 0) stores = data;
     }
-  } catch (err) {
+  } catch (err) {}
+
+  if (!stores || stores.length === 0) {
     try {
-      const fb2 = await fetch('./stores.json?v=' + Date.now());
+      const fb2 = await fetch('./stores.json?v=' + Date.now(), { cache: 'no-store' });
       if (fb2.ok) {
         const data = await fb2.json();
         stores = Array.isArray(data) ? data : [];
@@ -52,6 +59,13 @@ function toggleEventRecurUI() {
 }
 
 function openHubAdminModal(type, action, id, instanceDate) {
+  // Enforce authentication before opening modal
+  if (!Auth.user || (Auth.user.role !== 'admin' && Auth.user.role !== 'moderator')) {
+    alert('You must be logged in as an Admin or Moderator to modify listings.');
+    if (typeof openAuthModal === 'function') openAuthModal('login');
+    return;
+  }
+
   const form = document.getElementById('hub-admin-form');
   const errBox = document.getElementById('hub-modal-error');
   const typeInput = document.getElementById('hub-entry-type');
@@ -62,7 +76,6 @@ function openHubAdminModal(type, action, id, instanceDate) {
   const deleteBtn = document.getElementById('hub-delete-btn');
   const scopeBox = document.getElementById('recurrence-scope-box');
   const modal = document.getElementById('hub-admin-modal');
-  const pinInput = document.getElementById('hub-pin');
 
   if (form) form.reset();
   if (errBox) errBox.classList.add('hidden');
@@ -80,7 +93,11 @@ function openHubAdminModal(type, action, id, instanceDate) {
 
   const titlePrefix = action === 'edit' ? 'Edit' : 'Post New';
   if (titleEl) titleEl.textContent = `${titlePrefix} ${isStore ? 'Partner Store' : 'Tournament'}`;
-  if (deleteBtn) deleteBtn.classList.toggle('hidden', action !== 'edit');
+  
+  // Only Master Admins can delete
+  if (deleteBtn) {
+    deleteBtn.classList.toggle('hidden', action !== 'edit' || Auth.user.role !== 'admin');
+  }
 
   if (action === 'edit' && id) {
     if (isStore) {
@@ -126,7 +143,6 @@ function openHubAdminModal(type, action, id, instanceDate) {
   }
 
   if (modal) modal.classList.remove('hidden');
-  if (pinInput) pinInput.focus();
 }
 
 function closeHubAdminModal() {
@@ -150,7 +166,6 @@ async function handleHubSubmit(e) {
   const editScope = scopeRadio ? scopeRadio.value : 'series';
 
   const formData = new FormData();
-  formData.append('pin', document.getElementById('hub-pin').value);
   formData.append('type', type);
   formData.append('action', action);
   formData.append('id', id);
@@ -200,19 +215,10 @@ async function handleHubSubmit(e) {
 }
 
 async function handleHubDelete() {
-  const pin = document.getElementById('hub-pin').value;
   const id = document.getElementById('hub-entry-id').value;
   const type = document.getElementById('hub-entry-type').value;
   const instanceDate = document.getElementById('hub-instance-date').value;
   const errBox = document.getElementById('hub-modal-error');
-
-  if (!pin) {
-    if (errBox) {
-      errBox.textContent = 'Enter PIN to delete.';
-      errBox.classList.remove('hidden');
-    }
-    return;
-  }
 
   const ev = (type === 'events') ? events.find(item => String(item.id) === String(id)) : null;
   const isRecur = ev && isEventRecurring(ev);
@@ -224,14 +230,13 @@ async function handleHubDelete() {
     } else if (confirm(`Delete ONLY the single session on ${instanceDate}?`)) {
       deleteScope = 'instance';
     } else {
-      return; // Cancelled
+      return;
     }
   } else {
     if (!confirm('Are you sure you want to permanently delete this entry?')) return;
   }
 
   const formData = new FormData();
-  formData.append('pin', pin);
   formData.append('type', type);
   formData.append('action', 'delete');
   formData.append('id', id);

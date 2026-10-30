@@ -49,11 +49,6 @@
       <input type="hidden" id="hub-entry-id" value="">
       <input type="hidden" id="hub-instance-date" value="">
 
-      <div>
-        <label class="block text-zinc-300 font-semibold mb-1">Admin Security PIN</label>
-        <input type="password" id="hub-pin" required placeholder="Enter PIN" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 font-mono focus:outline-none focus:border-amber-400">
-      </div>
-
       <!-- RECURRENCE SCOPE SELECTOR -->
       <div id="recurrence-scope-box" class="hidden p-2.5 rounded-xl bg-amber-950/40 border border-amber-600/40 space-y-1.5 text-xs">
         <span class="font-semibold text-amber-300 block">Recurring Event Scope:</span>

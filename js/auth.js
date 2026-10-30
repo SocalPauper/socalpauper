@@ -6,6 +6,10 @@ const Auth = {
     try {
       const res = await fetch('/api_auth.php?action=check');
       const data = await res.json();
+      if (data.authenticated && data.requires_setup) {
+        window.location.href = 'setup_account.php';
+        return null;
+      }
       this.user = data.authenticated ? data.user : null;
       this.updateUI();
       return this.user;
@@ -24,6 +28,13 @@ const Auth = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
+    
+    // Intercept first-time provisioned moderators
+    if (data.requires_setup && data.redirect) {
+      window.location.href = data.redirect;
+      return null;
+    }
+
     this.user = data.user;
     this.updateUI();
     return data.user;
@@ -60,9 +71,19 @@ const Auth = {
     if (!authContainer) return;
 
     if (this.user) {
+      const isAdmin = this.user.role === 'admin';
+      const isMod = this.user.role === 'moderator';
+
       authContainer.innerHTML = `
         <div class="user-pill flex items-center gap-2">
-          <span class="text-xs text-sky-400 font-bold uppercase tracking-wider">👤 ${this.escapeHtml(this.user.username)}</span>
+          ${isAdmin ? `
+            <a href="admin_moderators.php" title="Staff & Moderator Access" class="text-xs bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 px-2 py-1 rounded border border-emerald-700/80 transition font-mono flex items-center gap-1">
+              ⚙️ Staff
+            </a>
+          ` : ''}
+          <span class="text-xs ${isAdmin ? 'text-purple-400' : isMod ? 'text-amber-400' : 'text-sky-400'} font-bold uppercase tracking-wider">
+            👤 ${this.escapeHtml(this.user.username)}
+          </span>
           <button onclick="Auth.logout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded border border-slate-700 transition">Log Out</button>
         </div>
       `;

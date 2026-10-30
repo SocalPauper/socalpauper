@@ -26,14 +26,18 @@ switch ($action) {
     // 1. Check if user is currently logged in via Session
     case 'check':
         if (!empty($_SESSION['user_id'])) {
-            $stmt = $pdo->prepare("SELECT id, username, email, role FROM users WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT id, username, email, role, force_setup FROM users WHERE id = ?");
             $stmt->execute([$_SESSION['user_id']]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user) {
                 $_SESSION['role'] = $user['role'];
+                $isPendingSetup = (!empty($user['force_setup']) && (int)$user['force_setup'] === 1) || empty($user['email']);
+                $_SESSION['pending_setup'] = $isPendingSetup;
+
                 echo json_encode([
                     'authenticated' => true,
+                    'requires_setup' => $isPendingSetup,
                     'user' => [
                         'id' => (int)$user['id'],
                         'username' => $user['username'],
@@ -60,7 +64,7 @@ switch ($action) {
         }
 
         // Fetch user from DB by username or email
-        $stmt = $pdo->prepare("SELECT id, username, password_hash, email, role FROM users WHERE username = ? OR email = ?");
+        $stmt = $pdo->prepare("SELECT id, username, password_hash, email, role, force_setup FROM users WHERE username = ? OR email = ?");
         $stmt->execute([$username, $username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -73,10 +77,34 @@ switch ($action) {
 
         session_regenerate_id(true);
         $_SESSION['user_id'] = (int)$user['id'];
+        $_SESSION['username'] = $user['username'];
         $_SESSION['role'] = $user['role'];
+
+        // Intercept provisioned / first-time login accounts
+        $needsSetup = (!empty($user['force_setup']) && (int)$user['force_setup'] === 1) || empty($user['email']);
+
+        if ($needsSetup) {
+            $_SESSION['pending_setup'] = true;
+            echo json_encode([
+                'success' => true,
+                'requires_setup' => true,
+                'redirect' => 'setup_account.php',
+                'user' => [
+                    'id' => (int)$user['id'],
+                    'username' => $user['username'],
+                    'email' => null,
+                    'role' => $user['role']
+                ]
+            ]);
+            exit;
+        }
+
+        unset($_SESSION['pending_setup']);
+        $_SESSION['email'] = $user['email'];
 
         echo json_encode([
             'success' => true,
+            'requires_setup' => false,
             'user' => [
                 'id' => (int)$user['id'],
                 'username' => $user['username'],
@@ -130,8 +158,8 @@ switch ($action) {
 
         try {
             $stmt = $pdo->prepare("
-                INSERT INTO users (username, password_hash, email, role, notify_events, notify_promotions) 
-                VALUES (?, ?, ?, 'user', ?, ?)
+                INSERT INTO users (username, password_hash, email, role, force_setup, notify_events, notify_promotions) 
+                VALUES (?, ?, ?, 'user', 0, ?, ?)
             ");
             $stmt->execute([
                 $username,
@@ -143,8 +171,8 @@ switch ($action) {
         } catch (Exception $e) {
             // Fallback if notify columns are omitted
             $stmt = $pdo->prepare("
-                INSERT INTO users (username, password_hash, email, role) 
-                VALUES (?, ?, ?, 'user')
+                INSERT INTO users (username, password_hash, email, role, force_setup) 
+                VALUES (?, ?, ?, 'user', 0)
             ");
             $stmt->execute([
                 $username,
@@ -157,10 +185,14 @@ switch ($action) {
 
         session_regenerate_id(true);
         $_SESSION['user_id'] = $newUserId;
+        $_SESSION['username'] = $username;
         $_SESSION['role'] = 'user';
+        $_SESSION['email'] = $email !== '' ? $email : null;
+        unset($_SESSION['pending_setup']);
 
         echo json_encode([
             'success' => true,
+            'requires_setup' => false,
             'user' => [
                 'id' => $newUserId,
                 'username' => $username,
