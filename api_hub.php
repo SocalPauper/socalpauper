@@ -1,20 +1,20 @@
 <?php
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST');
+// api_hub.php
+ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Lax');
+if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    ini_set('session.cookie_secure', '1');
+}
 
-// Security PINs
-$adminPin = 'Mphase2027!';
-$guestPin = 'PauperGuest2027!'; // Give this PIN to authorized partners/organizers
+session_start();
+header('Content-Type: application/json');
 
 $eventsFile = __DIR__ . '/events.json';
 $storesFile = __DIR__ . '/stores.json';
 
-// Initialize flat files if missing
-if (!file_exists($eventsFile)) file_put_contents($eventsFile, json_encode([]));
-if (!file_exists($storesFile)) file_put_contents($storesFile, json_encode([]));
+if (!file_exists($eventsFile)) file_put_contents($eventsFile, json_encode([]), LOCK_EX);
+if (!file_exists($storesFile)) file_put_contents($storesFile, json_encode([]), LOCK_EX);
 
-// Client IP resolver (supports Cloudflare and standard reverse proxies)
 function getClientIP() {
     if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
         return $_SERVER['HTTP_CF_CONNECTING_IP'];
@@ -26,8 +26,7 @@ function getClientIP() {
     return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 }
 
-// Audit Logger
-function logAuditActivity($role, $action, $type, $targetId, $targetTitle, $extra = '') {
+function logAuditActivity($userId, $username, $role, $action, $type, $targetId, $targetTitle, $extra = '') {
     $logDir = __DIR__ . '/logs';
     if (!is_dir($logDir)) {
         @mkdir($logDir, 0755, true);
@@ -36,6 +35,8 @@ function logAuditActivity($role, $action, $type, $targetId, $targetTitle, $extra
 
     $entry = [
         'timestamp'   => date('Y-m-d H:i:s'),
+        'user_id'     => $userId,
+        'username'    => $username,
         'role'        => $role,
         'ip'          => getClientIP(),
         'user_agent'  => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
@@ -53,7 +54,7 @@ $type = $_GET['type'] ?? $_POST['type'] ?? 'events';
 $targetFile = ($type === 'stores') ? $storesFile : $eventsFile;
 
 // --------------------------------------------------------------------------
-// 1. GET: Return Data
+// 1. GET: Return Data (Public)
 // --------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $data = file_get_contents($targetFile);
@@ -62,21 +63,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 // --------------------------------------------------------------------------
-// 2. POST: Create, Edit, or Delete
+// 2. POST: Create, Edit, or Delete (Authenticated RBAC)
 // --------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $pin = trim($_POST['pin'] ?? '');
+    $userId = $_SESSION['user_id'] ?? null;
+    $username = $_SESSION['username'] ?? null;
+    $userRole = $_SESSION['role'] ?? 'user';
 
-    // Determine authorization role
-    $userRole = null;
-    if ($pin === $adminPin) {
-        $userRole = 'admin';
-    } elseif ($pin === $guestPin) {
-        $userRole = 'guest';
-    } else {
-        logAuditActivity('unauthorized', 'AUTH_FAILURE', $type, '', '', 'Invalid PIN submitted');
-        http_response_code(401);
-        echo json_encode(['error' => 'Invalid Security PIN']);
+    // Must be logged in as Admin or Moderator
+    if (!$userId || !in_array($userRole, ['admin', 'moderator'])) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Unauthorized. Please log in as an Admin or Moderator to modify listings.']);
         exit;
     }
 
@@ -89,11 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $deleteScope = $_POST['deleteScope'] ?? 'series';
         $instanceDate = trim($_POST['instanceDate'] ?? '');
 
-        // Security gate: Guests are strictly prevented from deleting records
-        if ($userRole === 'guest') {
-            logAuditActivity('guest', 'BLOCKED_DELETE_ATTEMPT', $type, $id, '', "Scope: {$deleteScope}, Date: {$instanceDate}");
+        // Moderators cannot delete entries
+        if ($userRole !== 'admin') {
+            logAuditActivity($userId, $username, $userRole, 'BLOCKED_DELETE_ATTEMPT', $type, $id, '', "Scope: {$deleteScope}");
             http_response_code(403);
-            echo json_encode(['error' => 'Guest PIN holders cannot delete entries. Please contact an administrator to remove this listing.']);
+            echo json_encode(['error' => 'Moderators cannot delete listings. Please contact an administrator.']);
             exit;
         }
 
@@ -103,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        // Delete ONLY a single instance of a recurring event
+        // Single instance exclusion
         if ($type === 'events' && $deleteScope === 'instance' && $instanceDate !== '') {
             $matchedTitle = '';
             foreach ($items as &$item) {
@@ -120,13 +117,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             unset($item);
 
-            file_put_contents($targetFile, json_encode($items, JSON_PRETTY_PRINT));
-            logAuditActivity('admin', 'DELETE_INSTANCE', $type, $id, $matchedTitle, "Excluded date: {$instanceDate}");
+            file_put_contents($targetFile, json_encode($items, JSON_PRETTY_PRINT), LOCK_EX);
+            logAuditActivity($userId, $username, $userRole, 'DELETE_INSTANCE', $type, $id, $matchedTitle, "Excluded date: {$instanceDate}");
             echo json_encode(['success' => true, 'excluded' => $instanceDate]);
             exit;
         }
 
-        // Delete entire series or single non-recurring entry
+        // Entire series or store deletion
         $beforeCount = count($items);
         $deletedTitle = '';
         foreach ($items as $item) {
@@ -147,18 +144,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        file_put_contents($targetFile, json_encode($filteredItems, JSON_PRETTY_PRINT));
-        logAuditActivity('admin', 'DELETE_SERIES', $type, $id, $deletedTitle, "Item deleted completely");
+        file_put_contents($targetFile, json_encode($filteredItems, JSON_PRETTY_PRINT), LOCK_EX);
+        logAuditActivity($userId, $username, $userRole, 'DELETE_SERIES', $type, $id, $deletedTitle, "Full deletion");
         echo json_encode(['success' => true, 'deleted_id' => $id]);
         exit;
     }
 
-    // --- Action: Create or Edit (Events) ---
+    // --- Action: Create or Edit Events ---
     if ($type === 'events') {
         $editScope = $_POST['editScope'] ?? 'series';
         $instanceDate = trim($_POST['instanceDate'] ?? '');
 
-        // If editing ONLY a single instance of a recurring event:
+        // Branching single instance
         if ($action === 'edit' && $editScope === 'instance' && $instanceDate !== '') {
             foreach ($items as &$item) {
                 if (trim((string)$item['id']) === trim((string)$_POST['id'])) {
@@ -173,7 +170,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             unset($item);
 
-            // Add modified single-night event
             $singleEvent = [
                 'id' => uniqid(),
                 'title' => htmlspecialchars(trim($_POST['title'] ?? '')),
@@ -189,20 +185,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
 
             array_unshift($items, $singleEvent);
-            file_put_contents($targetFile, json_encode($items, JSON_PRETTY_PRINT));
-            logAuditActivity($userRole, 'SPLIT_AND_EDIT_INSTANCE', 'events', $singleEvent['id'], $singleEvent['title'], "Branch from instance {$instanceDate}");
+            file_put_contents($targetFile, json_encode($items, JSON_PRETTY_PRINT), LOCK_EX);
+            logAuditActivity($userId, $username, $userRole, 'SPLIT_INSTANCE', 'events', $singleEvent['id'], $singleEvent['title']);
             echo json_encode(['success' => true, 'item' => $singleEvent]);
             exit;
         }
 
-        // Standard event create/update
         $title = trim($_POST['title'] ?? '');
         $date = trim($_POST['date'] ?? '');
         $location = trim($_POST['location'] ?? '');
 
         if (!$title || !$date || !$location) {
             http_response_code(400);
-            echo json_encode(['error' => 'Title, Date, and Store/Location are required']);
+            echo json_encode(['error' => 'Title, Date, and Location are required']);
             exit;
         }
 
@@ -234,16 +229,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             if (!$found) $items[] = $entryData;
-            logAuditActivity($userRole, 'EDIT_EVENT', 'events', $entryData['id'], $entryData['title']);
+            logAuditActivity($userId, $username, $userRole, 'EDIT_EVENT', 'events', $entryData['id'], $entryData['title']);
         } else {
             array_unshift($items, $entryData);
-            logAuditActivity($userRole, 'CREATE_EVENT', 'events', $entryData['id'], $entryData['title']);
+            logAuditActivity($userId, $username, $userRole, 'CREATE_EVENT', 'events', $entryData['id'], $entryData['title']);
         }
 
-        file_put_contents($targetFile, json_encode($items, JSON_PRETTY_PRINT));
+        file_put_contents($targetFile, json_encode($items, JSON_PRETTY_PRINT), LOCK_EX);
         echo json_encode(['success' => true, 'item' => $entryData]);
         exit;
-    } else { // Stores / Friends
+    } else { // Stores
         $name = trim($_POST['name'] ?? '');
         $city = trim($_POST['city'] ?? '');
 
@@ -274,13 +269,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             if (!$found) $items[] = $entryData;
-            logAuditActivity($userRole, 'EDIT_STORE', 'stores', $entryData['id'], $entryData['name']);
+            logAuditActivity($userId, $username, $userRole, 'EDIT_STORE', 'stores', $entryData['id'], $entryData['name']);
         } else {
             array_unshift($items, $entryData);
-            logAuditActivity($userRole, 'CREATE_STORE', 'stores', $entryData['id'], $entryData['name']);
+            logAuditActivity($userId, $username, $userRole, 'CREATE_STORE', 'stores', $entryData['id'], $entryData['name']);
         }
 
-        file_put_contents($targetFile, json_encode($items, JSON_PRETTY_PRINT));
+        file_put_contents($targetFile, json_encode($items, JSON_PRETTY_PRINT), LOCK_EX);
         echo json_encode(['success' => true, 'item' => $entryData]);
         exit;
     }
