@@ -40,7 +40,7 @@ async function loadSiteData() {
   renderCalendar();
   renderEvents();
   renderStores();
-  loadVisitorStats();
+  if (typeof loadVisitorStats === 'function') loadVisitorStats();
 }
 
 function toggleEventRecurUI() {
@@ -219,11 +219,12 @@ async function handleHubDelete() {
 
   let deleteScope = 'series';
   if (isRecur && instanceDate) {
-    const choice = confirm(`Delete recurring tournament:\n\nClick [OK] to delete ONLY the ${instanceDate} session.\nClick [Cancel] to delete the ENTIRE recurring series.`);
-    deleteScope = choice ? 'instance' : 'series';
-    
-    if (deleteScope === 'series' && !confirm('Are you sure you want to permanently delete ALL occurrences of this recurring tournament?')) {
-      return;
+    if (confirm(`Do you want to delete the ENTIRE recurring series from the calendar?`)) {
+      deleteScope = 'series';
+    } else if (confirm(`Delete ONLY the single session on ${instanceDate}?`)) {
+      deleteScope = 'instance';
+    } else {
+      return; // Cancelled
     }
   } else {
     if (!confirm('Are you sure you want to permanently delete this entry?')) return;

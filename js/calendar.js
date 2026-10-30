@@ -35,6 +35,7 @@ function eventMatchesDate(ev, targetDateStr) {
   if (freq === 'daily') return true;
   if (freq === 'every-other-day') return diffDays % 2 === 0;
   if (freq === 'weekly') return diffDays % 7 === 0;
+  if (freq === 'biweekly' || freq === 'every-other-week') return diffDays % 14 === 0;
   if (freq === 'monthly') return sD === tD;
   return false;
 }
@@ -108,7 +109,7 @@ function renderCalendar() {
       ${hasEvent ? `
         <div class="w-full flex items-center gap-1 overflow-hidden">
           <span class="w-1.5 h-1.5 rounded-full ${isEventRecurring(dayEvents[0]) ? 'bg-amber-400' : 'bg-blue-400'} shrink-0"></span>
-          <span class="text-[10px] truncate text-zinc-300 font-medium text-left">${escapeHTML(dayEvents[0].title)}</span>
+          <span class="text-[10px] truncate text-zinc-300 font-medium text-left">${typeof escapeHTML === 'function' ? escapeHTML(dayEvents[0].title) : dayEvents[0].title}</span>
         </div>
       ` : ''}
     `;
@@ -185,23 +186,33 @@ function renderEvents() {
     const destinationQuery = encodeURIComponent(item.address ? `${item.location}, ${item.address}` : `${item.location}, California`);
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destinationQuery}`;
     const activeDate = item.instanceDate || item.date;
+    const safeTitle = typeof escapeHTML === 'function' ? escapeHTML(item.title) : item.title;
+    const safeRegion = typeof escapeHTML === 'function' ? escapeHTML(item.region || 'SoCal') : (item.region || 'SoCal');
+    const safeLoc = typeof escapeHTML === 'function' ? escapeHTML(item.location) : item.location;
+    const safeAddr = item.address ? (typeof escapeHTML === 'function' ? escapeHTML(item.address) : item.address) : '';
+    const safeDesc = item.desc ? (typeof escapeHTML === 'function' ? escapeHTML(item.desc) : item.desc) : '';
+
+    const freqLabel = item.recurFreq === 'daily' ? 'Daily' : 
+                      item.recurFreq === 'every-other-day' ? 'Every Other Day' : 
+                      (item.recurFreq === 'biweekly' || item.recurFreq === 'every-other-week') ? 'Biweekly' : 
+                      item.recurFreq === 'weekly' ? 'Weekly' : 'Monthly';
 
     card.innerHTML = `
       <div class="flex items-start justify-between gap-2">
         <div>
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="text-[10px] font-bold uppercase tracking-wider text-amber-400 px-2 py-0.5 rounded bg-amber-950/60 border border-amber-600/30">
-              ${escapeHTML(item.region || 'SoCal')}
+              ${safeRegion}
             </span>
             ${isEventRecurring(item) ? `
               <span class="text-[10px] font-semibold text-zinc-400 px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700">
-                ↻ ${item.recurFreq === 'daily' ? 'Daily' : item.recurFreq === 'every-other-day' ? 'Every Other Day' : item.recurFreq === 'weekly' ? 'Weekly' : 'Monthly'}
+                ↻ ${freqLabel}
               </span>
             ` : ''}
           </div>
-          <h4 class="text-base font-bold text-white mt-1.5">${escapeHTML(item.title)}</h4>
+          <h4 class="text-base font-bold text-white mt-1.5">${safeTitle}</h4>
         </div>
-        <button onclick="openHubAdminModal('events', 'edit', '${escapeHTML(item.id)}', '${escapeHTML(activeDate)}')" class="text-xs text-zinc-500 hover:text-amber-400 font-mono transition p-1" title="Edit Event">
+        <button onclick="openHubAdminModal('events', 'edit', '${item.id}', '${activeDate}')" class="text-xs text-zinc-500 hover:text-amber-400 font-mono transition p-1" title="Edit Event">
           ✏️
         </button>
       </div>
@@ -209,18 +220,18 @@ function renderEvents() {
       <div class="text-xs text-zinc-300 space-y-1.5">
         <div class="flex items-center gap-2 text-zinc-400">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          <span>${escapeHTML(activeDate)} • ${escapeHTML(item.time)}</span>
+          <span>${activeDate} • ${item.time || ''}</span>
         </div>
         
         <div class="flex items-start gap-2 text-zinc-400">
           <svg class="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <div>
-            <span class="text-zinc-200 font-medium">${escapeHTML(item.location)}</span>
-            ${item.address ? `<div class="text-[11px] text-zinc-400">${escapeHTML(item.address)}</div>` : ''}
+            <span class="text-zinc-200 font-medium">${safeLoc}</span>
+            ${safeAddr ? `<div class="text-[11px] text-zinc-400">${safeAddr}</div>` : ''}
           </div>
         </div>
 
-        ${item.desc ? `<p class="pt-2 text-zinc-400 text-xs border-t border-zinc-800/80">${escapeHTML(item.desc)}</p>` : ''}
+        ${safeDesc ? `<p class="pt-2 text-zinc-400 text-xs border-t border-zinc-800/80">${safeDesc}</p>` : ''}
       </div>
 
       <div class="pt-1 flex items-center justify-between">

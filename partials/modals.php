@@ -98,6 +98,7 @@
               <label class="block text-zinc-400 text-[11px] mb-1">Frequency</label>
               <select id="event-recur-freq" class="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-zinc-200 text-xs">
                 <option value="weekly" selected>Weekly</option>
+                <option value="biweekly">Biweekly (Every 2 Weeks)</option>
                 <option value="every-other-day">Every Other Day</option>
                 <option value="daily">Daily</option>
                 <option value="monthly">Monthly</option>
