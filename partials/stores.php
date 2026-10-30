@@ -15,7 +15,7 @@
       </div>
 
       <div class="flex items-center gap-2 shrink-0 flex-wrap">
-        <button type="button" onclick="openHubAdminModal('stores', 'create')" class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition shadow">
+        <button type="button" onclick="openHubAdminModal('stores', 'create')" class="hidden staff-only inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition shadow">
           + Post Store
         </button>
         

@@ -158,11 +158,12 @@ try {
   <?php endif; ?>
 
   <!-- Modular Client-Side JavaScript -->
-  <script src="/js/config.js?v=99"></script>
-  <script src="/js/calendar.js?v=99"></script>
-  <script src="/js/stores.js?v=99"></script>
-  <script src="/js/cards.js?v=99"></script>
-  <script src="/js/admin.js?v=99"></script>
+  <script src="/js/config.js?v=100"></script>
+  <script src="/js/auth.js?v=100"></script>
+  <script src="/js/calendar.js?v=100"></script>
+  <script src="/js/stores.js?v=100"></script>
+  <script src="/js/cards.js?v=100"></script>
+  <script src="/js/admin.js?v=100"></script>
 
 </body>
 </html>
