@@ -5,98 +5,104 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 $isLoggedIn = !empty($_SESSION['user_id']);
 $username = $_SESSION['username'] ?? '';
-$isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
+$userRole = $_SESSION['role'] ?? 'user';
+$isAdmin = ($userRole === 'admin');
+$isStaff = in_array($userRole, ['admin', 'moderator']);
 ?>
 <header class="sticky top-0 z-40 bg-[#0c0e12]/95 backdrop-blur border-b border-[#2a3040]">
-  <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
+  <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
 
-    <!-- Brand Logo -->
-    <a href="index.php" class="flex items-center gap-2.5 group shrink-0">
-      <img src="/logo.webp" alt="SoCal Pauper" class="w-8 h-8 rounded-full border border-amber-500/40 group-hover:border-amber-400 transition object-cover" onerror="this.style.display='none'">
-      <div class="flex flex-col">
-        <span class="font-cinzel font-bold text-base md:text-lg text-white tracking-wide group-hover:text-amber-400 transition leading-tight">
-          SoCal <span class="text-amber-500">Pauper</span>
-        </span>
-        <span class="text-[9px] uppercase tracking-widest text-zinc-400 font-mono -mt-0.5">MTG Community</span>
+    <!-- Left: Brand Logo & Editorial Links -->
+    <div class="flex items-center gap-6">
+      <a href="index.php" class="flex items-center gap-2.5 group shrink-0">
+        <img src="/logo.webp" alt="SoCal Pauper" class="w-8 h-8 rounded-full border border-amber-500/40 group-hover:border-amber-400 transition object-cover" onerror="this.style.display='none'">
+        <div class="flex flex-col">
+          <span class="font-cinzel font-bold text-base md:text-lg text-white tracking-wide group-hover:text-amber-400 transition leading-tight">
+            SoCal <span class="text-amber-500">Pauper</span>
+          </span>
+          <span class="text-[9px] uppercase tracking-widest text-zinc-400 font-mono -mt-0.5">MTG Community</span>
+        </div>
+      </a>
+
+      <!-- Clean Text Navigation Links -->
+      <nav class="hidden lg:flex items-center gap-1 text-xs font-semibold text-zinc-300">
+        <a href="news.html" class="px-2.5 py-1.5 rounded-lg hover:text-white hover:bg-zinc-800/60 transition">News</a>
+        <a href="index.php#calendar" class="px-2.5 py-1.5 rounded-lg hover:text-white hover:bg-zinc-800/60 transition">Events</a>
+        <a href="index.php#stores" class="px-2.5 py-1.5 rounded-lg hover:text-white hover:bg-zinc-800/60 transition">Stores</a>
+        <a href="index.php#card-explorer" class="px-2.5 py-1.5 rounded-lg hover:text-white hover:bg-zinc-800/60 transition">Cards</a>
+      </nav>
+    </div>
+
+    <!-- Right: Utility Tools, Admin Actions & Auth -->
+    <div class="hidden lg:flex items-center gap-2 text-xs font-semibold">
+      
+      <!-- Gameplay Tools Group -->
+      <div class="flex items-center bg-zinc-900/80 border border-zinc-800 rounded-lg p-0.5">
+        <a href="tracker.html" class="px-2.5 py-1 rounded-md text-zinc-300 hover:text-amber-300 hover:bg-amber-950/40 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-bolt text-[11px] text-amber-400"></i>
+          <span>Tracker</span>
+        </a>
+        <a href="life.html" class="px-2.5 py-1 rounded-md text-zinc-300 hover:text-rose-300 hover:bg-rose-950/40 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-heart-pulse text-[11px] text-rose-400"></i>
+          <span>Life</span>
+        </a>
       </div>
-    </a>
 
-    <!-- Desktop Navigation Links -->
-    <nav class="hidden lg:flex items-center gap-1.5 text-xs font-semibold">
-      <a href="tracker.html" class="px-3 py-1.5 rounded-lg text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition flex items-center gap-1.5 shadow-sm">
-        <i class="fa-solid fa-bolt text-amber-400 text-xs"></i>
-        <span>Tracker</span>
-      </a>
-
-      <a href="life.html" class="px-3 py-1.5 rounded-lg text-rose-300 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 transition flex items-center gap-1.5 shadow-sm">
-        <i class="fa-solid fa-heart-pulse text-rose-400 text-xs"></i>
-        <span>Life Counter</span>
-      </a>
-
-      <a href="news.html" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-newspaper text-zinc-400 text-xs"></i>
-        <span>News</span>
-      </a>
-
-      <a href="index.php#calendar" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-calendar-days text-zinc-400 text-xs"></i>
-        <span>Events</span>
-      </a>
-
-      <a href="index.php#stores" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-store text-zinc-400 text-xs"></i>
-        <span>Stores</span>
-      </a>
-
-      <a href="index.php#card-explorer" class="px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/60 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-magnifying-glass text-zinc-400 text-xs"></i>
-        <span>Cards</span>
-      </a>
-
-      <div class="h-4 w-px bg-zinc-800 mx-1"></div>
-
-      <!-- Deck Hub -->
+      <!-- Core Features -->
       <a href="decks.php" class="px-3 py-1.5 rounded-lg text-sky-300 bg-sky-950/50 hover:bg-sky-900/60 border border-sky-800/60 transition flex items-center gap-1.5 shadow-sm">
         <i class="fa-solid fa-layer-group text-sky-400 text-xs"></i>
         <span>Deck Hub</span>
       </a>
 
-      <!-- Admin Tools (Only Visible to Admin Accounts) -->
-      <?php if ($isAdmin): ?>
-        <a href="stats.html" class="px-3 py-1.5 rounded-lg text-purple-300 hover:text-purple-200 bg-purple-950/50 hover:bg-purple-900/60 border border-purple-800/60 transition flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-chart-simple text-purple-400 text-xs"></i>
-          <span>Stats</span>
-        </a>
-
-        <a href="admin_broadcast.php" class="px-3 py-1.5 rounded-lg text-purple-300 hover:text-purple-200 bg-purple-950/50 hover:bg-purple-900/60 border border-purple-800/60 transition flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-bullhorn text-purple-400 text-xs"></i>
-          <span>Broadcast</span>
-        </a>
-      <?php endif; ?>
-
-      <!-- Discord -->
       <a href="https://discord.gg/socalpauper" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg text-indigo-200 bg-[#5865F2]/20 hover:bg-[#5865F2]/30 border border-[#5865F2]/40 transition flex items-center gap-1.5 shadow-sm">
         <i class="fa-brands fa-discord text-indigo-400 text-xs"></i>
         <span>Discord</span>
       </a>
 
-      <!-- Desktop Auth Slot -->
-      <div id="header-auth-slot" class="ml-1 flex items-center">
+      <!-- Staff & Admin Tools Suite -->
+      <?php if ($isAdmin): ?>
+        <div class="flex items-center bg-purple-950/40 border border-purple-800/50 rounded-lg p-0.5 ml-1">
+          <a href="stats.html" title="Analytics" class="px-2.5 py-1 rounded-md text-purple-300 hover:bg-purple-900/60 transition flex items-center gap-1">
+            <i class="fa-solid fa-chart-simple text-[11px]"></i>
+            <span>Stats</span>
+          </a>
+          <a href="admin_broadcast.php" title="Email Dispatch" class="px-2.5 py-1 rounded-md text-purple-300 hover:bg-purple-900/60 transition flex items-center gap-1">
+            <i class="fa-solid fa-bullhorn text-[11px]"></i>
+            <span>Broadcast</span>
+          </a>
+          <a href="admin_moderators.php" title="Staff Management" class="px-2.5 py-1 rounded-md text-purple-300 hover:bg-purple-900/60 transition flex items-center gap-1">
+            <i class="fa-solid fa-users-gear text-[11px]"></i>
+            <span>Staff</span>
+          </a>
+        </div>
+      <?php endif; ?>
+
+      <div class="h-4 w-px bg-zinc-800 mx-1"></div>
+
+      <!-- Account Auth Slot -->
+      <div id="header-auth-slot" class="flex items-center">
         <?php if ($isLoggedIn): ?>
           <div class="flex items-center gap-2">
-            <a href="decks.php" class="text-xs text-sky-400 font-bold uppercase tracking-wider hover:underline flex items-center gap-1">
+            <a href="decks.php" class="text-xs font-bold uppercase tracking-wider hover:underline flex items-center gap-1.5 <?= $isAdmin ? 'text-purple-400' : ($isStaff ? 'text-amber-400' : 'text-sky-400') ?>">
               <span>👤 <?= htmlspecialchars($username) ?></span>
-              <?php if ($isAdmin): ?><span class="text-[9px] uppercase bg-purple-950 border border-purple-700 text-purple-300 font-black px-1 rounded">Admin</span><?php endif; ?>
+              <?php if ($isAdmin): ?>
+                <span class="text-[9px] uppercase bg-purple-950 border border-purple-700 text-purple-300 font-black px-1.5 py-0.5 rounded">Admin</span>
+              <?php elseif ($isStaff): ?>
+                <span class="text-[9px] uppercase bg-amber-950 border border-amber-700 text-amber-300 font-black px-1.5 py-0.5 rounded">Mod</span>
+              <?php endif; ?>
             </a>
-            <button onclick="headerLogout()" class="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded border border-zinc-700 transition">Log Out</button>
+            <button onclick="headerLogout()" class="text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg border border-zinc-700 transition">
+              Log Out
+            </button>
           </div>
         <?php else: ?>
-          <button onclick="openHeaderAuthModal()" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-3 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1.5">
+          <button onclick="openHeaderAuthModal()" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-3.5 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1.5">
             <i class="fa-solid fa-user text-[11px]"></i> Sign In
           </button>
         <?php endif; ?>
       </div>
-    </nav>
+
+    </div>
 
     <!-- Mobile Navigation Toggle -->
     <div class="flex items-center gap-2 lg:hidden">
@@ -117,8 +123,14 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
     <div class="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between">
       <?php if ($isLoggedIn): ?>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-sky-400 font-bold uppercase">👤 <?= htmlspecialchars($username) ?></span>
-          <?php if ($isAdmin): ?><span class="text-[9px] bg-purple-950 border border-purple-700 text-purple-300 font-bold px-1 rounded">Admin</span><?php endif; ?>
+          <span class="text-xs font-bold uppercase <?= $isAdmin ? 'text-purple-400' : ($isStaff ? 'text-amber-400' : 'text-sky-400') ?>">
+            👤 <?= htmlspecialchars($username) ?>
+          </span>
+          <?php if ($isAdmin): ?>
+            <span class="text-[9px] bg-purple-950 border border-purple-700 text-purple-300 font-bold px-1 rounded">Admin</span>
+          <?php elseif ($isStaff): ?>
+            <span class="text-[9px] bg-amber-950 border border-amber-700 text-amber-300 font-bold px-1 rounded">Mod</span>
+          <?php endif; ?>
         </div>
         <button onclick="headerLogout()" class="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded border border-zinc-700">Log Out</button>
       <?php else: ?>
@@ -127,14 +139,8 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
       <?php endif; ?>
     </div>
 
-    <!-- Public Grid (Metagame removed, Stats moved to Admin) -->
+    <!-- Editorial Links -->
     <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
-      <a href="tracker.html" class="p-2.5 rounded-lg text-amber-300 bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
-        <i class="fa-solid fa-bolt text-amber-400"></i> Tracker
-      </a>
-      <a href="life.html" class="p-2.5 rounded-lg text-rose-300 bg-rose-950/40 border border-rose-800/60 flex items-center gap-2">
-        <i class="fa-solid fa-heart-pulse text-rose-400"></i> Life Counter
-      </a>
       <a href="news.html" class="p-2.5 rounded-lg text-zinc-300 bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2">
         <i class="fa-solid fa-newspaper text-zinc-400"></i> News
       </a>
@@ -149,7 +155,17 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
       </a>
     </div>
 
+    <!-- Tools & Hub Links -->
     <div class="pt-2 border-t border-zinc-800/80 space-y-2 text-xs font-semibold">
+      <div class="grid grid-cols-2 gap-2">
+        <a href="tracker.html" class="p-2.5 rounded-lg text-amber-300 bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
+          <i class="fa-solid fa-bolt text-amber-400"></i> Tracker
+        </a>
+        <a href="life.html" class="p-2.5 rounded-lg text-rose-300 bg-rose-950/40 border border-rose-800/60 flex items-center gap-2">
+          <i class="fa-solid fa-heart-pulse text-rose-400"></i> Life Counter
+        </a>
+      </div>
+
       <a href="decks.php" class="w-full p-2.5 rounded-lg text-sky-300 bg-sky-950/60 border border-sky-800/80 flex items-center justify-between">
         <span class="flex items-center gap-2"><i class="fa-solid fa-layer-group text-sky-400"></i> Deck Command Hub</span>
         <i class="fa-solid fa-arrow-right text-[10px] text-sky-400"></i>
@@ -157,15 +173,20 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
 
       <!-- Admin Drawer Links -->
       <?php if ($isAdmin): ?>
-        <a href="stats.html" class="w-full p-2.5 rounded-lg text-purple-300 bg-purple-950/40 border border-purple-800/60 flex items-center justify-between">
-          <span class="flex items-center gap-2"><i class="fa-solid fa-chart-simple text-purple-400"></i> Analytics & Stats</span>
-          <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-purple-900/80 text-purple-200">Admin</span>
-        </a>
-
-        <a href="admin_broadcast.php" class="w-full p-2.5 rounded-lg text-purple-300 bg-purple-950/40 border border-purple-800/60 flex items-center justify-between">
-          <span class="flex items-center gap-2"><i class="fa-solid fa-bullhorn text-purple-400"></i> Dispatch Broadcast</span>
-          <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-purple-900/80 text-purple-200">Admin</span>
-        </a>
+        <div class="grid grid-cols-3 gap-2">
+          <a href="stats.html" class="p-2 rounded-lg text-center text-purple-300 bg-purple-950/40 border border-purple-800/60 flex flex-col items-center gap-1">
+            <i class="fa-solid fa-chart-simple text-purple-400"></i>
+            <span class="text-[11px]">Stats</span>
+          </a>
+          <a href="admin_broadcast.php" class="p-2 rounded-lg text-center text-purple-300 bg-purple-950/40 border border-purple-800/60 flex flex-col items-center gap-1">
+            <i class="fa-solid fa-bullhorn text-purple-400"></i>
+            <span class="text-[11px]">Broadcast</span>
+          </a>
+          <a href="admin_moderators.php" class="p-2 rounded-lg text-center text-purple-300 bg-purple-950/40 border border-purple-800/60 flex flex-col items-center gap-1">
+            <i class="fa-solid fa-users-gear text-purple-400"></i>
+            <span class="text-[11px]">Staff</span>
+          </a>
+        </div>
       <?php endif; ?>
 
       <a href="https://discord.gg/socalpauper" target="_blank" rel="noopener noreferrer" class="w-full p-2.5 rounded-lg text-indigo-200 bg-[#5865F2]/20 border border-[#5865F2]/40 flex items-center justify-between">
@@ -288,6 +309,12 @@ $isAdmin = !empty($_SESSION['role']) && $_SESSION['role'] === 'admin';
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Authentication failed');
+
+      if (data.requires_setup && data.redirect) {
+        window.location.href = data.redirect;
+        return;
+      }
+
       window.location.reload();
     } catch (error) {
       if (err) {
