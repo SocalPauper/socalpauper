@@ -163,8 +163,15 @@ async function handleHubSubmit(e) {
   const id = document.getElementById('hub-entry-id').value;
   const instanceDate = document.getElementById('hub-instance-date').value;
   
-  const scopeRadio = document.querySelector('input[name="event-edit-scope"]:checked');
-  const editScope = scopeRadio ? scopeRadio.value : 'series';
+  // Only permit 'instance' branching if the event is actually recurring
+  const ev = (type === 'events' && id) ? events.find(item => String(item.id) === String(id)) : null;
+  const isRecur = ev && (typeof isEventRecurring === 'function' ? isEventRecurring(ev) : !!ev.recurring);
+
+  let editScope = 'series';
+  if (isRecur && instanceDate) {
+    const scopeRadio = document.querySelector('input[name="event-edit-scope"]:checked');
+    if (scopeRadio) editScope = scopeRadio.value;
+  }
 
   const formData = new FormData();
   formData.append('type', type);
@@ -173,9 +180,9 @@ async function handleHubSubmit(e) {
 
   if (type === 'events') {
     formData.append('editScope', editScope);
-    formData.append('instanceDate', instanceDate);
+    formData.append('instanceDate', editScope === 'instance' ? instanceDate : '');
 
-    const isRecur = (action === 'edit' && editScope === 'instance') 
+    const isRecurForm = (action === 'edit' && editScope === 'instance') 
       ? false 
       : document.getElementById('event-recur-check').checked;
 
@@ -186,9 +193,9 @@ async function handleHubSubmit(e) {
     formData.append('region', document.getElementById('event-region').value);
     formData.append('address', document.getElementById('event-address').value);
     formData.append('desc', document.getElementById('event-desc').value);
-    formData.append('recurring', isRecur ? '1' : '0');
-    formData.append('recurFreq', isRecur ? document.getElementById('event-recur-freq').value : '');
-    formData.append('recurEnd', isRecur ? document.getElementById('event-recur-end').value : '');
+    formData.append('recurring', isRecurForm ? '1' : '0');
+    formData.append('recurFreq', isRecurForm ? document.getElementById('event-recur-freq').value : '');
+    formData.append('recurEnd', isRecurForm ? document.getElementById('event-recur-end').value : '');
   } else {
     formData.append('name', document.getElementById('store-name').value);
     formData.append('city', document.getElementById('store-city').value);

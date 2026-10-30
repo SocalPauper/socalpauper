@@ -154,11 +154,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($type === 'events') {
         $editScope = $_POST['editScope'] ?? 'series';
         $instanceDate = trim($_POST['instanceDate'] ?? '');
+        $targetId = trim((string)($_POST['id'] ?? ''));
 
-        // Branching single instance
-        if ($action === 'edit' && $editScope === 'instance' && $instanceDate !== '') {
+        // Check whether this event is legitimately recurring before attempting an instance branch
+        $isExistingRecur = false;
+        foreach ($items as $it) {
+            if (trim((string)($it['id'] ?? '')) === $targetId) {
+                $isExistingRecur = !empty($it['recurring']);
+                break;
+            }
+        }
+
+        // Branching single instance only if recurring
+        if ($action === 'edit' && $editScope === 'instance' && $instanceDate !== '' && $isExistingRecur) {
             foreach ($items as &$item) {
-                if (trim((string)$item['id']) === trim((string)$_POST['id'])) {
+                if (trim((string)$item['id']) === $targetId) {
                     if (!isset($item['excludeDates']) || !is_array($item['excludeDates'])) {
                         $item['excludeDates'] = [];
                     }
@@ -203,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $recurring = !empty($_POST['recurring']) && ($_POST['recurring'] === '1' || $_POST['recurring'] === 'true');
         $entryData = [
-            'id' => ($action === 'edit' && !empty($_POST['id'])) ? trim((string)$_POST['id']) : uniqid(),
+            'id' => ($action === 'edit' && $targetId !== '') ? $targetId : uniqid(),
             'title' => htmlspecialchars($title),
             'date' => htmlspecialchars($date),
             'time' => htmlspecialchars(trim($_POST['time'] ?? '')),

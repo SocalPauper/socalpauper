@@ -49,17 +49,17 @@
       <input type="hidden" id="hub-entry-id" value="">
       <input type="hidden" id="hub-instance-date" value="">
 
-      <!-- RECURRENCE SCOPE SELECTOR -->
+      <!-- RECURRENCE SCOPE SELECTOR (Defaults to Entire Series) -->
       <div id="recurrence-scope-box" class="hidden p-2.5 rounded-xl bg-amber-950/40 border border-amber-600/40 space-y-1.5 text-xs">
         <span class="font-semibold text-amber-300 block">Recurring Event Scope:</span>
         <div class="flex flex-col gap-1.5 text-zinc-300">
           <label class="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="event-edit-scope" value="instance" checked class="text-amber-500 focus:ring-0">
-            <span>This Date Only (<span id="scope-instance-date-label" class="font-mono text-amber-200"></span>)</span>
+            <input type="radio" name="event-edit-scope" value="series" checked class="text-amber-500 focus:ring-0">
+            <span>All Occurrences (Entire Series)</span>
           </label>
           <label class="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="event-edit-scope" value="series" class="text-amber-500 focus:ring-0">
-            <span>All Occurrences (Entire Series)</span>
+            <input type="radio" name="event-edit-scope" value="instance" class="text-amber-500 focus:ring-0">
+            <span>This Date Only (<span id="scope-instance-date-label" class="font-mono text-amber-200"></span>)</span>
           </label>
         </div>
       </div>
