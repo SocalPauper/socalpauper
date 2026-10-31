@@ -267,11 +267,10 @@ window.Builder = {
       return;
     }
 
-    // Aggregate cards by clean name
     const cardCounts = new Map();
     allCards.forEach(c => {
       let name = c.name;
-      // Strip any set codes, brackets, or foil markers
+      // Strip set codes, collector numbers, and foil markers to ensure cheapest baseline printing
       name = name.replace(/\s*\([A-Za-z0-9_]+\)\s+[0-9a-zA-Z]+.*$/, '').trim();
       name = name.replace(/\s*\*F\*\s*$/, '').trim();
       name = name.replace(/\s*#.*$/, '').trim();
@@ -286,7 +285,7 @@ window.Builder = {
     }
 
     const massEntryParam = list.join('||');
-    const tcgUrl = 'https://www.tcgplayer.com/massentry?c=' + encodeURIComponent(massEntryParam) + '&productline=Magic';
+    const tcgUrl = 'https://partner.tcgplayer.com/OY0qgZ?c=' + encodeURIComponent(massEntryParam) + '&productline=Magic';
     window.open(tcgUrl, '_blank', 'noopener,noreferrer');
   },
 

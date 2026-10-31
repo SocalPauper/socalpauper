@@ -533,7 +533,8 @@ window.Hub = {
         list.push(qty + ' ' + name);
       }
 
-      const tcgUrl = 'https://www.tcgplayer.com/massentry?c=' + encodeURIComponent(list.join('||')) + '&productline=Magic';
+      const massEntryParam = list.join('||');
+      const tcgUrl = 'https://partner.tcgplayer.com/OY0qgZ?c=' + encodeURIComponent(massEntryParam) + '&productline=Magic';
       window.open(tcgUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
       alert(err.message);
