@@ -313,6 +313,7 @@ window.Hub = {
               '</div>' +
               '<div class="flex items-center gap-2">' +
               '<span class="text-[10px] text-slate-500">Updated: ' + new Date(d.updated_at).toLocaleDateString() + '</span>' +
+              '<button onclick="Hub.buyDeckOnTCG(' + d.id + ')" class="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold rounded transition" title="Buy on TCGplayer"><i class="fa-solid fa-cart-shopping"></i></button>' +
               '<button onclick="Hub.editDeck(' + d.id + ')" class="px-2.5 py-1 bg-purple-900/60 hover:bg-purple-800 border border-purple-700 text-purple-200 text-xs font-bold rounded transition">' +
               'Inspect' +
               '</button>' +
@@ -490,12 +491,53 @@ window.Hub = {
         '</div>' +
         '<div class="p-3 bg-slate-950 flex items-center justify-between border-t border-slate-800/80">' +
         '<span class="text-[10px] text-slate-500 font-mono">Updated ' + new Date(d.updated_at).toLocaleDateString() + '</span>' +
+        '<div class="flex items-center gap-1.5">' +
+        '<button onclick="event.stopPropagation(); Hub.buyDeckOnTCG(' + d.id + ')" class="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold text-xs rounded-lg transition flex items-center gap-1" title="Buy deck on TCGplayer">' +
+        '<i class="fa-solid fa-cart-shopping"></i>' +
+        '</button>' +
         '<button onclick="Hub.editDeck(' + d.id + ')" class="px-3 py-1.5 ' + (isOwner ? 'bg-sky-600 hover:bg-sky-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200') + ' font-bold text-xs rounded-lg transition flex items-center shadow">' +
         actionButtonLabel +
         '</button>' +
         '</div>' +
+        '</div>' +
         '</div>';
     }).join('');
+  },
+
+  async buyDeckOnTCG(deckId) {
+    try {
+      const res = await fetch('/api_decks.php?action=get&id=' + deckId);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load deck data');
+
+      const d = data.deck;
+      const cardsData = d.cards_data || {};
+      const allCards = [...(cardsData.main || []), ...(cardsData.side || [])];
+      if (!allCards.length) {
+        alert('This deck does not contain any cards yet.');
+        return;
+      }
+
+      const cardCounts = new Map();
+      allCards.forEach(c => {
+        let name = c.name;
+        name = name.replace(/\s*\([A-Za-z0-9_]+\)\s+[0-9a-zA-Z]+.*$/, '').trim();
+        name = name.replace(/\s*\*F\*\s*$/, '').trim();
+        name = name.replace(/\s*#.*$/, '').trim();
+        const count = (cardCounts.get(name) || 0) + (c.qty || 1);
+        cardCounts.set(name, count);
+      });
+
+      const list = [];
+      for (const [name, qty] of cardCounts.entries()) {
+        list.push(qty + ' ' + name);
+      }
+
+      const tcgUrl = 'https://www.tcgplayer.com/massentry?c=' + encodeURIComponent(list.join('||')) + '&productline=Magic';
+      window.open(tcgUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      alert(err.message);
+    }
   },
 
   async toggleDeckVisibility(deckId) {

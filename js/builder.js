@@ -168,6 +168,9 @@ window.Builder = {
     const cloneDeckBtn = document.getElementById('clone-deck-btn');
     if (cloneDeckBtn) cloneDeckBtn.onclick = () => this.cloneCurrentDeck();
 
+    const buyTcgBtn = document.getElementById('buy-tcg-btn');
+    if (buyTcgBtn) buyTcgBtn.onclick = () => this.buyOnTCGplayer();
+
     const searchInput = document.getElementById('card-search-input');
     const suggestionsBox = document.getElementById('search-suggestions');
 
@@ -255,6 +258,36 @@ window.Builder = {
         this.openAuthModal(this.authMode === 'login' ? 'register' : 'login');
       };
     }
+  },
+
+  buyOnTCGplayer() {
+    const allCards = [...this.deck.main, ...this.deck.side];
+    if (!allCards.length) {
+      alert("Add some cards to your deck before buying on TCGplayer!");
+      return;
+    }
+
+    // Aggregate cards by clean name
+    const cardCounts = new Map();
+    allCards.forEach(c => {
+      let name = c.name;
+      // Strip any set codes, brackets, or foil markers
+      name = name.replace(/\s*\([A-Za-z0-9_]+\)\s+[0-9a-zA-Z]+.*$/, '').trim();
+      name = name.replace(/\s*\*F\*\s*$/, '').trim();
+      name = name.replace(/\s*#.*$/, '').trim();
+      
+      const count = (cardCounts.get(name) || 0) + (c.qty || 1);
+      cardCounts.set(name, count);
+    });
+
+    const list = [];
+    for (const [name, qty] of cardCounts.entries()) {
+      list.push(qty + ' ' + name);
+    }
+
+    const massEntryParam = list.join('||');
+    const tcgUrl = 'https://www.tcgplayer.com/massentry?c=' + encodeURIComponent(massEntryParam) + '&productline=Magic';
+    window.open(tcgUrl, '_blank', 'noopener,noreferrer');
   },
 
   renderSuggestions(names) {

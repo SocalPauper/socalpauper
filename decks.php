@@ -7,6 +7,10 @@ session_start();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SoCal Pauper — Deck Command Hub</title>
+
+  <!-- Impact Affiliate Tracking UTT -->
+  <script type="text/javascript">(function(i,m,p,a,c,t){c.ire_o=p;c[p]=c[p]||function(){(c[p].a=c[p].a||[]).push(arguments)};t=a.createElement(m);var z=a.getElementsByTagName(m)[0];t.async=1;t.src=i;z.parentNode.insertBefore(t,z)})('https://utt.impactcdn.com/P-A8026393-9cd5-4761-9fbc-12cf165790931.js','script','impactStat',document,window);impactStat('transformLinks');impactStat('trackImpression');</script>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -193,6 +197,6 @@ session_start();
     </div>
   </div>
 
-  <script src="js/decks_hub.js?v=11"></script>
+  <script src="js/decks_hub.js?v=12"></script>
 </body>
 </html>

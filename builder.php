@@ -7,8 +7,12 @@ session_start();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SoCal Pauper — Deck Architect</title>
+
+  <!-- Impact Affiliate Tracking UTT -->
+  <script type="text/javascript">(function(i,m,p,a,c,t){c.ire_o=p;c[p]=c[p]||function(){(c[p].a=c[p].a||[]).push(arguments)};t=a.createElement(m);var z=a.getElementsByTagName(m)[0];t.async=1;t.src=i;z.parentNode.insertBefore(t,z)})('https://utt.impactcdn.com/P-A8026393-9cd5-4761-9fbc-12cf165790931.js','script','impactStat',document,window);impactStat('transformLinks');impactStat('trackImpression');</script>
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/builder.css?v=13">
+  <link rel="stylesheet" href="css/builder.css?v=14">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="builder-root">
@@ -56,6 +60,11 @@ session_start();
       <!-- Save Button (Only One) -->
       <button id="save-deck-btn" type="button" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5">
         <i class="fa-solid fa-floppy-disk"></i> Save
+      </button>
+
+      <!-- TCGplayer Mass-Entry Affiliate Action -->
+      <button id="buy-tcg-btn" type="button" onclick="Builder.buyOnTCGplayer()" class="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-zinc-950 text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-cart-shopping"></i> Buy Deck
       </button>
 
       <!-- Clone action for read-only decks -->
@@ -137,7 +146,7 @@ session_start();
         </div>
       </div>
 
-      <!-- Estimated Deck Cost -->
+      <!-- Estimated Deck Cost & Cart Launcher -->
       <div class="stat-card">
         <div class="stat-label flex justify-between">
           <span>Estimated Deck Cost</span>
@@ -147,6 +156,9 @@ session_start();
           <div id="stat-price-usd" class="text-2xl font-black text-emerald-400">$0.00</div>
           <div id="stat-price-eur" class="text-sm font-semibold text-slate-400">€0.00</div>
         </div>
+        <button type="button" onclick="Builder.buyOnTCGplayer()" class="mt-2.5 w-full py-1.5 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-cart-shopping text-amber-400"></i> Buy Cheapest Printings
+        </button>
       </div>
 
       <!-- Mana Curve Histogram -->
@@ -354,7 +366,6 @@ session_start();
     </div>
   </div>
 
-  <!-- Version bumped to 13 to clear old JS caches -->
-  <script src="js/builder.js?v=13"></script>
+  <script src="js/builder.js?v=14"></script>
 </body>
 </html>
