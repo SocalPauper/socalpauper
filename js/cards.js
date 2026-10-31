@@ -349,9 +349,12 @@ function updateFinishUI() {
     .replace(/\s*#.*$/, '');
 
   // 1. One-Click Express Cart Link via 0GoqWO ?u= deep link
+// 1. One-Click Express Cart Link with direct Impact tracking
   if (buyNowBtn) {
-    const buyNowDest = 'https://www.tcgplayer.com/massentry?productline=Magic&c=' + encodeURIComponent('1 ' + cleanName);
-    buyNowBtn.href = 'https://partner.tcgplayer.com/0GoqWO?u=' + encodeURIComponent(buyNowDest);
+    buyNowBtn.href = 'https://www.tcgplayer.com/massentry?productline=Magic'
+      + '&irpid=8026393&irgwc=1'
+      + '&utm_source=impact&utm_medium=affiliate&utm_campaign=Jesse+C.+Alvarez'
+      + '&c=' + encodeURIComponent('1 ' + cleanName);
   }
   if (buyNowText) {
     buyNowText.textContent = currentPrice ? `Buy Now ($${currentPrice})` : 'Buy Now';

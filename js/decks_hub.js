@@ -538,8 +538,8 @@ async buyDeckOnTCG(deckId) {
       const massEntryParam = cardEntries.join('||');
 
       const tcgUrl = 'https://www.tcgplayer.com/massentry?productline=Magic'
-        + '&utm_source=impact&utm_medium=affiliate&utm_campaign=Jesse+C.+Alvarez'
         + '&irpid=8026393&irgwc=1'
+        + '&utm_source=impact&utm_medium=affiliate&utm_campaign=Jesse+C.+Alvarez'
         + '&c=' + encodeURIComponent(massEntryParam);
 
       window.open(tcgUrl, '_blank', 'noopener,noreferrer');

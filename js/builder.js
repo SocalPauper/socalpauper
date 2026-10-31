@@ -287,10 +287,10 @@ buyOnTCGplayer() {
     }
     const massEntryParam = cardEntries.join('||');
 
-    // Direct TCGplayer mass-entry URL with Jesse's affiliate tracking attached
+    // Direct TCGplayer destination with Jesse's Impact partner ID & gateway tracking
     const tcgUrl = 'https://www.tcgplayer.com/massentry?productline=Magic'
-      + '&utm_source=impact&utm_medium=affiliate&utm_campaign=Jesse+C.+Alvarez'
       + '&irpid=8026393&irgwc=1'
+      + '&utm_source=impact&utm_medium=affiliate&utm_campaign=Jesse+C.+Alvarez'
       + '&c=' + encodeURIComponent(massEntryParam);
 
     window.open(tcgUrl, '_blank', 'noopener,noreferrer');
