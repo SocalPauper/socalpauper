@@ -267,10 +267,14 @@ window.Builder = {
       return;
     }
 
+    // Aggregate cards by clean name
     const cardCounts = new Map();
     allCards.forEach(c => {
       let name = c.name;
-      // Strip set codes, collector numbers, and foil markers to ensure cheapest baseline printing
+      // Double-faced cards (e.g., Delver of Secrets // Insectile Aberration) use front face on TCGplayer
+      if (name.includes('//') && !name.includes('Fire // Ice')) {
+        name = name.split('//')[0].trim();
+      }
       name = name.replace(/\s*\([A-Za-z0-9_]+\)\s+[0-9a-zA-Z]+.*$/, '').trim();
       name = name.replace(/\s*\*F\*\s*$/, '').trim();
       name = name.replace(/\s*#.*$/, '').trim();
@@ -285,8 +289,10 @@ window.Builder = {
     }
 
     const massEntryParam = list.join('||');
-    const tcgUrl = 'https://partner.tcgplayer.com/OY0qgZ?c=' + encodeURIComponent(massEntryParam) + '&productline=Magic';
-    window.open(tcgUrl, '_blank', 'noopener,noreferrer');
+    const destination = 'https://www.tcgplayer.com/massentry?productline=Magic&c=' + encodeURIComponent(massEntryParam);
+    const affiliateUrl = 'https://partner.tcgplayer.com/0GoqWO?u=' + encodeURIComponent(destination);
+
+    window.open(affiliateUrl, '_blank', 'noopener,noreferrer');
   },
 
   renderSuggestions(names) {

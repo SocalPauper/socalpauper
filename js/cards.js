@@ -339,20 +339,25 @@ function updateFinishUI() {
   }
 
   // Clean card name for precise cart and search mapping
-  const cleanName = (card.name || '').split('//')[0].trim()
+  let cleanName = (card.name || '').trim();
+  if (cleanName.includes('//') && !cleanName.includes('Fire // Ice')) {
+    cleanName = cleanName.split('//')[0].trim();
+  }
+  cleanName = cleanName
     .replace(/\s*\([A-Za-z0-9_]+\)\s+[0-9a-zA-Z]+.*$/, '')
     .replace(/\s*\*F\*\s*$/, '')
     .replace(/\s*#.*$/, '');
 
-  // 1. One-Click Express Cart Link via OY0qgZ
+  // 1. One-Click Express Cart Link via 0GoqWO ?u= deep link
   if (buyNowBtn) {
-    buyNowBtn.href = `https://partner.tcgplayer.com/OY0qgZ?c=${encodeURIComponent('1 ' + cleanName)}&productline=Magic`;
+    const buyNowDest = 'https://www.tcgplayer.com/massentry?productline=Magic&c=' + encodeURIComponent('1 ' + cleanName);
+    buyNowBtn.href = 'https://partner.tcgplayer.com/0GoqWO?u=' + encodeURIComponent(buyNowDest);
   }
   if (buyNowText) {
     buyNowText.textContent = currentPrice ? `Buy Now ($${currentPrice})` : 'Buy Now';
   }
 
-  // 2. Marketplace Search Link with Jesse's 0GoqWO Affiliate Tracking (Never Scryfall's)
+  // 2. Marketplace Search Link with 0GoqWO Affiliate Tracking
   if (tcgLink) {
     const searchUrl = `https://www.tcgplayer.com/search/magic/product?q=${encodeURIComponent(cleanName)}&productLineName=magic&view=grid`;
     tcgLink.href = `https://partner.tcgplayer.com/0GoqWO?u=${encodeURIComponent(searchUrl)}`;
