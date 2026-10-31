@@ -1,3 +1,4 @@
+// js/cards.js
 // ==========================================================================
 // SCRYFALL AUTOCOMPLETE, PRINTINGS, TCGPLAYER & BANNED LIST
 // ==========================================================================
@@ -7,6 +8,17 @@ let currentPrintingIndex = 0;
 let activeFinish = 'nonfoil';
 let dynamicBannedCards = [];
 let isBannedListFetched = false;
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, m => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[m]));
+}
 
 const BANNED_REASONS = {
   "All That Glitters": "Affinity fast-kill equipment scaling.",
@@ -292,6 +304,8 @@ function updateFinishUI() {
   const priceDisplay = document.getElementById('active-market-price');
   const finishLabel = document.getElementById('active-finish-label');
   const tcgLink = document.getElementById('card-tcg-link');
+  const buyNowBtn = document.getElementById('card-buy-now-btn');
+  const buyNowText = document.getElementById('buy-now-btn-text');
 
   const finishes = card.finishes || ['nonfoil', 'foil'];
   const hasNonFoil = finishes.includes('nonfoil');
@@ -302,12 +316,15 @@ function updateFinishUI() {
   btnNonFoil.classList.toggle('opacity-30', !hasNonFoil);
   btnFoil.classList.toggle('opacity-30', !hasFoil);
 
+  let currentPrice = null;
+
   if (activeFinish === 'foil' && hasFoil) {
     btnFoil.className = "px-3 py-1.5 rounded-lg border border-amber-500 bg-amber-500/20 text-amber-300 text-xs font-bold shadow-sm";
     btnNonFoil.className = "px-3 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-semibold hover:text-zinc-200";
     sheenOverlay.classList.remove('hidden');
 
     const foilPrice = card.prices && (card.prices.usd_foil || card.prices.usd_etched);
+    currentPrice = foilPrice;
     priceDisplay.textContent = foilPrice ? `$${foilPrice}` : 'N/A';
     finishLabel.textContent = card.prices && card.prices.usd_etched ? 'Foil Etched' : 'Foil Market';
   } else {
@@ -316,14 +333,29 @@ function updateFinishUI() {
     sheenOverlay.classList.add('hidden');
 
     const regPrice = card.prices && card.prices.usd;
+    currentPrice = regPrice;
     priceDisplay.textContent = regPrice ? `$${regPrice}` : 'N/A';
     finishLabel.textContent = 'Regular Market';
   }
 
-  if (card.purchase_uris && card.purchase_uris.tcgplayer) {
-    tcgLink.href = card.purchase_uris.tcgplayer;
-  } else {
-    tcgLink.href = `https://www.tcgplayer.com/search/magic/product?q=${encodeURIComponent(card.name)}`;
+  // Clean card name for precise cart and search mapping
+  const cleanName = (card.name || '').split('//')[0].trim()
+    .replace(/\s*\([A-Za-z0-9_]+\)\s+[0-9a-zA-Z]+.*$/, '')
+    .replace(/\s*\*F\*\s*$/, '')
+    .replace(/\s*#.*$/, '');
+
+  // 1. One-Click Express Cart Link via OY0qgZ
+  if (buyNowBtn) {
+    buyNowBtn.href = `https://partner.tcgplayer.com/OY0qgZ?c=${encodeURIComponent('1 ' + cleanName)}&productline=Magic`;
+  }
+  if (buyNowText) {
+    buyNowText.textContent = currentPrice ? `Buy Now ($${currentPrice})` : 'Buy Now';
+  }
+
+  // 2. Marketplace Search Link with Jesse's 0GoqWO Affiliate Tracking (Never Scryfall's)
+  if (tcgLink) {
+    const searchUrl = `https://www.tcgplayer.com/search/magic/product?q=${encodeURIComponent(cleanName)}&productLineName=magic&view=grid`;
+    tcgLink.href = `https://partner.tcgplayer.com/0GoqWO?u=${encodeURIComponent(searchUrl)}`;
   }
 }
 

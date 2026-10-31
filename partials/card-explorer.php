@@ -79,9 +79,17 @@
         </div>
 
         <div class="pt-2 flex flex-wrap items-center gap-3">
+          <!-- 1-Click Buy Now (Express Cart) -->
+          <a id="card-buy-now-btn" href="#" target="_blank" rel="noopener noreferrer" 
+             class="inline-flex items-center gap-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-zinc-950 text-xs font-bold px-4 py-2.5 rounded-lg transition shadow-md">
+            <i class="fa-solid fa-cart-shopping text-xs"></i>
+            <span id="buy-now-btn-text">Buy Now</span>
+          </a>
+
+          <!-- View Marketplace Listings -->
           <a id="card-tcg-link" href="#" target="_blank" rel="noopener noreferrer" 
-             class="inline-flex items-center gap-2 bg-[#1b6bba] hover:bg-[#165696] text-white text-xs font-bold px-4 py-2.5 rounded-lg transition shadow-md">
-            <span id="tcg-btn-text">View This Version on TCGplayer</span>
+             class="inline-flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold px-3.5 py-2.5 rounded-lg transition shadow-sm">
+            <span>View All Listings</span>
             <svg class="w-3.5 h-3.5 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
           </a>
           <span class="text-[11px] text-zinc-500">Live Scryfall & TCGplayer Market Price sync</span>
