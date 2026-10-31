@@ -260,18 +260,16 @@ window.Builder = {
     }
   },
 
-  buyOnTCGplayer() {
+buyOnTCGplayer() {
     const allCards = [...this.deck.main, ...this.deck.side];
     if (!allCards.length) {
       alert("Add some cards to your deck before buying on TCGplayer!");
       return;
     }
 
-    // Aggregate cards by clean name
     const cardCounts = new Map();
     allCards.forEach(c => {
       let name = c.name;
-      // Double-faced cards (e.g., Delver of Secrets // Insectile Aberration) use front face on TCGplayer
       if (name.includes('//') && !name.includes('Fire // Ice')) {
         name = name.split('//')[0].trim();
       }
@@ -289,10 +287,13 @@ window.Builder = {
     }
     const massEntryParam = cardEntries.join('||');
 
-    const destination = 'https://www.tcgplayer.com/massentry?productline=Magic&c=' + encodeURIComponent(massEntryParam);
-    const affiliateUrl = 'https://partner.tcgplayer.com/0GoqWO?u=' + encodeURIComponent(destination);
+    // Direct TCGplayer mass-entry URL with Jesse's affiliate tracking attached
+    const tcgUrl = 'https://www.tcgplayer.com/massentry?productline=Magic'
+      + '&utm_source=impact&utm_medium=affiliate&utm_campaign=Jesse+C.+Alvarez'
+      + '&irpid=8026393&irgwc=1'
+      + '&c=' + encodeURIComponent(massEntryParam);
 
-    window.open(affiliateUrl, '_blank', 'noopener,noreferrer');
+    window.open(tcgUrl, '_blank', 'noopener,noreferrer');
   },
 
   renderSuggestions(names) {

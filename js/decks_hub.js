@@ -504,7 +504,7 @@ window.Hub = {
     }).join('');
   },
 
-  async buyDeckOnTCG(deckId) {
+async buyDeckOnTCG(deckId) {
     try {
       const res = await fetch('/api_decks.php?action=get&id=' + deckId);
       const data = await res.json();
@@ -537,10 +537,12 @@ window.Hub = {
       }
       const massEntryParam = cardEntries.join('||');
 
-      const destination = 'https://www.tcgplayer.com/massentry?productline=Magic&c=' + encodeURIComponent(massEntryParam);
-      const affiliateUrl = 'https://partner.tcgplayer.com/0GoqWO?u=' + encodeURIComponent(destination);
+      const tcgUrl = 'https://www.tcgplayer.com/massentry?productline=Magic'
+        + '&utm_source=impact&utm_medium=affiliate&utm_campaign=Jesse+C.+Alvarez'
+        + '&irpid=8026393&irgwc=1'
+        + '&c=' + encodeURIComponent(massEntryParam);
 
-      window.open(affiliateUrl, '_blank', 'noopener,noreferrer');
+      window.open(tcgUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
       alert(err.message);
     }
