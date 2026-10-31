@@ -531,12 +531,12 @@ window.Hub = {
         cardCounts.set(name, count);
       });
 
-      const list = [];
+      const cardEntries = [];
       for (const [name, qty] of cardCounts.entries()) {
-        list.push(qty + ' ' + name);
+        cardEntries.push(`${qty} ${name}`);
       }
+      const massEntryParam = cardEntries.join('||');
 
-      const massEntryParam = list.join('||');
       const destination = 'https://www.tcgplayer.com/massentry?productline=Magic&c=' + encodeURIComponent(massEntryParam);
       const affiliateUrl = 'https://partner.tcgplayer.com/0GoqWO?u=' + encodeURIComponent(destination);
 
